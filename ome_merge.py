@@ -21,10 +21,16 @@
 
 """
 Automatically merge all pull requests with any of the given labels.
+It assumes that you have checked out the target branch locally and
+have updated any submodules. The SHA1s from the PRs will be merged
+into the current branch. AFTER the PRs are merged, any open PRs for
+each submodule with the same tags will also be merged into the
+CURRENT submodule sha1. A final commit will then update the submodules.
 """
 
+import os
 import sys
-import github # PyGithub3
+import github  # PyGithub3
 import subprocess
 import logging
 
@@ -50,49 +56,93 @@ class Data(object):
         return "# %s %s '%s' (Labels: %s)" % \
                 (self.sha, self.login, self.title, ",".join(self.labels))
 
+
 class OME(object):
 
-    def __init__(self):
+    def __init__(self, filters, name="openmicroscopy"):
+        self.name = name
+        self.filters = filters
+        self.remotes = {}
         self.gh = github.Github()
         self.org = self.gh.get_organization("openmicroscopy")
-        self.repo = self.org.get_repo("openmicroscopy")
+        try:
+            self.repo = self.org.get_repo(name)
+        except:
+            log.error("Failed to find %s", name, exc_info=1)
         self.pulls = self.repo.get_pulls()
         self.storage = []
         self.unique_logins = set()
         dbg("## PRs found:")
         for pr in self.pulls:
             data = Data(self.repo, pr)
-            self.unique_logins.add(data.login)
-            print data
-            self.storage.append(data)
-        self.remotes = {}
+            print data.labels
+            found = False
+            for filter in filters:
+                print filter
+                if filter in data.labels:
+                    dbg("# ... Found %s", filter)
+                    found = True
+            if found:
+                self.unique_logins.add(data.login)
+                dbg(data)
+                self.storage.append(data)
 
-    def call(self, *command):
-        p = subprocess.Popen(command)
+    def cd(self, dir):
+        dbg("cd %s", dir)
+
+    def call(self, *command, **kwargs):
+        p = subprocess.Popen(command, **kwargs)
         rc = p.wait()
         if rc:
             raise Exception("rc=%s" % rc)
+        return p
 
-    def merge(self, labels):
-        print "## Unique users:", self.unique_logins
+    def call_io(self, *command):
+        p = self.call(*command, stdout=subprocess.PIPE)
+        return p.communicate()
+
+    def merge(self):
+        dbg("## Unique users: %s", self.unique_logins)
         for user in self.unique_logins:
             key = "merge_%s" % user
-            url = "git://github.com/%s/openmicroscopy.git" % user
+            url = "git://github.com/%s/%s.git" % (user, self.name)
             self.call("git", "remote", "add", key, url)
             self.remotes[key] = url
             dbg("# Added %s=%s", key, url)
             self.call("git", "fetch", key)
 
         for data in self.storage:
-            print "# Merging", data.num
-            found = False
-            for label in labels:
-                if label in data.labels:
-                    print "# ... Found", label
-                    found = True
-            if found:
-                self.call("git", "merge", "--no-ff", "-m", \
-                        "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
+            dbg("# Merging %s", data.num)
+            self.call("git", "merge", "--no-ff", "-m", \
+                    "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
+
+    def submodules(self):
+        o, e = self.call_io("git", "submodule", "foreach", \
+                "git config --get remote.origin.url")
+        cwd = os.path.abspath(os.getcwd())
+        lines = o.split("\n")
+        while "".join(lines):
+            dir = lines.pop(0).strip()
+            dir = dir.split(" ")[1][1:-1]
+            repo = lines.pop(0).strip()
+            repo = repo.split("/")[-1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+
+            try:
+                ome = None
+                self.cd(dir)
+                ome = OME(self.filters, repo)
+                ome.merge()
+                ome.submodules()
+            finally:
+                try:
+                    if ome:
+                        ome.cleanup()
+                finally:
+                    self.cd(cwd)
+
+        self.call("git", "commit", "-a", "-m", "Update all modules")
 
     def cleanup(self):
         for k, v in self.remotes.items():
@@ -103,13 +153,14 @@ class OME(object):
 
 
 if __name__ == "__main__":
-    labels = sys.argv[1:]
-    if not labels:
+    filters = sys.argv[1:]
+    if not filters:
         print "Usage: ome_merge.py label1 [label2 label3 ...]"
         sys.exit(2)
 
-    ome = OME()
+    ome = OME(filters)
     try:
-        ome.merge(labels)
+        ome.merge()
+        ome.submodules()  # Recursive
     finally:
         ome.cleanup()
