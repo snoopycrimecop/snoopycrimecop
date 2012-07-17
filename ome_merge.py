@@ -39,6 +39,40 @@ log = logging.getLogger("ome_merge")
 dbg = log.debug
 
 
+class GHWrapper(object):
+
+    def __init__(self, delegate):
+        self.delegate = delegate
+
+    def __getattr__(self, key):
+        dbg("gh.%s", key)
+        return super(GHWrapper, self).__getattr__(key)
+
+
+class StreamRedirect(object):
+    """
+    Since all server components should exclusively using the logging module
+    any output to stdout or stderr is caught and logged at "WARN". This is
+    useful, especially in the case of Windows, where stdout/stderr is eaten.
+    """
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.internal = logging.getLogger("StreamRedirect")
+        self.softspace = False
+
+    def flush(self):
+        pass
+
+    def write(self, msg):
+        msg = msg.strip()
+        if msg:
+            self.logger.warn(msg)
+
+    def __getattr__(self, name):
+        self.internal.warn("No attribute: %s" % name)
+
+
 class Data(object):
     def __init__(self, repo, pr):
         self.sha = pr.head.sha
@@ -91,15 +125,14 @@ class OME(object):
         dbg("cd %s", dir)
 
     def call(self, *command, **kwargs):
+        for x in ("stdout", "stderr"):
+            if x not in kwargs:
+                kwargs[x] = StreamRedirect(log)
         p = subprocess.Popen(command, **kwargs)
         rc = p.wait()
         if rc:
             raise Exception("rc=%s" % rc)
         return p
-
-    def call_io(self, *command):
-        p = self.call(*command, stdout=subprocess.PIPE)
-        return p.communicate()
 
     def merge(self):
         dbg("## Unique users: %s", self.unique_logins)
@@ -117,8 +150,11 @@ class OME(object):
                     "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
 
     def submodules(self):
-        o, e = self.call_io("git", "submodule", "foreach", \
-                "git config --get remote.origin.url")
+
+        o, e = self.call("git", "submodule", "foreach", \
+                "git config --get remote.origin.url", \
+                stdout=subprocess.PIPE).communicate()
+
         cwd = os.path.abspath(os.getcwd())
         lines = o.split("\n")
         while "".join(lines):
