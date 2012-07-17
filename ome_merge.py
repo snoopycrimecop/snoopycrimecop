@@ -136,9 +136,6 @@ class LoggerWrapper(threading.Thread):
             # Send the text to the logger
             self._write(messageToLog)
         # end while
-
-        print 'Redirection thread terminated'
-
     # end run
 
     def _write(self, message):
@@ -189,10 +186,8 @@ class OME(object):
         dbg("## PRs found:")
         for pr in self.pulls:
             data = Data(self.repo, pr)
-            print data.labels
             found = False
             for filter in filters:
-                print filter
                 if filter in data.labels:
                     dbg("# ... Found %s", filter)
                     found = True
