@@ -172,18 +172,22 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, filters, name="openmicroscopy"):
+    def __init__(self, filters, org="openmicroscopy", name="openmicroscopy"):
+        dbg("Check current status")
+        self.call("git", "log", "--oneline", "-n", "1", "HEAD")
+        self.call("git", "submodule", "status")
         self.name = name
         self.filters = filters
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
-        self.org = self.gh.get_organization("openmicroscopy")
+        self.org = self.gh.get_organization(org)
         try:
             self.repo = self.org.get_repo(name)
         except:
             log.error("Failed to find %s", name, exc_info=1)
         self.pulls = self.repo.get_pulls()
         self.storage = []
+        self.modifications = 0
         self.unique_logins = set()
         dbg("## PRs found:")
         for pr in self.pulls:
@@ -225,6 +229,7 @@ class OME(object):
         for data in self.storage:
             self.call("git", "merge", "--no-ff", "-m", \
                     "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
+            self.modifications += 1
 
         self.call("git", "submodule", "update")
 
@@ -240,16 +245,22 @@ class OME(object):
             dir = lines.pop(0).strip()
             dir = dir.split(" ")[1][1:-1]
             repo = lines.pop(0).strip()
-            repo = repo.split("/")[-1]
+            repo = repo.split("/")
+            sz = len(repo)
+            org, repo = repo[sz-2:sz]
+            if ":" in org:
+                org = org.split(":")[-1]
+            dbg("org=%s, repo=%s", org, repo)
             if repo.endswith(".git"):
                 repo = repo[:-4]
 
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(self.filters, repo)
+                ome = OME(self.filters, org, repo)
                 ome.merge()
                 ome.submodules()
+                self.modifications += ome.modifications
             finally:
                 try:
                     if ome:
@@ -257,7 +268,8 @@ class OME(object):
                 finally:
                     self.cd(cwd)
 
-        self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", "Update all modules w/o hooks")
+        if self.modifications:
+            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", "Update all modules w/o hooks")
 
     def cleanup(self):
         for k, v in self.remotes.items():
