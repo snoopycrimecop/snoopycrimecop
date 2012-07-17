@@ -26,6 +26,11 @@ Automatically merge all pull requests with any of the given labels.
 import sys
 import github # PyGithub3
 import subprocess
+import logging
+
+logging.basicConfig(level=10)
+log = logging.getLogger("ome_merge")
+dbg = log.debug
 
 
 class Data(object):
@@ -54,7 +59,7 @@ class OME(object):
         self.pulls = self.repo.get_pulls()
         self.storage = []
         self.unique_logins = set()
-        print "## PRs found:"
+        dbg("## PRs found:")
         for pr in self.pulls:
             data = Data(self.repo, pr)
             self.unique_logins.add(data.login)
@@ -75,7 +80,7 @@ class OME(object):
             url = "git://github.com/%s/openmicroscopy.git" % user
             self.call("git", "remote", "add", key, url)
             self.remotes[key] = url
-            print "# Added", key, url
+            dbg("# Added %s=%s", key, url)
             self.call("git", "fetch", key)
 
         for data in self.storage:
@@ -94,8 +99,7 @@ class OME(object):
             try:
                 self.call("git", "remote", "rm", k)
             except Exception, e:
-                print e
-                print "Failed to remove", k
+                log.error("Failed to remove", k, exc_info=1)
 
 
 if __name__ == "__main__":
