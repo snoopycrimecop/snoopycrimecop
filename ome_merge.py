@@ -35,7 +35,9 @@ import subprocess
 import logging
 import threading
 
-logging.basicConfig(level=10)
+fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
+logging.basicConfig(level=10, format=fmt)
+
 log = logging.getLogger("ome_merge")
 dbg = log.debug
 
@@ -47,7 +49,7 @@ class GHWrapper(object):
 
     def __getattr__(self, key):
         dbg("gh.%s", key)
-        return super(GHWrapper, self).__getattr__(key)
+        return getattr(self.delegate, key)
 
 
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
@@ -174,7 +176,7 @@ class OME(object):
         self.name = name
         self.filters = filters
         self.remotes = {}
-        self.gh = github.Github()
+        self.gh = GHWrapper(github.Github())
         self.org = self.gh.get_organization("openmicroscopy")
         try:
             self.repo = self.org.get_repo(name)
@@ -198,11 +200,13 @@ class OME(object):
 
     def cd(self, dir):
         dbg("cd %s", dir)
+        os.chdir(dir)
 
     def call(self, *command, **kwargs):
         for x in ("stdout", "stderr"):
             if x not in kwargs:
                 kwargs[x] = logWrap
+        dbg("Calling '%s'" % " ".join(command))
         p = subprocess.Popen(command, **kwargs)
         rc = p.wait()
         if rc:
@@ -216,13 +220,13 @@ class OME(object):
             url = "git://github.com/%s/%s.git" % (user, self.name)
             self.call("git", "remote", "add", key, url)
             self.remotes[key] = url
-            dbg("# Added %s=%s", key, url)
             self.call("git", "fetch", key)
 
         for data in self.storage:
-            dbg("# Merging %s", data.num)
             self.call("git", "merge", "--no-ff", "-m", \
                     "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
+
+        self.call("git", "submodule", "update")
 
     def submodules(self):
 
@@ -253,7 +257,7 @@ class OME(object):
                 finally:
                     self.cd(cwd)
 
-        self.call("git", "commit", "-a", "-m", "Update all modules")
+        self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", "Update all modules w/o hooks")
 
     def cleanup(self):
         for k, v in self.remotes.items():
