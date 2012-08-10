@@ -172,7 +172,7 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, filters, org="openmicroscopy", name="openmicroscopy"):
+    def __init__(self, filters, org, name):
         dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
@@ -285,7 +285,11 @@ if __name__ == "__main__":
         print "Usage: ome_merge.py label1 [label2 label3 ...]"
         sys.exit(2)
 
-    ome = OME(filters)
+    org = "openmicroscopy"
+    repo = "openmicroscopy"
+    if os.getcwd().find("bioformats") >= 0:
+        repo = "bioformats"
+    ome = OME(filters, org, repo)
     try:
         ome.merge()
         ome.submodules()  # Recursive
