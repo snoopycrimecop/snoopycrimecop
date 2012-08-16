@@ -178,6 +178,7 @@ class OME(object):
         self.call("git", "submodule", "status")
         self.name = name
         self.filters = filters
+        self.commit_msg = "merge "+"+".join(filters)
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
         self.org = self.gh.get_organization(org)
@@ -228,7 +229,7 @@ class OME(object):
 
         for data in self.storage:
             self.call("git", "merge", "--no-ff", "-m", \
-                    "Merge gh-%s (%s)" % (data.num, data.title), data.sha)
+                    "%s: gh-%s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
             self.modifications += 1
 
         self.call("git", "submodule", "update")
@@ -269,7 +270,8 @@ class OME(object):
                     self.cd(cwd)
 
         if self.modifications:
-            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", "Update all modules w/o hooks")
+            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
+                    "%s: Update all modules w/o hooks" % self.commit_msg)
 
     def cleanup(self):
         for k, v in self.remotes.items():
