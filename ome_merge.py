@@ -229,7 +229,7 @@ class OME(object):
 
         for data in self.storage:
             self.call("git", "merge", "--no-ff", "-m", \
-                    "%s: gh-%s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
+                    "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
             self.modifications += 1
 
         self.call("git", "submodule", "update")
