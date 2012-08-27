@@ -154,6 +154,8 @@ logWrap = LoggerWrapper(log)
 
 class Data(object):
     def __init__(self, repo, pr):
+        self.repo = repo
+        self.pr = pr
         self.sha = pr.head.sha
         self.login = pr.head.user.login
         self.title = pr.title
@@ -173,12 +175,18 @@ class Data(object):
 class OME(object):
 
     def __init__(self, filters, org, name):
+        """
+        filters: None == all filters
+        """
         dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
         self.name = name
         self.filters = filters
-        self.commit_msg = "merge "+"+".join(filters)
+        if filters is None:
+            self.commit_msg = "NO FILTERS:"
+        else:
+            self.commit_msg = "merge "+"+".join(filters)
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
         self.org = self.gh.get_organization(org)
@@ -194,10 +202,13 @@ class OME(object):
         for pr in self.pulls:
             data = Data(self.repo, pr)
             found = False
-            for filter in filters:
-                if filter in data.labels:
-                    dbg("# ... Found %s", filter)
-                    found = True
+            if filters is None:
+                found = True
+            else:
+                for filter in filters:
+                    if filter in data.labels:
+                        dbg("# ... Found %s", filter)
+                        found = True
             if found:
                 self.unique_logins.add(data.login)
                 dbg(data)
@@ -218,6 +229,13 @@ class OME(object):
             raise Exception("rc=%s" % rc)
         return p
 
+    def info(self):
+        for data in ome.storage:
+            print "# %s" % " ".join(data.labels)
+            print "%s %s by %s for \t\t[???]" % \
+                (data.pr.issue_url, data.title, data.login)
+            print
+
     def merge(self):
         dbg("## Unique users: %s", self.unique_logins)
         for user in self.unique_logins:
@@ -234,7 +252,7 @@ class OME(object):
 
         self.call("git", "submodule", "update")
 
-    def submodules(self):
+    def submodules(self, info=False):
 
         o, e = self.call("git", "submodule", "foreach", \
                 "git config --get remote.origin.url", \
@@ -259,8 +277,11 @@ class OME(object):
                 ome = None
                 self.cd(dir)
                 ome = OME(self.filters, org, repo)
-                ome.merge()
-                ome.submodules()
+                if info:
+                    ome.info()
+                else:
+                    ome.merge()
+                ome.submodules(info)
                 self.modifications += ome.modifications
             finally:
                 try:
@@ -284,16 +305,24 @@ class OME(object):
 if __name__ == "__main__":
     filters = sys.argv[1:]
     if not filters:
-        print "Usage: ome_merge.py label1 [label2 label3 ...]"
+        print "Usage: ome_merge.py [--info] label1 [label2 label3 ...]"
         sys.exit(2)
 
     org = "openmicroscopy"
     repo = "openmicroscopy"
+    # This logic could be better
     if os.getcwd().find("bioformats") >= 0:
         repo = "bioformats"
+    if os.getcwd().find("sphinx") >= 0:
+        repo = "ome-documentation"
+
+    info = "--info" in filters
+    if info: filters = None
+
     ome = OME(filters, org, repo)
     try:
-        ome.merge()
-        ome.submodules()  # Recursive
+        if not info:
+            ome.merge()
+        ome.submodules(info)  # Recursive
     finally:
         ome.cleanup()
