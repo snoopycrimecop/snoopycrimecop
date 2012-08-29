@@ -313,12 +313,16 @@ if __name__ == "__main__":
     # This logic could be better
     if os.getcwd().find("bioformats") >= 0:
         repo = "bioformats"
+    elif os.path.exists("pom.xml"):
+        repo = "bioformats"
     elif os.getcwd().find("sphinx") >= 0:
         repo = "ome-documentation"
     elif os.getcwd().find("ome-documentation") >= 0:
         repo = "ome-documentation"
     elif os.getcwd().find("OMERO-docs") >= 0:
         repo = "ome-documentation"
+
+    log.info("Repository: %s", repo)
 
     info = "--info" in filters
     if info: filters = None
