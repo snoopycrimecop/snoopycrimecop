@@ -174,14 +174,18 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, filters, org, name):
+    def __init__(self, filters, org, name, reset):
         """
         filters: None == all filters
         """
+        if reset:
+            dbg("Resetting...")
+            self.call("git", "reset", "--hard", "HEAD")
         dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
         self.name = name
+        self.reset = reset
         self.filters = filters
         if filters is None:
             self.commit_msg = "NO FILTERS:"
@@ -276,7 +280,7 @@ class OME(object):
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(self.filters, org, repo)
+                ome = OME(self.filters, org, repo, self.reset)
                 if info:
                     ome.info()
                 else:
@@ -305,7 +309,7 @@ class OME(object):
 if __name__ == "__main__":
     filters = sys.argv[1:]
     if not filters:
-        print "Usage: ome_merge.py [--info] label1 [label2 label3 ...]"
+        print "Usage: ome_merge.py [--reset] [--info] label1 [label2 label3 ...]"
         sys.exit(2)
 
     org = "openmicroscopy"
@@ -327,7 +331,10 @@ if __name__ == "__main__":
     info = "--info" in filters
     if info: filters = None
 
-    ome = OME(filters, org, repo)
+    reset = "--reset" in filters
+    if reset: filters.remove("--reset")
+
+    ome = OME(filters, org, repo, reset)
     try:
         if not info:
             ome.merge()
