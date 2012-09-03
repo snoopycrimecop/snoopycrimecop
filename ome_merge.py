@@ -217,6 +217,7 @@ class OME(object):
                 self.unique_logins.add(data.login)
                 dbg(data)
                 self.storage.append(data)
+        self.storage.sort(lambda a, b: cmp(a.num, b.num))
 
     def cd(self, dir):
         dbg("cd %s", dir)
