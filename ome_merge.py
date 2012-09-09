@@ -163,6 +163,8 @@ class Data(object):
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
         self.labels = [x.name for x in self.label_objs]
+        self.comment_objs = self.issue.comments
+        self.comments = [x.message for x in self.comment_objs]
 
     def __contains__(self, key):
         return key in self.labels
@@ -171,6 +173,14 @@ class Data(object):
         return "# %s %s '%s' (Labels: %s)" % \
                 (self.sha, self.login, self.title, ",".join(self.labels))
 
+    def test_directories(self):
+        directories = []
+        for comment in self.comments:
+            lines = comment.splitlines()
+            for line in lines:
+                if line.startswith("@test"):
+                    directories.push(line.replace("@test", ""))
+        return directories
 
 class OME(object):
 
@@ -203,6 +213,9 @@ class OME(object):
         self.modifications = 0
         self.unique_logins = set()
         dbg("## PRs found:")
+
+        directories_log = open('directories.txt', 'w')
+
         for pr in self.pulls:
             data = Data(self.repo, pr)
             found = False
@@ -217,7 +230,12 @@ class OME(object):
                 self.unique_logins.add(data.login)
                 dbg(data)
                 self.storage.append(data)
+                directories = data.test_directories()
+                for directory in directories:
+                    f.write(directory)
+                    f.write("\n")
         self.storage.sort(lambda a, b: cmp(a.num, b.num))
+        f.close()
 
     def cd(self, dir):
         dbg("cd %s", dir)
