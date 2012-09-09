@@ -162,10 +162,10 @@ class Data(object):
         self.num = int(pr.issue_url.split("/")[-1])
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
+        dbg("labels = %s", self.label_objs)
         self.labels = [x.name for x in self.label_objs]
         self.comment_objs = self.issue.comments
         dbg("comments = %s", self.comment_objs)
-        self.comments = [x.body for x in self.comment_objs]
 
     def __contains__(self, key):
         return key in self.labels
