@@ -164,7 +164,7 @@ class Data(object):
         self.label_objs = self.issue.labels
         self.labels = [x.name for x in self.label_objs]
         self.comment_objs = self.issue.comments
-        self.comments = [x.message for x in self.comment_objs]
+        self.comments = [x.body for x in self.comment_objs]
 
     def __contains__(self, key):
         return key in self.labels
