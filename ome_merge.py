@@ -163,7 +163,7 @@ class Data(object):
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
         self.labels = [x.name for x in self.label_objs]
-        self.comment_objs = self.issue.comments.list(self.num)
+        self.comment_objs = self.issue.comments
         self.comments = [x.body for x in self.comment_objs]
 
     def __contains__(self, key):
