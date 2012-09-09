@@ -178,8 +178,8 @@ class Data(object):
         for comment in self.comments:
             lines = comment.splitlines()
             for line in lines:
-                if line.startswith("@test"):
-                    directories.push(line.replace("@test", ""))
+                if line.startswith("--test"):
+                    directories.push(line.replace("--test", ""))
         return directories
 
 class OME(object):
