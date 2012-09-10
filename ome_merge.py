@@ -168,7 +168,7 @@ class Data(object):
         if self.issue.comments:
             for x in self.issue.get_comments():
                 self.comments.append(x.body)
-        dbg("comments = %s", self.comments)
+        dbg("len(comments) = %s", len(self.comments))
 
     def __contains__(self, key):
         return key in self.labels
