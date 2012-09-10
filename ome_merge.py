@@ -164,9 +164,11 @@ class Data(object):
         self.label_objs = self.issue.labels
         dbg("labels = %s", self.label_objs)
         self.labels = [x.name for x in self.label_objs]
-        self.comment_objs = self.issue.comments
-        dbg("comments = %s", self.comment_objs)
-        
+        self.comments = []
+        if self.issue.comments:
+            for x in self.issue.get_comments():
+                self.comments.append(x.body)
+        dbg("comments = %s", self.comments)
 
     def __contains__(self, key):
         return key in self.labels
