@@ -183,7 +183,7 @@ class Data(object):
             lines = comment.splitlines()
             for line in lines:
                 if line.startswith("--test"):
-                    directories.push(line.replace("--test", ""))
+                    directories.append(line.replace("--test", ""))
         return directories
 
 class OME(object):
@@ -236,10 +236,10 @@ class OME(object):
                 self.storage.append(data)
                 directories = data.test_directories()
                 for directory in directories:
-                    f.write(directory)
-                    f.write("\n")
+                    directories_log.write(directory)
+                    directories_log.write("\n")
         self.storage.sort(lambda a, b: cmp(a.num, b.num))
-        f.close()
+        directories_log.close()
 
     def cd(self, dir):
         dbg("cd %s", dir)
