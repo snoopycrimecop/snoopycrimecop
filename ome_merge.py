@@ -164,7 +164,7 @@ class Data(object):
         self.label_objs = self.issue.labels
         dbg("labels = %s", self.label_objs)
         self.labels = [x.name for x in self.label_objs]
-        self.comment_objs = self.pr.comments
+        self.comment_objs = self.pr.list_comments
         dbg("comments = %s", self.comment_objs)
         
 
