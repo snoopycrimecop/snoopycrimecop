@@ -349,11 +349,11 @@ if __name__ == "__main__":
 
     log.info("Repository: %s", repo)
 
-    info = "--info" in filters
-    if info: filters = None
-
     reset = "--reset" in filters
     if reset: filters.remove("--reset")
+
+    info = "--info" in filters
+    if info: filters = None
 
     ome = OME(filters, org, repo, reset)
     try:
