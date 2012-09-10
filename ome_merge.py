@@ -218,7 +218,7 @@ class OME(object):
         self.unique_logins = set()
         dbg("## PRs found:")
 
-        directories_log = open('directories.txt', 'w')
+        directories_log = None
 
         for pr in self.pulls:
             data = Data(self.repo, pr)
@@ -235,11 +235,17 @@ class OME(object):
                 dbg(data)
                 self.storage.append(data)
                 directories = data.test_directories()
-                for directory in directories:
-                    directories_log.write(directory)
-                    directories_log.write("\n")
+                if directories:
+                    if directories_log == None:
+                        directories_log = open('directories.txt', 'w')
+                    for directory in directories:
+                        directories_log.write(directory)
+                        directories_log.write("\n")
         self.storage.sort(lambda a, b: cmp(a.num, b.num))
-        directories_log.close()
+
+        # Cleanup
+        if directories_log:
+            directories_log.close()
 
     def cd(self, dir):
         dbg("cd %s", dir)
