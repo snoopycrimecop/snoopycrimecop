@@ -327,6 +327,7 @@ class OME(object):
             self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                     "%s: Update all modules w/o hooks" % self.commit_msg)
 
+
     def cleanup(self):
         for k, v in self.remotes.items():
             try:
@@ -334,6 +335,19 @@ class OME(object):
             except Exception, e:
                 log.error("Failed to remove", k, exc_info=1)
 
+def getRepository(*command, **kwargs):
+    command = ["git", "config", "--get", "remote.origin.url"]
+    dbg("Calling '%s'" % " ".join(command))
+    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    originname = p.communicate()
+
+    retcode = p.poll()
+    if retcode:
+        raise subprocess.CalledProcessError(retcode, command, output=originname[0])
+    
+    base = os.path.basename(originname[0])
+    repository_name = os.path.splitext(base)[0]
+    return repository_name
 
 if __name__ == "__main__":
     filters = sys.argv[1:]
@@ -342,18 +356,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
     org = "openmicroscopy"
-    repo = "openmicroscopy"
-    # This logic could be better
-    if os.getcwd().find("bioformats") >= 0:
-        repo = "bioformats"
-    elif os.path.exists("pom.xml"):
-        repo = "bioformats"
-    elif os.getcwd().find("sphinx") >= 0:
-        repo = "ome-documentation"
-    elif os.getcwd().find("ome-documentation") >= 0:
-        repo = "ome-documentation"
-    elif os.getcwd().find("OMERO-docs") >= 0:
-        repo = "ome-documentation"
+    repo = getRepository()
 
     log.info("Repository: %s", repo)
 
