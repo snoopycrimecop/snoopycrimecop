@@ -344,7 +344,10 @@ def getRepository(*command, **kwargs):
     retcode = p.poll()
     if retcode:
         raise subprocess.CalledProcessError(retcode, command, output=originname[0])
-    
+
+    dir = os.path.dirname(originname[0])
+    assert "github" in dir, 'Origin URL %s is not on GitHub' % dir
+
     base = os.path.basename(originname[0])
     repository_name = os.path.splitext(base)[0]
     return repository_name
