@@ -157,13 +157,16 @@ class Data(object):
         self.repo = repo
         self.pr = pr
         self.sha = pr.head.sha
+        self.base = pr.base.ref
         self.login = pr.head.user.login
         self.title = pr.title
         self.num = int(pr.issue_url.split("/")[-1])
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
-        dbg("labels = %s", self.label_objs)
         self.labels = [x.name for x in self.label_objs]
+        dbg("labels = %s", self.labels)
+        self.base_ref = pr.base.ref
+        dbg("base = %s", self.base_ref)
         self.comments = []
         if self.issue.comments:
             for x in self.issue.get_comments():
@@ -188,9 +191,9 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, filters, org, name, reset):
+    def __init__(self, base, org, name, reset, exclude_filters):
         """
-        filters: None == all filters
+        exclude_filters: None == all PRs opened against base
         """
         if reset:
             dbg("Resetting...")
@@ -200,11 +203,11 @@ class OME(object):
         self.call("git", "submodule", "status")
         self.name = name
         self.reset = reset
-        self.filters = filters
-        if filters is None:
-            self.commit_msg = "NO FILTERS:"
-        else:
-            self.commit_msg = "merge "+"+".join(filters)
+        self.base = base
+        self.commit_msg = "merge"+"+"+base
+        self.exclude_filters = exclude_filters
+        if exclude_filters:
+            self.commit_msg += "-".join(exclude_filters)
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
         self.org = self.gh.get_organization(org)
@@ -223,13 +226,14 @@ class OME(object):
         for pr in self.pulls:
             data = Data(self.repo, pr)
             found = False
-            if filters is None:
+
+            if data.base == base:
                 found = True
-            else:
-                for filter in filters:
-                    if filter in data.labels:
-                        dbg("# ... Found %s", filter)
-                        found = True
+                if exclude_filters:
+                    for filter in exclude_filters:
+                        if filter in data.labels:
+                            dbg("# ... Exclude %s", filter)
+                            found = False
             if found:
                 self.unique_logins.add(data.login)
                 dbg(data)
@@ -353,9 +357,9 @@ def getRepository(*command, **kwargs):
     return repository_name
 
 if __name__ == "__main__":
-    filters = sys.argv[1:]
-    if not filters:
-        print "Usage: ome_merge.py [--reset] [--info] label1 [label2 label3 ...]"
+    args = sys.argv[1:]
+    if not args:
+        print "Usage: ome_merge.py [--reset] [--info] base exclude_filter1 [exclude_filter2]"
         sys.exit(2)
 
     org = "openmicroscopy"
@@ -363,13 +367,22 @@ if __name__ == "__main__":
 
     log.info("Repository: %s", repo)
 
-    reset = "--reset" in filters
-    if reset: filters.remove("--reset")
+    reset = "--reset" in args
+    if reset: args.remove("--reset")
 
-    info = "--info" in filters
-    if info: filters = None
+    info = "--info" in args
+    if info: args = None
 
-    ome = OME(filters, org, repo, reset)
+    base = args[0]
+    log.info("Merging PR based on: %s", base)
+
+    if not args[1:]:
+        exclude_filters = None
+    else:
+        exclude_filters = args[1:]
+    log.info("Excluding PR labelled as: %s", exclude_filters)
+
+    ome = OME(base, org, repo, reset, exclude_filters)
     try:
         if not info:
             ome.merge()
