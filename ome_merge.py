@@ -210,10 +210,10 @@ class OME(object):
         self.commit_msg = "merge"+"_into_"+base
         self.include = include
         if include:
-            self.commit_msg += "+".join(include)
+            self.commit_msg += "+" + "+".join(include)
         self.exclude = exclude
         if exclude:
-            self.commit_msg += "-".join(exclude)
+            self.commit_msg += "-" + "-".join(exclude)
 
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
@@ -331,7 +331,7 @@ class OME(object):
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(self.filters, org, repo, self.reset)
+                ome = OME(org, repo, self.base, self.reset, self.exclude, self.include)
                 if info:
                     ome.info()
                 else:
