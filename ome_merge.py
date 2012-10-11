@@ -374,6 +374,17 @@ def getRepository(*command, **kwargs):
     repository_name = os.path.splitext(base)[0]
     return repository_name
 
+def pushTeam(base, build_number):
+    newbranch = "HEAD:%s/%g" % (base, build_number)
+    command = ["git", "push", "team", newbranch]
+    dbg("Calling '%s'" % " ".join(command))
+    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+
+    rc = p.wait()
+    if rc:
+        raise Exception("rc=%s" % rc)
+    return p
+
 if __name__ == "__main__":
 
     # Create argument parser
@@ -387,6 +398,8 @@ if __name__ == "__main__":
         help='PR labels to include in the merge')
     parser.add_argument('--exclude', action='append',
         help='PR labels to exclude from the merge')
+    parser.add_argument('--buildnumber', type=int, default=None,
+        help='The build number to use to push to team.git')
 
     args = parser.parse_args()
 
@@ -406,5 +419,8 @@ if __name__ == "__main__":
         if not args.info:
             ome.merge()
         ome.submodules(args.info)  # Recursive
+
+        if args.buildnumber:
+            pushTeam(args.base, args.buildnumber)
     finally:
         ome.cleanup()
