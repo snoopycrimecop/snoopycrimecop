@@ -30,7 +30,7 @@ CURRENT submodule sha1. A final commit will then update the submodules.
 
 import os
 import sys
-import github  # PyGithub3
+import github  # PyGithub
 import subprocess
 import logging
 import threading
@@ -159,15 +159,16 @@ class Data(object):
         self.pr = pr
         self.sha = pr.head.sha
         self.base = pr.base.ref
+        self.user = pr.head.user
         self.login = pr.head.user.login
         self.title = pr.title
         self.num = int(pr.issue_url.split("/")[-1])
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
         self.labels = [x.name for x in self.label_objs]
+        dbg("login = %s", self.login)
         dbg("labels = %s", self.labels)
-        self.base_ref = pr.base.ref
-        dbg("base = %s", self.base_ref)
+        dbg("base = %s", self.base)
         self.comments = []
         if self.issue.comments:
             for x in self.issue.get_comments():
@@ -192,23 +193,28 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, org, name, base, reset, eexclude_filters):
-        """
-        exclude_filters: None == all PRs opened against base
-        """
+    def __init__(self, org, name, base, reset, exclude, include):
+
         if reset:
             dbg("Resetting...")
             self.call("git", "reset", "--hard", "HEAD")
+
         dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
         self.name = name
         self.reset = reset
         self.base = base
-        self.commit_msg = "merge"+"+"+base
-        self.exclude_filters = exclude_filters
-        if exclude_filters:
-            self.commit_msg += "-".join(exclude_filters)
+
+        # Create commit message using base, exclude & include
+        self.commit_msg = "merge"+"_into_"+base
+        self.include = include
+        if include:
+            self.commit_msg += "+".join(include)
+        self.exclude = exclude
+        if exclude:
+            self.commit_msg += "-".join(exclude)
+
         self.remotes = {}
         self.gh = GHWrapper(github.Github())
         self.org = self.gh.get_organization(org)
@@ -228,13 +234,24 @@ class OME(object):
             data = Data(self.repo, pr)
             found = False
 
+            # Check the base ref of the PR
             if data.base == base:
-                found = True
-                if exclude_filters:
-                    for filter in exclude_filters:
-                        if filter in data.labels:
-                            dbg("# ... Exclude %s", filter)
-                            found = False
+                if self.org.has_in_public_members(data.user):
+                    found = True
+                else:
+                    if include:
+                        for filter in include:
+                            if filter in data.labels:
+                                dbg("# ... Include %s", filter)
+                                found = True
+
+            # Exclude PRs if exclude labels are input
+            if found and exclude:
+                for filter in exclude:
+                    if filter in data.labels:
+                        dbg("# ... Exclude %s", filter)
+                        found = False
+
             if found:
                 self.unique_logins.add(data.login)
                 dbg(data)
@@ -374,6 +391,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     org = "openmicroscopy"
+    log.info("Organization: %s", org)
     repo = getRepository()
     log.info("Repository: %s", repo)
 
@@ -382,7 +400,6 @@ if __name__ == "__main__":
 
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
-    sys.exit(2)
 
     ome = OME(org, repo, args.base, args.reset, args.exclude, args.include)
     try:
