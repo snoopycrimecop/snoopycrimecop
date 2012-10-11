@@ -34,6 +34,7 @@ import github  # PyGithub3
 import subprocess
 import logging
 import threading
+import argparse
 
 fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
@@ -191,7 +192,7 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, base, org, name, reset, exclude_filters):
+    def __init__(self, org, name, base, reset, eexclude_filters):
         """
         exclude_filters: None == all PRs opened against base
         """
@@ -357,35 +358,36 @@ def getRepository(*command, **kwargs):
     return repository_name
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    if not args:
-        print "Usage: ome_merge.py [--reset] [--info] base exclude_filter1 [exclude_filter2]"
-        sys.exit(2)
+
+    # Create argument parser
+    parser = argparse.ArgumentParser(description='Merge Pull Requests opened against a specific base branch.')
+    parser.add_argument('--reset', action='store_true',
+        help='Reset the current branch to its HEAD')
+    parser.add_argument('--info', action='store_true',
+        help='Display merge candidates but do not merge them')
+    parser.add_argument('base', type=str)
+    parser.add_argument('--include', action='append',
+        help='PR labels to include in the merge')
+    parser.add_argument('--exclude', action='append',
+        help='PR labels to exclude from the merge')
+
+    args = parser.parse_args()
 
     org = "openmicroscopy"
     repo = getRepository()
-
     log.info("Repository: %s", repo)
 
-    reset = "--reset" in args
-    if reset: args.remove("--reset")
 
-    info = "--info" in args
-    if info: args = None
+    log.info("Merging PR based on: %s", args.base)
 
-    base = args[0]
-    log.info("Merging PR based on: %s", base)
+    log.info("Excluding PR labelled as: %s", args.exclude)
+    log.info("Including PR labelled as: %s", args.include)
+    sys.exit(2)
 
-    if not args[1:]:
-        exclude_filters = None
-    else:
-        exclude_filters = args[1:]
-    log.info("Excluding PR labelled as: %s", exclude_filters)
-
-    ome = OME(base, org, repo, reset, exclude_filters)
+    ome = OME(org, repo, args.base, args.reset, args.exclude, args.include)
     try:
-        if not info:
+        if not args.info:
             ome.merge()
-        ome.submodules(info)  # Recursive
+        ome.submodules(args.info)  # Recursive
     finally:
         ome.cleanup()
