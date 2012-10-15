@@ -35,6 +35,8 @@ import subprocess
 import logging
 import threading
 import argparse
+import difflib
+import getpass
 
 fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
@@ -168,20 +170,49 @@ def getRepository(*command, **kwargs):
     base = os.path.basename(originname[0])
     repository_name = os.path.splitext(base)[0]
     return repository_name
-    
-def findMergeBase(sha1, branch):       
-    # This works only if the branch has not been merged
-     
-    command = ["git", "merge-base", "%s" % sha1[0:6], "origin/%s" % branch]
+
+def getUser(*command, **kwargs):
+    command = ["git", "config", "--get", "github.user"]
     dbg("Calling '%s'" % " ".join(command))
     p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    r = p.communicate()
-    basesha1 = r[0]
+    user = p.stdout.read()[0:-1]
+
     retcode = p.poll()
     if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=basesha1[0])
-    dbg("Merge base: %s", basesha1[0:6])
-    return basesha1[0:6]
+        raise subprocess.CalledProcessError(retcode, command, output=user)
+
+    return user
+
+revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
+
+def getRevList(commit):
+
+    p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
+    (revlist, stderr) = p.communicate('')
+
+    if stderr or p.returncode:
+        print "Error output was:\n%s" % stderr
+        print "Output was:\n%s" % stdout
+        return False
+
+    return revlist.splitlines()
+
+def findBranchingPoint(topic_branch, main_branch):
+    # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
+
+    topic_revlist = getRevList(topic_branch)
+    main_revlist = getRevList(main_branch)
+
+    # Compare sequences
+    s = difflib.SequenceMatcher(None, topic_revlist, main_revlist)
+    matching_block = s.get_matching_blocks()
+    if matching_block[0].size == 0:
+        raise Exception("No matching block found")
+
+    sha1 = main_revlist[matching_block[0].b]
+    log.info("Branching SHA1: %s" % sha1[0:6])
+    return sha1
 
 def rebase(newbase, upstream, sha1):   
     command = ["git", "rebase", "--onto", "origin/%s" % newbase, "%s" % upstream, "%s" % sha1]
@@ -195,19 +226,29 @@ if __name__ == "__main__":
 
     # Create argument parser
     parser = argparse.ArgumentParser(description='Rebase Pull Requests opened against a specific base branch.')
-    parser.add_argument('PR', type=int)
-    parser.add_argument('newbase', type=str)
+    parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
+    parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
+    parser.add_argument('-u', '--user', type=str, default=None,
+           help='The user to use to connect to Github')
     args = parser.parse_args()
 
+    # Retrieve user and password
+    if not args.user:
+        user = getUser()
+    else:
+        user = args.user
+    log.info("User: %s", user)
+    password = getpass.getpass()
+
+    # Create Github instance
+    gh = GHWrapper(github.Github(user, password))
     org = "openmicroscopy"
     log.info("Organization: %s", org)
-    repo = getRepository()
-    log.info("Repository: %s", repo)
-
-    gh = GHWrapper(github.Github())
     org = gh.get_organization(org)
 
     try:
+        repo = getRepository()
+        log.info("Repository: %s", repo)
         repo = org.get_repo(repo)
     except:
         log.error("Failed to find %s", name, exc_info=1)
@@ -215,14 +256,11 @@ if __name__ == "__main__":
     try:
         pr = repo.get_pull(args.PR)
         log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
-        log.info("Head: %s", pr.head.sha[0:6])
+        pr_head = pr.head.sha
+        log.info("Head: %s", pr_head[0:6])
         log.info("Merged: %s", pr.is_merged())
     except:
         log.error("Failed to find PR %g", args.PR, exc_info=1)
 
-    #
-    if not pr.is_merged():
-        upstream_sha1 = findMergeBase(pr.head.sha, pr.base.ref)
-    else:
-        upstream_sha1 = getBranchingPoint(pr.head.sha, pr.base.ref)
-    rebase(args.newbase, upstream_sha1, pr.head.sha)
+    branching_sha1 = findBranchingPoint(pr_head, "origin/"+pr.base.ref)
+    rebase(args.newbase, branching_sha1[0:6], pr_head)
