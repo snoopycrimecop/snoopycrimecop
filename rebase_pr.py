@@ -183,18 +183,6 @@ def getUser(*command, **kwargs):
 
     return user
 
-def getToken(*command, **kwargs):
-    command = ["git", "config", "--get", "github.token"]
-    dbg("Calling '%s'" % " ".join(command))
-    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    token = p.stdout.read()[0:-1]
-
-    retcode = p.poll()
-    if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=token)
-
-    return token
-
 revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
 
 def getRevList(commit):
@@ -240,29 +228,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Rebase Pull Requests opened against a specific base branch.')
     parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
     parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
-    parser.add_argument('-t', '--token', type=str, default=None,
-        help='The OAuth2 token to use to connect to Github')
     args = parser.parse_args()
 
     # Create Github instance
-    if not args.token:
-        token = getToken()
+    if os.environ.has_key("GITHUB_TOKEN"):
+        token = os.environ["GITHUB_TOKEN"]
+        gh = GHWrapper(github.Github(self.token))
+        dbg("Creating Github instance identified as %s", gh.get_user().login)
     else:
-        token = args.token
-
-    if token:
-        dbg("Creating identified Github instance")
-        gh = GHWrapper(github.Github(token))
-    else:
-        dbg("Creating unidentified Github instance")
         gh = GHWrapper(github.Github())
+        dbg("Creating anonymous Github instance")
+
+    rate_limiting = gh.rate_limiting
+    dbg("Remaining requests: %s out of %s", rate_limiting[0], rate_limiting[1] )
 
     org = "openmicroscopy"
     log.info("Organization: %s", org)
     org = gh.get_organization(org)
-
-    rate_limiting = gh.rate_limiting
-    dbg("Remaining requests: %s out of %s", rate_limiting[0], rate_limiting[1] )
 
     try:
         repo = getRepository()

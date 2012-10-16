@@ -386,18 +386,6 @@ def getRepository(*command, **kwargs):
     repository_name = os.path.splitext(base)[0]
     return repository_name
 
-def getToken(*command, **kwargs):
-    command = ["git", "config", "--get", "github.token"]
-    dbg("Calling '%s'" % " ".join(command))
-    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    token = p.stdout.read()[0:-1]
-
-    retcode = p.poll()
-    if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=token)
-
-    return token
-
 def pushTeam(base, build_number):
     newbranch = "HEAD:%s/%g" % (base, build_number)
     command = ["git", "push", "team", newbranch]
@@ -424,15 +412,13 @@ if __name__ == "__main__":
         help='PR labels to exclude from the merge')
     parser.add_argument('--buildnumber', type=int, default=None,
         help='The build number to use to push to team.git')
-    parser.add_argument('-t', '--token', type=str, default=None,
-        help='The OAuth2 token to use to connect to Github')
     args = parser.parse_args()
 
     # Create Github instance
-    if not args.token:
-        token = getToken()
+    if os.environ.has_key("GITHUB_TOKEN"):
+        token = os.environ["GITHUB_TOKEN"]
     else:
-        token = args.token
+        token = None
 
     org = "openmicroscopy"
     log.info("Organization: %s", org)
