@@ -218,8 +218,9 @@ class OME(object):
         self.remotes = {}
 
         msg = "Creating Github instance"
-        if token:
-            self.gh = GHWrapper(github.Github(token))
+        self.token = token
+        if self.token:
+            self.gh = GHWrapper(github.Github(self.token))
             dbg("Creating Github instance identified as %s", self.gh.get_user().login)
         else:
             self.gh = GHWrapper(github.Github())
@@ -341,7 +342,7 @@ class OME(object):
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(org, repo, self.base, self.reset, self.exclude, self.include)
+                ome = OME(org, repo, self.base, self.reset, self.exclude, self.include, self.token)
                 if info:
                     ome.info()
                 else:
