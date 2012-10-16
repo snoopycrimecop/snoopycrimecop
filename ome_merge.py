@@ -193,7 +193,7 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, org, name, base, reset, exclude, include):
+    def __init__(self, org, name, base, reset, exclude, include, token):
 
         if reset:
             dbg("Resetting...")
@@ -216,7 +216,17 @@ class OME(object):
             self.commit_msg += "-" + "-".join(exclude)
 
         self.remotes = {}
-        self.gh = GHWrapper(github.Github())
+
+        msg = "Creating Github instance"
+        if token:
+            self.gh = GHWrapper(github.Github(token))
+            dbg("Creating Github instance identified as %s", self.gh.get_user().login)
+        else:
+            self.gh = GHWrapper(github.Github())
+            dbg("Creating anonymous Github instance")
+        requests = self.gh.rate_limiting
+        dbg("Remaining requests: %s out of %s", requests[0], requests[1] )
+
         self.org = self.gh.get_organization(org)
         try:
             self.repo = self.org.get_repo(name)
@@ -422,16 +432,6 @@ if __name__ == "__main__":
     else:
         token = args.token
 
-    dbg("Creating Github instance")
-    if token:
-        gh = GHWrapper(github.Github(token))
-        log.info("Identified as %s", gh.get_user().login)
-    else:
-        gh = GHWrapper(github.Github())
-        log.info("Anonymous")
-    requests = gh.rate_limiting
-    dbg("Remaining requests: %s out of %s", requests[0], requests[1] )
-
     org = "openmicroscopy"
     log.info("Organization: %s", org)
     repo = getRepository()
@@ -441,7 +441,7 @@ if __name__ == "__main__":
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
-    ome = OME(org, repo, args.base, args.reset, args.exclude, args.include)
+    ome = OME(org, repo, args.base, args.reset, args.exclude, args.include, token)
     try:
         if not args.info:
             ome.merge()
