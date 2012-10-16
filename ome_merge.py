@@ -213,6 +213,7 @@ class OME(object):
             self.commit_msg += "+" + "+".join(include)
         self.exclude = exclude
         if exclude:
+            print exclude
             self.commit_msg += "-" + "-".join(exclude)
 
         self.remotes = {}
@@ -252,14 +253,14 @@ class OME(object):
                 else:
                     if include:
                         for filter in include:
-                            if filter in data.labels:
+                            if filter in [x.lower() for x in data.labels]:
                                 dbg("# ... Include %s", filter)
                                 found = True
 
             # Exclude PRs if exclude labels are input
             if found and exclude:
                 for filter in exclude:
-                    if filter in data.labels:
+                    if filter in [x.lower() for x in data.labels]:
                         dbg("# ... Exclude %s", filter)
                         found = False
 
@@ -417,9 +418,9 @@ if __name__ == "__main__":
     parser.add_argument('--info', action='store_true',
         help='Display merge candidates but do not merge them')
     parser.add_argument('base', type=str)
-    parser.add_argument('--include', action='append',
+    parser.add_argument('--include', nargs="*",
         help='PR labels to include in the merge')
-    parser.add_argument('--exclude', action='append',
+    parser.add_argument('--exclude', nargs="*",
         help='PR labels to exclude from the merge')
     parser.add_argument('--buildnumber', type=int, default=None,
         help='The build number to use to push to team.git')
