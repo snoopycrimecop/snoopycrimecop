@@ -422,23 +422,22 @@ if __name__ == "__main__":
     else:
         token = args.token
 
+    dbg("Creating Github instance")
     if token:
-        dbg("Creating identified Github instance")
         gh = GHWrapper(github.Github(token))
+        log.info("Identified as %s", gh.get_user().login)
     else:
-        dbg("Creating unidentified Github instance")
         gh = GHWrapper(github.Github())
+        log.info("Anonymous")
+    requests = gh.rate_limiting
+    dbg("Remaining requests: %s out of %s", requests[0], requests[1] )
 
     org = "openmicroscopy"
     log.info("Organization: %s", org)
     repo = getRepository()
     log.info("Repository: %s", repo)
 
-    rate_limiting = gh.rate_limiting
-    dbg("Remaining requests: %s out of %s", rate_limiting[0], rate_limiting[1] )
-
     log.info("Merging PR based on: %s", args.base)
-
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
