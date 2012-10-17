@@ -307,7 +307,7 @@ class OME(object):
         dbg("## Unique users: %s", self.unique_logins)
         for user in self.unique_logins:
             key = "merge_%s" % user
-            url = "git://github.com/%s/%s.git" % (user, self.name)
+            url = "git@github.com:%s/%s.git" % (user, self.name)
             self.call("git", "remote", "add", key, url)
             self.remotes[key] = url
             self.call("git", "fetch", key)
