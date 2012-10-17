@@ -193,8 +193,9 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, org, name, base, reset, exclude, include, token):
+    def __init__(self, base, reset, exclude, include, token):
 
+        [org, name] = self.getRepositoryInfo()
         if reset:
             dbg("Resetting...")
             self.call("git", "reset", "--hard", "HEAD")
@@ -218,7 +219,7 @@ class OME(object):
 
         self.remotes = {}
 
-        msg = "Creating Github instance"
+        # Creating Github instance
         self.token = token
         if self.token:
             self.gh = GHWrapper(github.Github(self.token))
@@ -263,6 +264,7 @@ class OME(object):
                     if filter.lower() in [x.lower() for x in data.labels]:
                         dbg("# ... Exclude %s", filter)
                         found = False
+                        break
 
             if found:
                 self.unique_logins.add(data.login)
@@ -321,29 +323,18 @@ class OME(object):
 
     def submodules(self, info=False):
 
-        o, e = self.call("git", "submodule", "foreach", \
-                "git config --get remote.origin.url", \
+        o, e = self.call("git", "submodule", "--quiet", "foreach", \
+                "echo $path", \
                 stdout=subprocess.PIPE).communicate()
 
         cwd = os.path.abspath(os.getcwd())
         lines = o.split("\n")
         while "".join(lines):
             dir = lines.pop(0).strip()
-            dir = dir.split(" ")[1][1:-1]
-            repo = lines.pop(0).strip()
-            repo = repo.split("/")
-            sz = len(repo)
-            org, repo = repo[sz-2:sz]
-            if ":" in org:
-                org = org.split(":")[-1]
-            dbg("org=%s, repo=%s", org, repo)
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(org, repo, self.base, self.reset, self.exclude, self.include, self.token)
+                ome = OME(self.base, self.reset, self.exclude, self.include, self.token)
                 if info:
                     ome.info()
                 else:
@@ -361,6 +352,24 @@ class OME(object):
             self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                     "%s: Update all modules w/o hooks" % self.commit_msg)
 
+    def getRepositoryInfo(self):
+        originurl, e = self.call("git", "config", "--get", \
+            "remote.origin.url", stdout = subprocess.PIPE, \
+            stderr = subprocess.PIPE).communicate()
+
+        # Read organization from origin URL
+        dirname = os.path.dirname(originurl)
+        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        org = os.path.basename(dirname)
+        if ":" in dirname:
+            org = org.split(":")[-1]
+        log.info("Organization: %s", org)
+
+        # Read repository from origin URL
+        basename = os.path.basename(originurl)
+        repo = os.path.splitext(basename)[0]
+        log.info("Repository: %s", repo)
+        return [org , repo]
 
     def cleanup(self):
         for k, v in self.remotes.items():
@@ -369,29 +378,7 @@ class OME(object):
             except Exception, e:
                 log.error("Failed to remove", k, exc_info=1)
 
-def getRepository(*command, **kwargs):
-    command = ["git", "config", "--get", "remote.origin.url"]
-    dbg("Calling '%s'" % " ".join(command))
-    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    originurl = p.communicate()[0]
 
-    retcode = p.poll()
-    if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=originurl)
-
-    # Read organization from origin URL
-    dirname = os.path.dirname(originurl)
-    assert "github" in dirname, 'Origin URL %s is not on GitHub' % dir
-    org = os.path.basename(dirname)
-    if ":" in dirname:
-        org = org.split(":")[-1]
-    log.info("Organization: %s", org)
-
-    # Read repository from origin URL
-    basename = os.path.basename(originurl)
-    repo = os.path.splitext(basename)[0]
-    log.info("Repository: %s", repo)
-    return [org , repo]
 
 def pushTeam(base, build_number):
     newbranch = "HEAD:%s/%g" % (base, build_number)
@@ -427,13 +414,11 @@ if __name__ == "__main__":
     else:
         token = None
 
-    [org, repo] = getRepository()
-
     log.info("Merging PR based on: %s", args.base)
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
-    ome = OME(org, repo, args.base, args.reset, args.exclude, args.include, token)
+    ome = OME(args.base, args.reset, args.exclude, args.include, token)
     try:
         if not args.info:
             ome.merge()
