@@ -382,10 +382,9 @@ def getRepository(*command, **kwargs):
     # Read organization from origin URL
     dirname = os.path.dirname(originurl)
     assert "github" in dirname, 'Origin URL %s is not on GitHub' % dir
+    org = os.path.basename(dirname)
     if ":" in dirname:
-        org = dirname.split(":")[-1]
-    else:
-        org = os.path.basename(dirname)
+        org = org.split(":")[-1]
     log.info("Organization: %s", org)
 
     # Read repository from origin URL
