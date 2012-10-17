@@ -253,14 +253,14 @@ class OME(object):
                 else:
                     if include:
                         for filter in include:
-                            if filter in [x.lower() for x in data.labels]:
+                            if filter.lower() in [x.lower() for x in data.labels]:
                                 dbg("# ... Include %s", filter)
                                 found = True
 
             # Exclude PRs if exclude labels are input
             if found and exclude:
                 for filter in exclude:
-                    if filter in [x.lower() for x in data.labels]:
+                    if filter.lower() in [x.lower() for x in data.labels]:
                         dbg("# ... Exclude %s", filter)
                         found = False
 
