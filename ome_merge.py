@@ -373,18 +373,26 @@ def getRepository(*command, **kwargs):
     command = ["git", "config", "--get", "remote.origin.url"]
     dbg("Calling '%s'" % " ".join(command))
     p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    originname = p.communicate()
+    originurl = p.communicate()[0]
 
     retcode = p.poll()
     if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=originname[0])
+        raise subprocess.CalledProcessError(retcode, command, output=originurl)
 
-    dir = os.path.dirname(originname[0])
-    assert "github" in dir, 'Origin URL %s is not on GitHub' % dir
+    # Read organization from origin URL
+    dirname = os.path.dirname(originurl)
+    assert "github" in dirname, 'Origin URL %s is not on GitHub' % dir
+    if ":" in dirname:
+        org = dirname.split(":")[-1]
+    else:
+        org = os.path.basename(dirname)
+    log.info("Organization: %s", org)
 
-    base = os.path.basename(originname[0])
-    repository_name = os.path.splitext(base)[0]
-    return repository_name
+    # Read repository from origin URL
+    basename = os.path.basename(originurl)
+    repo = os.path.splitext(basename)[0]
+    log.info("Repository: %s", repo)
+    return [org , repo]
 
 def pushTeam(base, build_number):
     newbranch = "HEAD:%s/%g" % (base, build_number)
@@ -420,10 +428,7 @@ if __name__ == "__main__":
     else:
         token = None
 
-    org = "openmicroscopy"
-    log.info("Organization: %s", org)
-    repo = getRepository()
-    log.info("Repository: %s", repo)
+    [org, repo] = getRepository()
 
     log.info("Merging PR based on: %s", args.base)
     log.info("Excluding PR labelled as: %s", args.exclude)
