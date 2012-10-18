@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # Create Github instance
     if os.environ.has_key("GITHUB_TOKEN"):
         token = os.environ["GITHUB_TOKEN"]
-        gh = GHWrapper(github.Github(self.token))
+        gh = GHWrapper(github.Github(token))
         dbg("Creating Github instance identified as %s", gh.get_user().login)
     else:
         gh = GHWrapper(github.Github())
