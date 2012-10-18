@@ -159,8 +159,8 @@ class Data(object):
         self.pr = pr
         self.sha = pr.head.sha
         self.base = pr.base.ref
-        self.user = pr.head.user
-        self.login = pr.head.user.login
+        self.user = pr.user
+        self.login = pr.user.login
         self.title = pr.title
         self.num = int(pr.issue_url.split("/")[-1])
         self.issue = repo.get_issue(self.num)
