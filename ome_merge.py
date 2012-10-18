@@ -179,8 +179,7 @@ class Data(object):
         return key in self.labels
 
     def __repr__(self):
-        return "# %s %s '%s' (Labels: %s)" % \
-                (self.sha, self.login, self.title, ",".join(self.labels))
+        return "# PR %s %s '%s'" % (self.num, self.login, self.title)
 
     def test_directories(self):
         directories = []
@@ -268,7 +267,7 @@ class OME(object):
 
             if found:
                 self.unique_logins.add(data.login)
-                dbg(data)
+                log.info(data)
                 self.storage.append(data)
                 directories = data.test_directories()
                 if directories:
@@ -363,12 +362,11 @@ class OME(object):
         org = os.path.basename(dirname)
         if ":" in dirname:
             org = org.split(":")[-1]
-        log.info("Organization: %s", org)
 
         # Read repository from origin URL
         basename = os.path.basename(originurl)
         repo = os.path.splitext(basename)[0]
-        log.info("Repository: %s", repo)
+        log.info("Repository: %s/%s", org, repo)
         return [org , repo]
 
     def cleanup(self):
