@@ -272,7 +272,7 @@ class OME(object):
 
             if found:
                 self.unique_logins.add(data.login)
-                log.info(data)
+                dbg(data)
                 self.storage.append(data)
                 directories = data.test_directories()
                 if directories:
@@ -324,17 +324,18 @@ class OME(object):
                 self.call("git", "merge", "--no-ff", "-m", \
                         "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
                 self.modifications += 1
+                log.info(data)
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha[0:6])
                 if self.token:
-                    msg = "Conflicting PR #%g. Removed from build" % data.num
+                    msg = "Conflicting PR #%g." % data.num
                     if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
-                        msg += " %s #%s." % (os.environ.get("JOB_NAME"), \
+                        msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
                             os.environ.get("BUILD_NUMBER"))
                     else:
                         msg += "."
                     dbg(msg)
-                    data.issue.create_comment(msg)
+                    #data.issue.create_comment(msg)
 
         self.call("git", "submodule", "update")
 
