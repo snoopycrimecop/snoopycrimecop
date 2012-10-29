@@ -319,9 +319,22 @@ class OME(object):
             self.call("git", "fetch", key)
 
         for data in self.storage:
-            self.call("git", "merge", "--no-ff", "-m", \
-                    "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
-            self.modifications += 1
+            premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+            try:
+                self.call("git", "merge", "--no-ff", "-m", \
+                        "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
+                self.modifications += 1
+            except:
+                self.call("git", "reset", "--hard", "%s" % premerge_sha[0:6])
+                if self.token:
+                    msg = "Conflicting PR #%g. Removed from build" % data.num
+                    if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
+                        msg += " %s #%s." % (os.environ.get("JOB_NAME"), \
+                            os.environ.get("BUILD_NUMBER"))
+                    else:
+                        msg += "."
+                    dbg(msg)
+                    data.issue.create_comment(msg)
 
         self.call("git", "submodule", "update")
 
