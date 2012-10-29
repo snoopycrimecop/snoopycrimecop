@@ -220,9 +220,13 @@ class OME(object):
         self.remotes = {}
 
         # Creating Github instance
-        token, error = self.call("git","config","--get","github.token", stdout = subprocess.PIPE).communicate()
-        if token:
-            self.gh = GHWrapper(github.Github(token))
+        try:
+            self.token, e = self.call("git","config","--get","github.token", stdout = subprocess.PIPE).communicate()
+        except Exception:
+            self.token = None
+
+        if self.token:
+            self.gh = GHWrapper(github.Github(self.token))
             dbg("Creating Github instance identified as %s", self.gh.get_user().login)
         else:
             self.gh = GHWrapper(github.Github())
