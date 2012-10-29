@@ -192,7 +192,7 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, base, reset, exclude, include, token):
+    def __init__(self, base, reset, exclude, include):
 
         [org, name] = self.getRepositoryInfo()
         if reset:
@@ -219,9 +219,9 @@ class OME(object):
         self.remotes = {}
 
         # Creating Github instance
-        self.token = token
-        if self.token:
-            self.gh = GHWrapper(github.Github(self.token))
+        token, error = self.call("git","config","--get","github.token", stdout = subprocess.PIPE).communicate()
+        if token:
+            self.gh = GHWrapper(github.Github(token))
             dbg("Creating Github instance identified as %s", self.gh.get_user().login)
         else:
             self.gh = GHWrapper(github.Github())
@@ -333,7 +333,7 @@ class OME(object):
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(self.base, self.reset, self.exclude, self.include, self.token)
+                ome = OME(self.base, self.reset, self.exclude, self.include)
                 if info:
                     ome.info()
                 else:
@@ -406,17 +406,11 @@ if __name__ == "__main__":
         help='The build number to use to push to team.git')
     args = parser.parse_args()
 
-    # Create Github instance
-    if os.environ.has_key("GITHUB_TOKEN"):
-        token = os.environ["GITHUB_TOKEN"]
-    else:
-        token = None
-
     log.info("Merging PR based on: %s", args.base)
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
-    ome = OME(args.base, args.reset, args.exclude, args.include, token)
+    ome = OME(args.base, args.reset, args.exclude, args.include)
     try:
         if not args.info:
             ome.merge()
