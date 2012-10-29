@@ -41,6 +41,7 @@ logging.basicConfig(level=10, format=fmt)
 
 log = logging.getLogger("ome_merge")
 dbg = log.debug
+logging.getLogger('github').setLevel(logging.INFO)
 
 
 class GHWrapper(object):
