@@ -30,10 +30,11 @@ CURRENT submodule sha1. A final commit will then update the submodules.
 
 import os
 import sys
-import github  # PyGithub3
+import github  # PyGithub
 import subprocess
 import logging
 import threading
+import argparse
 
 fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
@@ -158,15 +159,16 @@ class Data(object):
         self.pr = pr
         self.sha = pr.head.sha
         self.base = pr.base.ref
-        self.login = pr.head.user.login
+        self.user = pr.user
+        self.login = pr.user.login
         self.title = pr.title
         self.num = int(pr.issue_url.split("/")[-1])
         self.issue = repo.get_issue(self.num)
         self.label_objs = self.issue.labels
         self.labels = [x.name for x in self.label_objs]
+        dbg("login = %s", self.login)
         dbg("labels = %s", self.labels)
-        self.base_ref = pr.base.ref
-        dbg("base = %s", self.base_ref)
+        dbg("base = %s", self.base)
         self.comments = []
         if self.issue.comments:
             for x in self.issue.get_comments():
@@ -177,8 +179,7 @@ class Data(object):
         return key in self.labels
 
     def __repr__(self):
-        return "# %s %s '%s' (Labels: %s)" % \
-                (self.sha, self.login, self.title, ",".join(self.labels))
+        return "# PR %s %s '%s'" % (self.num, self.login, self.title)
 
     def test_directories(self):
         directories = []
@@ -191,25 +192,43 @@ class Data(object):
 
 class OME(object):
 
-    def __init__(self, base, org, name, reset, exclude_filters):
-        """
-        exclude_filters: None == all PRs opened against base
-        """
+    def __init__(self, base, reset, exclude, include, token):
+
+        [org, name] = self.getRepositoryInfo()
         if reset:
             dbg("Resetting...")
             self.call("git", "reset", "--hard", "HEAD")
+
         dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
         self.name = name
         self.reset = reset
         self.base = base
-        self.commit_msg = "merge"+"+"+base
-        self.exclude_filters = exclude_filters
-        if exclude_filters:
-            self.commit_msg += "-".join(exclude_filters)
+
+        # Create commit message using base, exclude & include
+        self.commit_msg = "merge"+"_into_"+base
+        self.include = include
+        if include:
+            self.commit_msg += "+" + "+".join(include)
+        self.exclude = exclude
+        if exclude:
+            print exclude
+            self.commit_msg += "-" + "-".join(exclude)
+
         self.remotes = {}
-        self.gh = GHWrapper(github.Github())
+
+        # Creating Github instance
+        self.token = token
+        if self.token:
+            self.gh = GHWrapper(github.Github(self.token))
+            dbg("Creating Github instance identified as %s", self.gh.get_user().login)
+        else:
+            self.gh = GHWrapper(github.Github())
+            dbg("Creating anonymous Github instance")
+        requests = self.gh.rate_limiting
+        dbg("Remaining requests: %s out of %s", requests[0], requests[1] )
+
         self.org = self.gh.get_organization(org)
         try:
             self.repo = self.org.get_repo(name)
@@ -227,16 +246,28 @@ class OME(object):
             data = Data(self.repo, pr)
             found = False
 
+            # Check the base ref of the PR
             if data.base == base:
-                found = True
-                if exclude_filters:
-                    for filter in exclude_filters:
-                        if filter in data.labels:
-                            dbg("# ... Exclude %s", filter)
-                            found = False
+                if self.org.has_in_public_members(data.user):
+                    found = True
+                else:
+                    if include:
+                        for filter in include:
+                            if filter.lower() in [x.lower() for x in data.labels]:
+                                dbg("# ... Include %s", filter)
+                                found = True
+
+            # Exclude PRs if exclude labels are input
+            if found and exclude:
+                for filter in exclude:
+                    if filter.lower() in [x.lower() for x in data.labels]:
+                        dbg("# ... Exclude %s", filter)
+                        found = False
+                        break
+
             if found:
                 self.unique_logins.add(data.login)
-                dbg(data)
+                log.info(data)
                 self.storage.append(data)
                 directories = data.test_directories()
                 if directories:
@@ -291,29 +322,18 @@ class OME(object):
 
     def submodules(self, info=False):
 
-        o, e = self.call("git", "submodule", "foreach", \
-                "git config --get remote.origin.url", \
+        o, e = self.call("git", "submodule", "--quiet", "foreach", \
+                "echo $path", \
                 stdout=subprocess.PIPE).communicate()
 
         cwd = os.path.abspath(os.getcwd())
         lines = o.split("\n")
         while "".join(lines):
             dir = lines.pop(0).strip()
-            dir = dir.split(" ")[1][1:-1]
-            repo = lines.pop(0).strip()
-            repo = repo.split("/")
-            sz = len(repo)
-            org, repo = repo[sz-2:sz]
-            if ":" in org:
-                org = org.split(":")[-1]
-            dbg("org=%s, repo=%s", org, repo)
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-
             try:
                 ome = None
                 self.cd(dir)
-                ome = OME(self.filters, org, repo, self.reset)
+                ome = OME(self.base, self.reset, self.exclude, self.include, self.token)
                 if info:
                     ome.info()
                 else:
@@ -331,6 +351,23 @@ class OME(object):
             self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                     "%s: Update all modules w/o hooks" % self.commit_msg)
 
+    def getRepositoryInfo(self):
+        originurl, e = self.call("git", "config", "--get", \
+            "remote.origin.url", stdout = subprocess.PIPE, \
+            stderr = subprocess.PIPE).communicate()
+
+        # Read organization from origin URL
+        dirname = os.path.dirname(originurl)
+        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        org = os.path.basename(dirname)
+        if ":" in dirname:
+            org = org.split(":")[-1]
+
+        # Read repository from origin URL
+        basename = os.path.basename(originurl)
+        repo = os.path.splitext(basename)[0]
+        log.info("Repository: %s/%s", org, repo)
+        return [org , repo]
 
     def cleanup(self):
         for k, v in self.remotes.items():
@@ -339,53 +376,53 @@ class OME(object):
             except Exception, e:
                 log.error("Failed to remove", k, exc_info=1)
 
-def getRepository(*command, **kwargs):
-    command = ["git", "config", "--get", "remote.origin.url"]
+
+
+def pushTeam(base, build_number):
+    newbranch = "HEAD:%s/%g" % (base, build_number)
+    command = ["git", "push", "team", newbranch]
     dbg("Calling '%s'" % " ".join(command))
     p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    originname = p.communicate()
 
-    retcode = p.poll()
-    if retcode:
-        raise subprocess.CalledProcessError(retcode, command, output=originname[0])
-
-    dir = os.path.dirname(originname[0])
-    assert "github" in dir, 'Origin URL %s is not on GitHub' % dir
-
-    base = os.path.basename(originname[0])
-    repository_name = os.path.splitext(base)[0]
-    return repository_name
+    rc = p.wait()
+    if rc:
+        raise Exception("rc=%s" % rc)
+    return p
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    if not args:
-        print "Usage: ome_merge.py [--reset] [--info] base exclude_filter1 [exclude_filter2]"
-        sys.exit(2)
 
-    org = "openmicroscopy"
-    repo = getRepository()
+    # Create argument parser
+    parser = argparse.ArgumentParser(description='Merge Pull Requests opened against a specific base branch.')
+    parser.add_argument('--reset', action='store_true',
+        help='Reset the current branch to its HEAD')
+    parser.add_argument('--info', action='store_true',
+        help='Display merge candidates but do not merge them')
+    parser.add_argument('base', type=str)
+    parser.add_argument('--include', nargs="*",
+        help='PR labels to include in the merge')
+    parser.add_argument('--exclude', nargs="*",
+        help='PR labels to exclude from the merge')
+    parser.add_argument('--buildnumber', type=int, default=None,
+        help='The build number to use to push to team.git')
+    args = parser.parse_args()
 
-    log.info("Repository: %s", repo)
-
-    reset = "--reset" in args
-    if reset: args.remove("--reset")
-
-    info = "--info" in args
-    if info: args = None
-
-    base = args[0]
-    log.info("Merging PR based on: %s", base)
-
-    if not args[1:]:
-        exclude_filters = None
+    # Create Github instance
+    if os.environ.has_key("GITHUB_TOKEN"):
+        token = os.environ["GITHUB_TOKEN"]
     else:
-        exclude_filters = args[1:]
-    log.info("Excluding PR labelled as: %s", exclude_filters)
+        token = None
 
-    ome = OME(base, org, repo, reset, exclude_filters)
+    log.info("Merging PR based on: %s", args.base)
+    log.info("Excluding PR labelled as: %s", args.exclude)
+    log.info("Including PR labelled as: %s", args.include)
+
+    ome = OME(args.base, args.reset, args.exclude, args.include, token)
     try:
-        if not info:
+        if not args.info:
             ome.merge()
-        ome.submodules(info)  # Recursive
+        ome.submodules(args.info)  # Recursive
+
+        if args.buildnumber:
+            pushTeam(args.base, args.buildnumber)
     finally:
         ome.cleanup()
