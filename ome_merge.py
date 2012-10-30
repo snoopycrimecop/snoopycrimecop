@@ -29,7 +29,6 @@ CURRENT submodule sha1. A final commit will then update the submodules.
 """
 
 import os
-import sys
 import github  # PyGithub
 import subprocess
 import logging
@@ -256,36 +255,38 @@ class Repository(object):
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
         self.modifications = 0
-        self.unique_logins = set()
-        dbg("## PRs found:")
+        self.find_candidates()
 
+    def find_candidates(self):
+        """Find candidate Pull Requests for merging."""
+        dbg("## PRs found:")
         directories_log = None
 
         for pull in self.repo.get_pulls():
             pullrequest = PullRequest(self.repo, pull)
             found = False
-
+            labels = [x.lower() for x in pullrequest.get_labels()]
             # Check the base ref of the PR
-            if pullrequest.get_base() == base:
+            if pullrequest.get_base() == self.base:
+                org = self.get_organization
                 if org.has_in_public_members(pullrequest.get_user()):
                     found = True
                 else:
-                    if include:
-                        for filter in include:
-                            if filter.lower() in [x.lower() for x in pullrequest.get_labels()]:
+                    if self.include:
+                        for include_filter in self.include:
+                            if include_filter.lower() in labels:
                                 dbg("# ... Include %s", filter)
                                 found = True
 
             # Exclude PRs if exclude labels are input
-            if found and exclude:
-                for filter in exclude:
-                    if filter.lower() in [x.lower() for x in pullrequest.get_labels()]:
+            if found and self.exclude:
+                for exclude_filter in self.exclude:
+                    if exclude_filter.lower() in labels:
                         dbg("# ... Exclude %s", filter)
                         found = False
                         break
 
             if found:
-                self.unique_logins.add(pullrequest.get_login())
                 dbg(pullrequest)
                 self.candidate_pulls.append(pullrequest)
                 directories = pullrequest.test_directories()
@@ -314,8 +315,8 @@ class Repository(object):
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
-        dbg("## Unique users: %s", self.unique_logins)
-        for user in self.unique_logins:
+        dbg("## Unique users: %s", self.unique_logins())
+        for user in self.unique_logins():
             key = "merge_%s" % user
             if self.repo.private:
                 url = "git@github.com:%s/%s.git"  % (user, self.name)
@@ -366,13 +367,14 @@ class Repository(object):
         call("git", "submodule", "update")
 
     def submodules(self, info=False, comment=False):
+        """Recursively merge PRs for each submodule."""
 
-        o = call("git", "submodule", "--quiet", "foreach", \
+        submodule_paths = call("git", "submodule", "--quiet", "foreach", \
                 "echo $path", \
                 stdout=subprocess.PIPE).communicate()[0]
 
         cwd = os.path.abspath(os.getcwd())
-        lines = o.split("\n")
+        lines = submodule_paths.split("\n")
         while "".join(lines):
             dir = lines.pop(0).strip()
             try:
@@ -416,6 +418,13 @@ class Repository(object):
             commit_id += "-" + "-".join(self.exclude)
         return commit_id
 
+    def unique_logins(self):
+        """Return a set of unique logins."""
+        unique_logins = set()
+        for pull in self.candidate_pulls:
+            unique_logins.add(pull.get_login())
+        return unique_logins
+
     def get_info(self):
         """
         Return organization and repository name of the current directory.
@@ -443,11 +452,11 @@ class Repository(object):
 
     def cleanup(self):
         """Remove remote branches created for merging."""
-        for k, v in self.remotes.items():
+        for key, v in self.remotes.items():
             try:
-                call("git", "remote", "rm", k)
+                call("git", "remote", "rm", key)
             except Exception:
-                log.error("Failed to remove", k, exc_info=1)
+                log.error("Failed to remove", key, exc_info=1)
 
 def call(*command, **kwargs):
     for x in ("stdout", "stderr"):
