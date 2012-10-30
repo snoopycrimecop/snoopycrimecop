@@ -36,7 +36,7 @@ import logging
 import threading
 import argparse
 
-fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
+fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
 
 log = logging.getLogger("ome_merge")
@@ -154,7 +154,7 @@ class LoggerWrapper(threading.Thread):
 logWrap = LoggerWrapper(log)
 
 
-class Data(object):
+class PullRequest(object):
     def __init__(self, repo, pr):
         self.repo = repo
         self.pr = pr
@@ -191,7 +191,7 @@ class Data(object):
                     directories.append(line.replace("--test", ""))
         return directories
 
-class OME(object):
+class Repository(object):
 
     def __init__(self, base, reset, exclude, include):
 
@@ -222,7 +222,8 @@ class OME(object):
 
         # Creating Github instance
         try:
-            self.token, e = self.call("git","config","--get","github.token", stdout = subprocess.PIPE).communicate()
+            self.token, e = self.call("git", "config", "--get", 
+                "github.token", stdout = subprocess.PIPE).communicate()
         except Exception:
             self.token = None
 
@@ -249,33 +250,33 @@ class OME(object):
         directories_log = None
 
         for pr in self.pulls:
-            data = Data(self.repo, pr)
+            pullrequest = PullRequest(self.repo, pr)
             found = False
 
             # Check the base ref of the PR
-            if data.base == base:
-                if self.org.has_in_public_members(data.user):
+            if pullrequest.base == base:
+                if self.org.has_in_public_members(pullrequest.user):
                     found = True
                 else:
                     if include:
                         for filter in include:
-                            if filter.lower() in [x.lower() for x in data.labels]:
+                            if filter.lower() in [x.lower() for x in pullrequest.labels]:
                                 dbg("# ... Include %s", filter)
                                 found = True
 
             # Exclude PRs if exclude labels are input
             if found and exclude:
                 for filter in exclude:
-                    if filter.lower() in [x.lower() for x in data.labels]:
+                    if filter.lower() in [x.lower() for x in pullrequest.labels]:
                         dbg("# ... Exclude %s", filter)
                         found = False
                         break
 
             if found:
-                self.unique_logins.add(data.login)
-                dbg(data)
-                self.storage.append(data)
-                directories = data.test_directories()
+                self.unique_logins.add(pullrequest.login)
+                dbg(pullrequest)
+                self.storage.append(pullrequest)
+                directories = pullrequest.test_directories()
                 if directories:
                     if directories_log == None:
                         directories_log = open('directories.txt', 'w')
@@ -304,10 +305,10 @@ class OME(object):
         return p
 
     def info(self):
-        for data in ome.storage:
-            print "# %s" % " ".join(data.labels)
+        for pullrequest in self.storage:
+            print "# %s" % " ".join(pullrequest.labels)
             print "%s %s by %s for \t\t[???]" % \
-                (data.pr.issue_url, data.title, data.login)
+                (pullrequest.pr.issue_url, pullrequest.title, pullrequest.login)
             print
 
     def merge(self, comment=False):
@@ -322,23 +323,23 @@ class OME(object):
             self.remotes[key] = url
             self.call("git", "fetch", key)
 
-        conflictingPRs = []
-        mergedPRs = []
+        conflicting_prs = []
+        merged_prs = []
 
-        for data in self.storage:
+        for pullrequest in self.storage:
             premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
                 self.call("git", "merge", "--no-ff", "-m", \
-                        "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
+                        "%s: PR %s (%s)" % (self.commit_msg, pullrequest.num, pullrequest.title), pullrequest.sha)
                 self.modifications += 1
-                mergedPRs.append(data)
+                merged_prs.append(pullrequest)
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflictingPRs.append(data)
 
-                msg = "Conflicting PR #%g." % data.num
+                msg = "Conflicting PR #%g." % pullrequest.num
                 if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
                     msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
                         os.environ.get("BUILD_NUMBER"))
@@ -347,18 +348,18 @@ class OME(object):
                 dbg(msg)
 
                 if comment and self.token:
-                    dbg("Adding comment to issue #%g." % data.num)
-                    data.issue.create_comment(msg)
+                    dbg("Adding comment to issue #%g." % pullrequest.num)
+                    pullrequest.issue.create_comment(msg)
 
-        if mergedPRs:
+        if merged_prs:
             log.info("Merged PRs:")
-            for mergedPR in mergedPRs:
-                log.info(mergedPR)
+            for merged_pr in merged_prs:
+                log.info(merged_pr)
 
-        if conflictingPRs:
+        if conflicting_prs:
             log.info("Conflicting PRs (not included):")
-            for conflictingPR in conflictingPRs:
-                log.info(conflictingPR)
+            for conflicting_pr in conflicting_prs:
+                log.info(conflicting_pr)
 
         self.call("git", "submodule", "update")
 
@@ -373,19 +374,19 @@ class OME(object):
         while "".join(lines):
             dir = lines.pop(0).strip()
             try:
-                ome = None
+                submodule_repo = None
                 self.cd(dir)
-                ome = OME(self.base, self.reset, self.exclude, self.include)
+                submodule_repo = Repository(self.base, self.reset, self.exclude, self.include)
                 if info:
-                    ome.info()
+                    submodule_repo.info()
                 else:
-                    ome.merge(comment)
-                ome.submodules(info)
-                self.modifications += ome.modifications
+                    submodule_repo.merge(comment)
+                submodule_repo.submodules(info)
+                self.modifications += submodule_repo.modifications
             finally:
                 try:
-                    if ome:
-                        ome.cleanup()
+                    if submodule_repo:
+                        submodule_repo.cleanup()
                 finally:
                     self.cd(cwd)
 
@@ -454,13 +455,13 @@ if __name__ == "__main__":
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
-    ome = OME(args.base, args.reset, args.exclude, args.include)
+    Repo = Repository(args.base, args.reset, args.exclude, args.include)
     try:
         if not args.info:
-            ome.merge(args.comment)
-        ome.submodules(args.info, args.comment)  # Recursive
+            Repo.merge(args.comment)
+        Repo.submodules(args.info, args.comment)  # Recursive
 
         if args.buildnumber:
             pushTeam(args.base, args.buildnumber)
     finally:
-        ome.cleanup()
+        Repo.cleanup()
