@@ -42,7 +42,7 @@ logging.basicConfig(level=10, format=fmt)
 log = logging.getLogger("ome_merge")
 dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
-
+log.setLevel(logging.INFO)
 
 class GHWrapper(object):
 
@@ -180,7 +180,7 @@ class Data(object):
         return key in self.labels
 
     def __repr__(self):
-        return "# PR %s %s '%s'" % (self.num, self.login, self.title)
+        return "  # PR %s %s '%s'" % (self.num, self.login, self.title)
 
     def test_directories(self):
         directories = []
@@ -195,6 +195,7 @@ class OME(object):
 
     def __init__(self, base, reset, exclude, include):
 
+        log.info("")
         [org, name] = self.getRepositoryInfo()
         if reset:
             dbg("Resetting...")
@@ -309,7 +310,7 @@ class OME(object):
                 (data.pr.issue_url, data.title, data.login)
             print
 
-    def merge(self):
+    def merge(self, comment=False):
         dbg("## Unique users: %s", self.unique_logins)
         for user in self.unique_logins:
             key = "merge_%s" % user
@@ -318,28 +319,46 @@ class OME(object):
             self.remotes[key] = url
             self.call("git", "fetch", key)
 
+        conflictingPRs = []
+        mergedPRs = []
+
         for data in self.storage:
             premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+
             try:
                 self.call("git", "merge", "--no-ff", "-m", \
                         "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
                 self.modifications += 1
-                log.info(data)
+                mergedPRs.append(data)
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha[0:6])
-                if self.token:
-                    msg = "Conflicting PR #%g." % data.num
-                    if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
-                        msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
-                            os.environ.get("BUILD_NUMBER"))
-                    else:
-                        msg += "."
-                    dbg(msg)
-                    #data.issue.create_comment(msg)
+                conflictingPRs.append(data)
+
+                msg = "Conflicting PR #%g." % data.num
+                if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
+                    msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
+                        os.environ.get("BUILD_NUMBER"))
+                else:
+                    msg += "."
+                dbg(msg)
+
+                if comment and self.token:
+                    dbg("Adding comment to issue #%g." % data.num)
+                    data.issue.create_comment(msg)
+
+        if mergedPRs:
+            log.info("Merged PRs:")
+            for mergedPR in mergedPRs:
+                log.info(mergedPR)
+
+        if conflictingPRs:
+            log.info("Conflicting PRs (not included):")
+            for conflictingPR in conflictingPRs:
+                log.info(conflictingPR)
 
         self.call("git", "submodule", "update")
 
-    def submodules(self, info=False):
+    def submodules(self, info=False, comment=False):
 
         o, e = self.call("git", "submodule", "--quiet", "foreach", \
                 "echo $path", \
@@ -356,7 +375,7 @@ class OME(object):
                 if info:
                     ome.info()
                 else:
-                    ome.merge()
+                    ome.merge(comment)
                 ome.submodules(info)
                 self.modifications += ome.modifications
             finally:
@@ -416,6 +435,8 @@ if __name__ == "__main__":
         help='Reset the current branch to its HEAD')
     parser.add_argument('--info', action='store_true',
         help='Display merge candidates but do not merge them')
+    parser.add_argument('--comment', action='store_true',
+        help='Add comment to conflicting PR')
     parser.add_argument('base', type=str)
     parser.add_argument('--include', nargs="*",
         help='PR labels to include in the merge')
@@ -432,8 +453,8 @@ if __name__ == "__main__":
     ome = OME(args.base, args.reset, args.exclude, args.include)
     try:
         if not args.info:
-            ome.merge()
-        ome.submodules(args.info)  # Recursive
+            ome.merge(args.comment)
+        ome.submodules(args.info, args.comment)  # Recursive
 
         if args.buildnumber:
             pushTeam(args.base, args.buildnumber)
