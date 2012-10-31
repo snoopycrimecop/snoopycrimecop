@@ -498,14 +498,14 @@ if __name__ == "__main__":
     filters["base"] = args.base
     filters["include"] = args.include
     filters["exclude"] = args.exclude
-    Repo = Repository(filters, args.reset)
+    main_repo = Repository(filters, args.reset)
     try:
         if not args.info:
-            Repo.merge(args.comment)
-        Repo.submodules(args.info, args.comment)  # Recursive
+            main_repo.merge(args.comment)
+        main_repo.submodules(args.info, args.comment)  # Recursive
 
         if args.buildnumber:
             newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
             call("git", "push", "team", newbranch)
     finally:
-        Repo.cleanup()
+        main_repo.cleanup()
