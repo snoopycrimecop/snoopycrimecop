@@ -327,6 +327,7 @@ class OME(object):
 
         for data in self.storage:
             premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+            premerge_sha = premerge_sha.rstrip("\n")
 
             try:
                 self.call("git", "merge", "--no-ff", "-m", \
