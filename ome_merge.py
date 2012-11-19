@@ -334,7 +334,7 @@ class OME(object):
                 self.modifications += 1
                 mergedPRs.append(data)
             except:
-                self.call("git", "reset", "--hard", "%s" % premerge_sha[0:6])
+                self.call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflictingPRs.append(data)
 
                 msg = "Conflicting PR #%g." % data.num
