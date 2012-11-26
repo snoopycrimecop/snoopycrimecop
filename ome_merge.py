@@ -307,10 +307,11 @@ class Repository(object):
                 (pullrequest.pr.issue_url, pullrequest.get_title(), pullrequest.get_login())
             print
 
-    def fast_forward(self, base):
+    def fast_forward(self, base, remote = "origin"):
         """Execute merge --ff-only against the current base"""
         dbg("## Merging base to ensure closed PRs are included.")
-        call("git", "merge", "--ff-only", base)
+        p = call("git", "merge", "--ff-only", remote + "/" + base, stdout = subprocess.PIPE).communicate()
+        log.info(p.rstrip("\n"))
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
