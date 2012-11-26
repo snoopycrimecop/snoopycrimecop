@@ -253,7 +253,7 @@ class GitRepository(object):
     def __init__(self, path, filters, reset=False):
 
         log.info("")
-        self.path = path
+        self.path =  os.path.abspath(path)
         [org_name, repo_name] = self.get_remote_info("origin")
         if reset:
             self.reset()
