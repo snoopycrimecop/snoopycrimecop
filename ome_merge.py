@@ -43,15 +43,51 @@ dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
+def get_token():
+    try:
+        p = call("git", "config", "--get",
+            "github.token", stdout = subprocess.PIPE).communicate()[0]
+        token = p.split("\n")[0]
+    except Exception:
+        token = None
+    return token
+
+def get_github(token = None):
+    return gh_manager.get_github(token)
+
+class GHManager(object):
+    def __init__(self):
+        self.gh_dictionary = {}
+
+    def get_github(self, token = None):
+        gh = None
+        if self.gh_dictionary.has_key(token):
+            gh = self.gh_dictionary[token]
+        else:
+            gh = GHWrapper(token)
+            self.gh_dictionary[token] = gh
+        return gh
+
+gh_manager = GHManager()
+
 class GHWrapper(object):
 
-    def __init__(self, delegate):
-        self.delegate = delegate
+    def __init__(self, token = None):
+        if token:
+            self.delegate = github.Github(token)
+            dbg("Creating Github instance identified as %s",
+                self.delegate.get_user().login)
+        else:
+            self.delegate = github.Github()
+            dbg("Creating anonymous Github instance")
 
     def __getattr__(self, key):
         dbg("gh.%s", key)
         return getattr(self.delegate, key)
 
+    def get_rate_limiting(self):
+        requests = self.delegate.rate_limiting
+        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
 class LoggerWrapper(threading.Thread):
@@ -228,23 +264,7 @@ class Repository(object):
         self.reset = reset
         self.filters = filters
 
-        # Creating Github instance
-        try:
-            self.token = call("git", "config", "--get", 
-                "github.token", stdout = subprocess.PIPE).communicate()[0]
-        except Exception:
-            self.token = None
-
-        if self.token:
-            gh = GHWrapper(github.Github(self.token))
-            dbg("Creating Github instance identified as %s", 
-                gh.get_user().login)
-        else:
-            gh = GHWrapper(github.Github())
-            dbg("Creating anonymous Github instance")
-        requests = gh.rate_limiting
-        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
-
+        gh = get_github(get_token())
         self.org = gh.get_organization(org_name)
         try:
             self.repo = self.org.get_repo(repo_name)
@@ -344,7 +364,7 @@ class Repository(object):
                     msg += "."
                 dbg(msg)
 
-                if comment and self.token:
+                if comment and get_token():
                     dbg("Adding comment to issue #%g." % pullrequest.get_number())
                     pullrequest.issue.create_comment(msg)
 
