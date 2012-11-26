@@ -29,14 +29,13 @@ CURRENT submodule sha1. A final commit will then update the submodules.
 """
 
 import os
-import sys
 import github  # PyGithub
 import subprocess
 import logging
 import threading
 import argparse
 
-fmt="""%(asctime)s %(levelname)-5.5s %(message)s"""
+fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
 
 log = logging.getLogger("ome_merge")
@@ -117,13 +116,13 @@ class LoggerWrapper(threading.Thread):
         while True:
 
             # Read a line of text from the pipe
-            messageFromPipe = self.pipeReader.readline()
+            message_from_pipe = self.pipeReader.readline()
 
             # If the line read is empty the pipe has been
             # closed, do a cleanup and exit
             # WARNING: I don't know if this method is correct,
             #          further study needed
-            if len(messageFromPipe) == 0:
+            if len(message_from_pipe) == 0:
                 self.pipeReader.close()
                 os.close(self.fdRead)
                 return
@@ -131,14 +130,14 @@ class LoggerWrapper(threading.Thread):
 
             # Remove the trailing newline character frm the string
             # before sending it to the logger
-            if messageFromPipe[-1] == os.linesep:
-                messageToLog = messageFromPipe[:-1]
+            if message_from_pipe[-1] == os.linesep:
+                message_to_log = message_from_pipe[:-1]
             else:
-                messageToLog = messageFromPipe
+                message_to_log = message_from_pipe
             # end if
 
             # Send the text to the logger
-            self._write(messageToLog)
+            self._write(message_to_log)
         # end while
     # end run
 
@@ -154,191 +153,186 @@ class LoggerWrapper(threading.Thread):
 logWrap = LoggerWrapper(log)
 
 
-class Data(object):
-    def __init__(self, repo, pr):
-        self.repo = repo
-        self.pr = pr
-        self.sha = pr.head.sha
-        self.base = pr.base.ref
-        self.user = pr.user
-        self.login = pr.user.login
-        self.title = pr.title
-        self.num = int(pr.issue_url.split("/")[-1])
-        self.issue = repo.get_issue(self.num)
-        self.label_objs = self.issue.labels
-        self.labels = [x.name for x in self.label_objs]
-        dbg("login = %s", self.login)
-        dbg("labels = %s", self.labels)
-        dbg("base = %s", self.base)
-        self.comments = []
-        if self.issue.comments:
-            for x in self.issue.get_comments():
-                self.comments.append(x.body)
-        dbg("len(comments) = %s", len(self.comments))
+class PullRequest(object):
+    def __init__(self, repo, pull):
+        self.pull = pull
+        self.issue = repo.get_issue(self.get_number())
+        dbg("login = %s", self.get_login())
+        dbg("labels = %s", self.get_labels())
+        dbg("base = %s", self.get_base())
+        dbg("len(comments) = %s", len(self.get_comments()))
 
     def __contains__(self, key):
-        return key in self.labels
+        return key in self.get_labels()
 
     def __repr__(self):
-        return "  # PR %s %s '%s'" % (self.num, self.login, self.title)
+        return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(), self.get_title())
 
     def test_directories(self):
         directories = []
-        for comment in self.comments:
+        for comment in self.get_comments():
             lines = comment.splitlines()
             for line in lines:
                 if line.startswith("--test"):
                     directories.append(line.replace("--test", ""))
         return directories
 
-class OME(object):
+    def get_title(self):
+        """Return the title of the Pull Request."""
+        return self.pull.title
 
-    def __init__(self, base, reset, exclude, include):
+    def get_user(self):
+        """Return the name of the Pull Request owner."""
+        return self.pull.user
+
+    def get_login(self):
+        """Return the login of the Pull Request owner."""
+        return self.pull.user.login
+
+    def get_number(self):
+        """Return the number of the Pull Request."""
+        return int(self.pull.issue_url.split("/")[-1])
+
+    def get_sha(self):
+        """Return the SHA1 of the head of the Pull Request."""
+        return self.pull.head.sha
+
+    def get_base(self):
+        """Return the branch against which the Pull Request is opened."""
+        return self.pull.base.ref
+
+    def get_labels(self):
+        """Return the labels of the Pull Request."""
+        return [x.name for x in  self.issue.labels]
+
+    def get_comments(self):
+        """Return the labels of the Pull Request."""
+        if self.issue.comments:
+            return [comment.body for comment in self.issue.get_comments()]
+        else:
+            return []
+
+class Repository(object):
+
+    def __init__(self, filters, reset=False):
 
         log.info("")
-        [org, name] = self.getRepositoryInfo()
+        [org_name, repo_name] = get_repository_info()
         if reset:
             dbg("Resetting...")
-            self.call("git", "reset", "--hard", "HEAD")
+            call("git", "reset", "--hard", "HEAD")
 
         dbg("Check current status")
-        self.call("git", "log", "--oneline", "-n", "1", "HEAD")
-        self.call("git", "submodule", "status")
-        self.name = name
+        call("git", "log", "--oneline", "-n", "1", "HEAD")
+        call("git", "submodule", "status")
         self.reset = reset
-        self.base = base
-
-        # Create commit message using base, exclude & include
-        self.commit_msg = "merge"+"_into_"+base
-        self.include = include
-        if include:
-            self.commit_msg += "+" + "+".join(include)
-        self.exclude = exclude
-        if exclude:
-            print exclude
-            self.commit_msg += "-" + "-".join(exclude)
-
-        self.remotes = {}
+        self.filters = filters
 
         # Creating Github instance
         try:
-            self.token, e = self.call("git","config","--get","github.token", stdout = subprocess.PIPE).communicate()
+            self.token = call("git", "config", "--get", 
+                "github.token", stdout = subprocess.PIPE).communicate()[0]
         except Exception:
             self.token = None
 
         if self.token:
-            self.gh = GHWrapper(github.Github(self.token))
-            dbg("Creating Github instance identified as %s", self.gh.get_user().login)
+            gh = GHWrapper(github.Github(self.token))
+            dbg("Creating Github instance identified as %s", 
+                gh.get_user().login)
         else:
-            self.gh = GHWrapper(github.Github())
+            gh = GHWrapper(github.Github())
             dbg("Creating anonymous Github instance")
-        requests = self.gh.rate_limiting
-        dbg("Remaining requests: %s out of %s", requests[0], requests[1] )
+        requests = gh.rate_limiting
+        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
-        self.org = self.gh.get_organization(org)
+        self.org = gh.get_organization(org_name)
         try:
-            self.repo = self.org.get_repo(name)
+            self.repo = self.org.get_repo(repo_name)
         except:
-            log.error("Failed to find %s", name, exc_info=1)
-        self.pulls = self.repo.get_pulls()
-        self.storage = []
+            log.error("Failed to find %s", repo_name, exc_info=1)
+        self.candidate_pulls = []
         self.modifications = 0
-        self.unique_logins = set()
-        dbg("## PRs found:")
+        self.find_candidates()
 
+    def find_candidates(self):
+        """Find candidate Pull Requests for merging."""
+        dbg("## PRs found:")
         directories_log = None
 
-        for pr in self.pulls:
-            data = Data(self.repo, pr)
+        # Loop over pull requests opened aainst base
+        pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == self.filters["base"])]
+        for pull in pulls:
+            pullrequest = PullRequest(self.repo, pull)
             found = False
+            labels = [x.lower() for x in pullrequest.get_labels()]
 
-            # Check the base ref of the PR
-            if data.base == base:
-                if self.org.has_in_public_members(data.user):
-                    found = True
-                else:
-                    if include:
-                        for filter in include:
-                            if filter.lower() in [x.lower() for x in data.labels]:
-                                dbg("# ... Include %s", filter)
-                                found = True
+            if self.org.has_in_public_members(pullrequest.get_user()):
+                found = True
+            else:
+                if self.filters["include"]:
+                    whitelist = [filt for filt in self.filters["include"] if filt.lower() in labels]
+                    if whitelist:
+                        dbg("# ... Include %s", whitelist)
+                        found = True
+
+            if not found:
+                continue
 
             # Exclude PRs if exclude labels are input
-            if found and exclude:
-                for filter in exclude:
-                    if filter.lower() in [x.lower() for x in data.labels]:
-                        dbg("# ... Exclude %s", filter)
-                        found = False
-                        break
+            if self.filters["exclude"]:
+                blacklist = [filt for filt in self.filters["exclude"] if filt.lower() in labels]
+                if blacklist:
+                    dbg("# ... Exclude %s", blacklist)
+                    continue
 
             if found:
-                self.unique_logins.add(data.login)
-                dbg(data)
-                self.storage.append(data)
-                directories = data.test_directories()
+                dbg(pullrequest)
+                self.candidate_pulls.append(pullrequest)
+                directories = pullrequest.test_directories()
                 if directories:
                     if directories_log == None:
                         directories_log = open('directories.txt', 'w')
                     for directory in directories:
                         directories_log.write(directory)
                         directories_log.write("\n")
-        self.storage.sort(lambda a, b: cmp(a.num, b.num))
+        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
 
         # Cleanup
         if directories_log:
             directories_log.close()
 
-    def cd(self, dir):
-        dbg("cd %s", dir)
-        os.chdir(dir)
-
-    def call(self, *command, **kwargs):
-        for x in ("stdout", "stderr"):
-            if x not in kwargs:
-                kwargs[x] = logWrap
-        dbg("Calling '%s'" % " ".join(command))
-        p = subprocess.Popen(command, **kwargs)
-        rc = p.wait()
-        if rc:
-            raise Exception("rc=%s" % rc)
-        return p
-
     def info(self):
-        for data in ome.storage:
-            print "# %s" % " ".join(data.labels)
+        for pullrequest in self.candidate_pulls:
+            print "# %s" % " ".join(pullrequest.get_labels())
             print "%s %s by %s for \t\t[???]" % \
-                (data.pr.issue_url, data.title, data.login)
+                (pullrequest.pr.issue_url, pullrequest.get_title(), pullrequest.get_login())
             print
 
     def merge(self, comment=False):
-        dbg("## Unique users: %s", self.unique_logins)
-        for user in self.unique_logins:
-            key = "merge_%s" % user
-            if self.repo.private:
-                url = "git@github.com:%s/%s.git"  % (user, self.name)
-            else:
-                url = "git://github.com/%s/%s.git" % (user, self.name)
-            self.call("git", "remote", "add", key, url)
-            self.remotes[key] = url
-            self.call("git", "fetch", key)
+        """Merge candidate pull requests."""
+        dbg("## Unique users: %s", self.unique_logins())
+        for key, url in self.remotes().items():
+            print key
+            call("git", "remote", "add", key, url)
+            call("git", "fetch", key)
 
-        conflictingPRs = []
-        mergedPRs = []
+        conflicting_pulls = []
+        merged_pulls = []
 
-        for data in self.storage:
+        for pullrequest in self.candidate_pulls:
             premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
-                self.call("git", "merge", "--no-ff", "-m", \
-                        "%s: PR %s (%s)" % (self.commit_msg, data.num, data.title), data.sha)
+                call("git", "merge", "--no-ff", "-m", \
+                        "%s: PR %s (%s)" % (self.commit_id(), pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
                 self.modifications += 1
-                mergedPRs.append(data)
+                merged_pulls.append(pullrequest)
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflictingPRs.append(data)
 
-                msg = "Conflicting PR #%g." % data.num
+                msg = "Conflicting PR #%g." % pullrequest.get_number()
                 if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
                     msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
                         os.environ.get("BUILD_NUMBER"))
@@ -347,89 +341,135 @@ class OME(object):
                 dbg(msg)
 
                 if comment and self.token:
-                    dbg("Adding comment to issue #%g." % data.num)
-                    data.issue.create_comment(msg)
+                    dbg("Adding comment to issue #%g." % pullrequest.get_number())
+                    pullrequest.issue.create_comment(msg)
 
-        if mergedPRs:
+        if merged_pulls:
             log.info("Merged PRs:")
-            for mergedPR in mergedPRs:
-                log.info(mergedPR)
+            for merged_pull in merged_pulls:
+                log.info(merged_pull)
 
-        if conflictingPRs:
+        if conflicting_pulls:
             log.info("Conflicting PRs (not included):")
-            for conflictingPR in conflictingPRs:
-                log.info(conflictingPR)
+            for conflicting_pull in conflicting_pulls:
+                log.info(conflicting_pull)
 
-        self.call("git", "submodule", "update")
+        call("git", "submodule", "update")
 
     def submodules(self, info=False, comment=False):
+        """Recursively merge PRs for each submodule."""
 
-        o, e = self.call("git", "submodule", "--quiet", "foreach", \
+        submodule_paths = call("git", "submodule", "--quiet", "foreach", \
                 "echo $path", \
-                stdout=subprocess.PIPE).communicate()
+                stdout=subprocess.PIPE).communicate()[0]
 
         cwd = os.path.abspath(os.getcwd())
-        lines = o.split("\n")
+        lines = submodule_paths.split("\n")
         while "".join(lines):
-            dir = lines.pop(0).strip()
+            directory = lines.pop(0).strip()
             try:
-                ome = None
-                self.cd(dir)
-                ome = OME(self.base, self.reset, self.exclude, self.include)
+                submodule_repo = None
+                cd(directory)
+                submodule_repo = Repository(filters, self.reset)
                 if info:
-                    ome.info()
+                    submodule_repo.info()
                 else:
-                    ome.merge(comment)
-                ome.submodules(info)
-                self.modifications += ome.modifications
+                    submodule_repo.merge(comment)
+                submodule_repo.submodules(info)
+                self.modifications += submodule_repo.modifications
             finally:
                 try:
-                    if ome:
-                        ome.cleanup()
+                    if submodule_repo:
+                        submodule_repo.cleanup()
                 finally:
-                    self.cd(cwd)
+                    cd(cwd)
 
         if self.modifications:
-            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                    "%s: Update all modules w/o hooks" % self.commit_msg)
+            call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
+                    "%s: Update all modules w/o hooks" % self.commit_id())
 
-    def getRepositoryInfo(self):
-        originurl, e = self.call("git", "config", "--get", \
-            "remote.origin.url", stdout = subprocess.PIPE, \
-            stderr = subprocess.PIPE).communicate()
+    def get_name(self):
+        """Return name of the repository."""
+        return self.repo.name
 
-        # Read organization from origin URL
-        dirname = os.path.dirname(originurl)
-        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
-        org = os.path.basename(dirname)
-        if ":" in dirname:
-            org = org.split(":")[-1]
+    def commit_id(self):
+        """
+        Return commit identifier generated from base branch, include and 
+        exclude labels.
+        """
+        commit_id = "merge"+"_into_"+self.filters["base"]
+        if self.filters["include"]:
+            commit_id += "+" + "+".join(self.filters["include"])
+        if self.filters["exclude"]:
+            commit_id += "-" + "-".join(self.filters["exclude"])
+        return commit_id
 
-        # Read repository from origin URL
-        basename = os.path.basename(originurl)
-        repo = os.path.splitext(basename)[0]
-        log.info("Repository: %s/%s", org, repo)
-        return [org , repo]
+    def unique_logins(self):
+        """Return a set of unique logins."""
+        unique_logins = set()
+        for pull in self.candidate_pulls:
+            unique_logins.add(pull.get_login())
+        return unique_logins
+
+    def remotes(self):
+        """Return remotes associated to unique login."""
+        remotes = {}
+        for user in self.unique_logins():
+            key = "merge_%s" % user
+            if self.repo.private:
+                url = "git@github.com:%s/%s.git"  % (user, self.get_name())
+            else:
+                url = "git://github.com/%s/%s.git" % (user, self.get_name())
+            remotes[key] = url
+        return remotes
 
     def cleanup(self):
-        for k, v in self.remotes.items():
+        """Remove remote branches created for merging."""
+        for key in self.remotes().keys():
             try:
-                self.call("git", "remote", "rm", k)
-            except Exception, e:
-                log.error("Failed to remove", k, exc_info=1)
+                call("git", "remote", "rm", key)
+            except Exception:
+                log.error("Failed to remove", key, exc_info=1)
 
-
-
-def pushTeam(base, build_number):
-    newbranch = "HEAD:%s/%g" % (base, build_number)
-    command = ["git", "push", "team", newbranch]
+def call(*command, **kwargs):
+    for x in ("stdout", "stderr"):
+        if x not in kwargs:
+            kwargs[x] = logWrap
     dbg("Calling '%s'" % " ".join(command))
-    p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-
+    p = subprocess.Popen(command, **kwargs)
     rc = p.wait()
     if rc:
         raise Exception("rc=%s" % rc)
     return p
+
+def cd(directory):
+    dbg("cd %s", directory)
+    os.chdir(directory)
+
+def get_repository_info():
+    """
+    Return organization and repository name of the current directory.
+
+    Origin remote must be on Github, i.e. of type
+    *github/organization/repository.git
+    """
+
+    originurl = call("git", "config", "--get", \
+        "remote.origin.url", stdout = subprocess.PIPE, \
+        stderr = subprocess.PIPE).communicate()[0]
+
+    # Read organization from origin URL
+    dirname = os.path.dirname(originurl)
+    assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+    org = os.path.basename(dirname)
+    if ":" in dirname:
+        org = org.split(":")[-1]
+
+    # Read repository from origin URL
+    basename = os.path.basename(originurl)
+    repo = os.path.splitext(basename)[0]
+    log.info("Repository: %s/%s", org, repo)
+    return [org , repo]
 
 if __name__ == "__main__":
 
@@ -454,13 +494,18 @@ if __name__ == "__main__":
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
 
-    ome = OME(args.base, args.reset, args.exclude, args.include)
+    filters = {}
+    filters["base"] = args.base
+    filters["include"] = args.include
+    filters["exclude"] = args.exclude
+    main_repo = Repository(filters, args.reset)
     try:
         if not args.info:
-            ome.merge(args.comment)
-        ome.submodules(args.info, args.comment)  # Recursive
+            main_repo.merge(args.comment)
+        main_repo.submodules(args.info, args.comment)  # Recursive
 
         if args.buildnumber:
-            pushTeam(args.base, args.buildnumber)
+            newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
+            call("git", "push", "team", newbranch)
     finally:
-        ome.cleanup()
+        main_repo.cleanup()
