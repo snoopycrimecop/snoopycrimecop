@@ -254,15 +254,11 @@ class GitRepository(object):
 
         log.info("")
         self.path = path
-        cd(self.path)
-        [org_name, repo_name] = get_repository_info()
+        [org_name, repo_name] = self.get_remote_info("origin")
         if reset:
-            dbg("Resetting...")
-            call("git", "reset", "--hard", "HEAD")
+            self.reset()
+        self.get_status()
 
-        dbg("Check current status")
-        call("git", "log", "--oneline", "-n", "1", "HEAD")
-        call("git", "submodule", "status")
         self.reset = reset
         self.filters = filters
 
@@ -322,6 +318,17 @@ class GitRepository(object):
         if directories_log:
             directories_log.close()
 
+    def get_status(self):
+        cd(self.path)
+        dbg("Check current status")
+        call("git", "log", "--oneline", "-n", "1", "HEAD")
+        call("git", "submodule", "status")
+
+    def reset(self):
+        cd(self.path)
+        dbg("Resetting...")
+        call("git", "reset", "--hard", "HEAD")
+
     def info(self):
         for pullrequest in self.candidate_pulls:
             print "# %s" % " ".join(pullrequest.get_labels())
@@ -334,6 +341,32 @@ class GitRepository(object):
         dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
         log.info(p.rstrip("/n"))
+
+    def get_remote_info(self, remote_name):
+        """
+        Return organization and repository name of the specified remote.
+
+        Origin remote must be on Github, i.e. of type
+        *github/organization/repository.git
+        """
+        
+        cd(self.path)
+        originurl = call("git", "config", "--get", \
+            "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
+            stderr = subprocess.PIPE).communicate()[0]
+
+        # Read organization from origin URL
+        dirname = os.path.dirname(originurl)
+        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        org = os.path.basename(dirname)
+        if ":" in dirname:
+            org = org.split(":")[-1]
+
+        # Read repository from origin URL
+        basename = os.path.basename(originurl)
+        repo = os.path.splitext(basename)[0]
+        log.info("Repository: %s/%s", org, repo)
+        return [org , repo]
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
@@ -467,33 +500,11 @@ def call(*command, **kwargs):
     return p
 
 def cd(directory):
-    dbg("cd %s", directory)
-    os.chdir(directory)
+    if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
+        dbg("cd %s", directory)
+        os.chdir(directory)
 
-def get_repository_info():
-    """
-    Return organization and repository name of the current directory.
 
-    Origin remote must be on Github, i.e. of type
-    *github/organization/repository.git
-    """
-
-    originurl = call("git", "config", "--get", \
-        "remote.origin.url", stdout = subprocess.PIPE, \
-        stderr = subprocess.PIPE).communicate()[0]
-
-    # Read organization from origin URL
-    dirname = os.path.dirname(originurl)
-    assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
-    org = os.path.basename(dirname)
-    if ":" in dirname:
-        org = org.split(":")[-1]
-
-    # Read repository from origin URL
-    basename = os.path.basename(originurl)
-    repo = os.path.splitext(basename)[0]
-    log.info("Repository: %s/%s", org, repo)
-    return [org , repo]
 
 if __name__ == "__main__":
 
