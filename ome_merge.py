@@ -320,7 +320,7 @@ class Repository(object):
         merged_pulls = []
 
         for pullrequest in self.candidate_pulls:
-            premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+            premerge_sha, e = call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
@@ -329,7 +329,7 @@ class Repository(object):
                 self.modifications += 1
                 merged_pulls.append(pullrequest)
             except:
-                self.call("git", "reset", "--hard", "%s" % premerge_sha)
+                call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflictingPRs.append(data)
 
                 msg = "Conflicting PR #%g." % pullrequest.get_number()
