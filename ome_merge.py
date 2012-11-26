@@ -359,7 +359,7 @@ class Repository(object):
 
         call("git", "submodule", "update")
 
-    def submodules(self, base, info=False, comment=False):
+    def submodules(self, info=False, comment=False):
         """Recursively merge PRs for each submodule."""
 
         submodule_paths = call("git", "submodule", "--quiet", "foreach", \
@@ -373,11 +373,11 @@ class Repository(object):
             try:
                 submodule_repo = None
                 cd(directory)
-                submodule_repo = Repository(filters, self.reset)
+                submodule_repo = Repository(self.filters, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
-                    submodule.fast_forward(base)
+                    submodule_repo.fast_forward(self.filters["base"])
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
             finally:
@@ -504,7 +504,7 @@ if __name__ == "__main__":
     try:
         if not args.info:
             main_repo.merge(args.comment)
-        main_repo.submodules(args.base, args.info, args.comment)  # Recursive
+        main_repo.submodules(args.info, args.comment)  # Recursive
 
         if args.buildnumber:
             newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
