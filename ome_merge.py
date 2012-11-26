@@ -248,11 +248,13 @@ class PullRequest(object):
         else:
             return []
 
-class Repository(object):
+class GitRepository(object):
 
-    def __init__(self, filters, reset=False):
+    def __init__(self, path, filters, reset=False):
 
         log.info("")
+        self.path = path
+        cd(self.path)
         [org_name, repo_name] = get_repository_info()
         if reset:
             dbg("Resetting...")
@@ -393,8 +395,7 @@ class Repository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                cd(directory)
-                submodule_repo = Repository(self.filters, self.reset)
+                submodule_repo = GitRepository(directory, self.filters, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
@@ -521,7 +522,8 @@ if __name__ == "__main__":
     filters["base"] = args.base
     filters["include"] = args.include
     filters["exclude"] = args.exclude
-    main_repo = Repository(filters, args.reset)
+    cwd = os.path.abspath(os.getcwd())
+    main_repo = GitRepository(cwd, filters, args.reset)
     try:
         if not args.info:
             main_repo.merge(args.comment)
