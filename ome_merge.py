@@ -334,7 +334,7 @@ class Repository(object):
                 merged_pulls.append(pullrequest)
             except:
                 call("git", "reset", "--hard", "%s" % premerge_sha)
-                conflictingPRs.append(data)
+                conflicting_pulls.append(pullrequest)
 
                 msg = "Conflicting PR #%g." % pullrequest.get_number()
                 if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
