@@ -251,7 +251,6 @@ class Repository(object):
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
-        self.modifications = 0
         self.find_candidates()
 
     def find_candidates(self):
@@ -326,7 +325,6 @@ class Repository(object):
             try:
                 call("git", "merge", "--no-ff", "-m", \
                         "%s: PR %s (%s)" % (self.commit_id(), pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
-                self.modifications += 1
                 merged_pulls.append(pullrequest)
             except:
                 call("git", "reset", "--hard", "%s" % premerge_sha)
@@ -376,7 +374,6 @@ class Repository(object):
                 else:
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
-                self.modifications += submodule_repo.modifications
             finally:
                 try:
                     if submodule_repo:
@@ -384,9 +381,8 @@ class Repository(object):
                 finally:
                     cd(cwd)
 
-        if self.modifications:
-            call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                    "%s: Update all modules w/o hooks" % self.commit_id())
+        call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
+                "%s: Update all modules w/o hooks" % self.commit_id())
 
     def get_name(self):
         """Return name of the repository."""
