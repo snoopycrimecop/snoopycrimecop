@@ -307,6 +307,11 @@ class Repository(object):
                 (pullrequest.pr.issue_url, pullrequest.get_title(), pullrequest.get_login())
             print
 
+    def fast_forward(self, base):
+        """Execute merge --ff-only against the current base"""
+        dbg("## Merging base to ensure closed PRs are included.")
+        call("git", "merge", "--ff-only", base)
+
     def merge(self, comment=False):
         """Merge candidate pull requests."""
         dbg("## Unique users: %s", self.unique_logins())
@@ -354,7 +359,7 @@ class Repository(object):
 
         call("git", "submodule", "update")
 
-    def submodules(self, info=False, comment=False):
+    def submodules(self, base, info=False, comment=False):
         """Recursively merge PRs for each submodule."""
 
         submodule_paths = call("git", "submodule", "--quiet", "foreach", \
@@ -372,6 +377,7 @@ class Repository(object):
                 if info:
                     submodule_repo.info()
                 else:
+                    submodule.fast_forward(base)
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
             finally:
@@ -498,7 +504,7 @@ if __name__ == "__main__":
     try:
         if not args.info:
             main_repo.merge(args.comment)
-        main_repo.submodules(args.info, args.comment)  # Recursive
+        main_repo.submodules(args.base, args.info, args.comment)  # Recursive
 
         if args.buildnumber:
             newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
