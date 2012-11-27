@@ -310,8 +310,8 @@ class Repository(object):
     def fast_forward(self, base, remote = "origin"):
         """Execute merge --ff-only against the current base"""
         dbg("## Merging base to ensure closed PRs are included.")
-        p = call("git", "merge", "--ff-only", remote + "/" + base, stdout = subprocess.PIPE).communicate()
-        log.info(p.rstrip("\n"))
+        p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
+        log.info(p.rstrip("/n"))
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
