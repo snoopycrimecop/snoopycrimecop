@@ -43,15 +43,51 @@ dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
+def get_token():
+    try:
+        p = call("git", "config", "--get",
+            "github.token", stdout = subprocess.PIPE).communicate()[0]
+        token = p.split("\n")[0]
+    except Exception:
+        token = None
+    return token
+
+def get_github(token = None):
+    return gh_manager.get_github(token)
+
+class GHManager(object):
+    def __init__(self):
+        self.gh_dictionary = {}
+
+    def get_github(self, token = None):
+        gh = None
+        if self.gh_dictionary.has_key(token):
+            gh = self.gh_dictionary[token]
+        else:
+            gh = GHWrapper(token)
+            self.gh_dictionary[token] = gh
+        return gh
+
+gh_manager = GHManager()
+
 class GHWrapper(object):
 
-    def __init__(self, delegate):
-        self.delegate = delegate
+    def __init__(self, token = None):
+        if token:
+            self.delegate = github.Github(token)
+            dbg("Creating Github instance identified as %s",
+                self.delegate.get_user().login)
+        else:
+            self.delegate = github.Github()
+            dbg("Creating anonymous Github instance")
 
     def __getattr__(self, key):
         dbg("gh.%s", key)
         return getattr(self.delegate, key)
 
+    def get_rate_limiting(self):
+        requests = self.delegate.rate_limiting
+        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
 class LoggerWrapper(threading.Thread):
@@ -212,39 +248,21 @@ class PullRequest(object):
         else:
             return []
 
-class Repository(object):
+class GitRepository(object):
 
-    def __init__(self, filters, reset=False):
+    def __init__(self, path, filters, reset=False):
 
         log.info("")
-        [org_name, repo_name] = get_repository_info()
+        self.path =  os.path.abspath(path)
+        [org_name, repo_name] = self.get_remote_info("origin")
         if reset:
-            dbg("Resetting...")
-            call("git", "reset", "--hard", "HEAD")
+            self.reset()
+        self.get_status()
 
-        dbg("Check current status")
-        call("git", "log", "--oneline", "-n", "1", "HEAD")
-        call("git", "submodule", "status")
         self.reset = reset
         self.filters = filters
 
-        # Creating Github instance
-        try:
-            self.token = call("git", "config", "--get", 
-                "github.token", stdout = subprocess.PIPE).communicate()[0]
-        except Exception:
-            self.token = None
-
-        if self.token:
-            gh = GHWrapper(github.Github(self.token))
-            dbg("Creating Github instance identified as %s", 
-                gh.get_user().login)
-        else:
-            gh = GHWrapper(github.Github())
-            dbg("Creating anonymous Github instance")
-        requests = gh.rate_limiting
-        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
-
+        gh = get_github(get_token())
         self.org = gh.get_organization(org_name)
         try:
             self.repo = self.org.get_repo(repo_name)
@@ -300,6 +318,17 @@ class Repository(object):
         if directories_log:
             directories_log.close()
 
+    def get_status(self):
+        cd(self.path)
+        dbg("Check current status")
+        call("git", "log", "--oneline", "-n", "1", "HEAD")
+        call("git", "submodule", "status")
+
+    def reset(self):
+        cd(self.path)
+        dbg("Resetting...")
+        call("git", "reset", "--hard", "HEAD")
+
     def info(self):
         for pullrequest in self.candidate_pulls:
             print "# %s" % " ".join(pullrequest.get_labels())
@@ -312,6 +341,32 @@ class Repository(object):
         dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
         log.info(p.rstrip("/n"))
+
+    def get_remote_info(self, remote_name):
+        """
+        Return organization and repository name of the specified remote.
+
+        Origin remote must be on Github, i.e. of type
+        *github/organization/repository.git
+        """
+        
+        cd(self.path)
+        originurl = call("git", "config", "--get", \
+            "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
+            stderr = subprocess.PIPE).communicate()[0]
+
+        # Read organization from origin URL
+        dirname = os.path.dirname(originurl)
+        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        org = os.path.basename(dirname)
+        if ":" in dirname:
+            org = org.split(":")[-1]
+
+        # Read repository from origin URL
+        basename = os.path.basename(originurl)
+        repo = os.path.splitext(basename)[0]
+        log.info("Repository: %s/%s", org, repo)
+        return [org , repo]
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
@@ -344,7 +399,7 @@ class Repository(object):
                     msg += "."
                 dbg(msg)
 
-                if comment and self.token:
+                if comment and get_token():
                     dbg("Adding comment to issue #%g." % pullrequest.get_number())
                     pullrequest.issue.create_comment(msg)
 
@@ -373,8 +428,7 @@ class Repository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                cd(directory)
-                submodule_repo = Repository(self.filters, self.reset)
+                submodule_repo = GitRepository(directory, self.filters, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
@@ -446,33 +500,11 @@ def call(*command, **kwargs):
     return p
 
 def cd(directory):
-    dbg("cd %s", directory)
-    os.chdir(directory)
+    if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
+        dbg("cd %s", directory)
+        os.chdir(directory)
 
-def get_repository_info():
-    """
-    Return organization and repository name of the current directory.
 
-    Origin remote must be on Github, i.e. of type
-    *github/organization/repository.git
-    """
-
-    originurl = call("git", "config", "--get", \
-        "remote.origin.url", stdout = subprocess.PIPE, \
-        stderr = subprocess.PIPE).communicate()[0]
-
-    # Read organization from origin URL
-    dirname = os.path.dirname(originurl)
-    assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
-    org = os.path.basename(dirname)
-    if ":" in dirname:
-        org = org.split(":")[-1]
-
-    # Read repository from origin URL
-    basename = os.path.basename(originurl)
-    repo = os.path.splitext(basename)[0]
-    log.info("Repository: %s/%s", org, repo)
-    return [org , repo]
 
 if __name__ == "__main__":
 
@@ -501,7 +533,8 @@ if __name__ == "__main__":
     filters["base"] = args.base
     filters["include"] = args.include
     filters["exclude"] = args.exclude
-    main_repo = Repository(filters, args.reset)
+    cwd = os.path.abspath(os.getcwd())
+    main_repo = GitRepository(cwd, filters, args.reset)
     try:
         if not args.info:
             main_repo.merge(args.comment)
