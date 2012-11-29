@@ -279,9 +279,14 @@ class GitRepository(object):
         self.filters = filters
 
         gh = get_github(get_token())
-        self.org = gh.get_organization(org_name)
+
         try:
-            self.repo = self.org.get_repo(repo_name)
+            self.org_or_user = gh.get_organization(org_name)
+        except github.GithubException:
+            self.org_or_user = gh.get_user(org_name) # Likely snoopy himself!
+
+        try:
+            self.repo = self.org_or_user.get_repo(repo_name)
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
@@ -299,9 +304,14 @@ class GitRepository(object):
             found = False
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            if self.org.has_in_public_members(pullrequest.get_user()):
-                found = True
-            else:
+            found = False
+            try:
+                if self.org_or_user.has_in_public_members(pullrequest.get_user()):
+                    found = True
+            except:
+                pass
+
+            if not found:
                 if self.filters["include"]:
                     whitelist = [filt for filt in self.filters["include"] if filt.lower() in labels]
                     if whitelist:
