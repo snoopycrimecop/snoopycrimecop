@@ -290,7 +290,6 @@ class GitRepository(object):
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
-        self.find_candidates()
 
     def find_candidates(self):
         """Find candidate Pull Requests for merging."""
@@ -570,6 +569,7 @@ class Merge(Command):
         filters["exclude"] = args.exclude
         cwd = os.path.abspath(os.getcwd())
         main_repo = GitRepository(cwd, filters, args.reset)
+        main_repo.find_candidates()
         try:
             if not args.info:
                 main_repo.merge(args.comment)
