@@ -72,34 +72,20 @@ def get_token():
 def get_github(login_or_token = None, password = None):
     return gh_manager.get_github(login_or_token, password)
 
-class GHManager(object):
-    def __init__(self):
-        self.gh_dictionary = {}
-
-    def get_github(self, login_or_token = None, password = None):
-        gh = None
-        if self.gh_dictionary.has_key(login_or_token):
-            gh = self.gh_dictionary[login_or_token]
-        else:
-            gh = GHWrapper(login_or_token, password)
-            self.gh_dictionary[login_or_token] = gh
-        return gh
-
-gh_manager = GHManager()
-
 class GHWrapper(object):
+    FACTORY = github.Github
 
     def __init__(self, login_or_token = None, password = None):
         if password is not None:
-            self.github = github.Github(login_or_token, password)
+            self.github = self.FACTORY(login_or_token, password)
             dbg("Creating Github instance identified as %s",
-                self.github.get_user().login)
+                self.get_login())
         elif login_or_token is not None:
-            self.github = github.Github(login_or_token)
+            self.github = self.FACTORY(login_or_token)
             dbg("Creating Github instance identified as %s",
-                self.github.get_user().login)
+                self.get_login())
         else:
-            self.github = github.Github()
+            self.github = self.FACTORY()
             dbg("Creating anonymous Github instance")
 
     def __getattr__(self, key):
@@ -110,6 +96,25 @@ class GHWrapper(object):
         requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
+    def get_login(self):
+        return self.github.get_user().login
+
+class GHManager(object):
+    FACTORY = GHWrapper
+
+    def __init__(self):
+        self.gh_dictionary = {}
+
+    def get_github(self, login_or_token = None, password = None):
+        gh = None
+        if self.gh_dictionary.has_key(login_or_token):
+            gh = self.gh_dictionary[login_or_token]
+        else:
+            gh = self.FACTORY(login_or_token, password)
+            self.gh_dictionary[login_or_token] = gh
+        return gh
+
+gh_manager = GHManager()
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
 class LoggerWrapper(threading.Thread):
     """
