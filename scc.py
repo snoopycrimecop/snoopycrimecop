@@ -50,6 +50,7 @@ import subprocess
 import logging
 import threading
 import argparse
+import difflib
 
 fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
@@ -290,7 +291,6 @@ class GitRepository(object):
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
-        self.find_candidates()
 
     def find_candidates(self):
         """Find candidate Pull Requests for merging."""
@@ -532,27 +532,122 @@ def cd(directory):
         os.chdir(directory)
 
 
-def merge(args):
-    log.info("Merging PR based on: %s", args.base)
-    log.info("Excluding PR labelled as: %s", args.exclude)
-    log.info("Including PR labelled as: %s", args.include)
+class Command(object):
+    pass
 
-    filters = {}
-    filters["base"] = args.base
-    filters["include"] = args.include
-    filters["exclude"] = args.exclude
-    cwd = os.path.abspath(os.getcwd())
-    main_repo = GitRepository(cwd, filters, args.reset)
-    try:
-        if not args.info:
-            main_repo.merge(args.comment)
-        main_repo.submodules(args.info, args.comment)  # Recursive
 
-        if args.buildnumber:
-            newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
-            call("git", "push", "team", newbranch)
-    finally:
-        main_repo.cleanup()
+class Merge(Command):
+
+    def __init__(self, sub_parsers):
+
+        merge_help = 'Merge Pull Requests opened against a specific base branch.'
+        merge_parser = sub_parsers.add_parser("merge",
+                help=merge_help, description=merge_help)
+        merge_parser.set_defaults(func=self.__call__)
+
+        merge_parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
+        merge_parser.add_argument('--info', action='store_true',
+            help='Display merge candidates but do not merge them')
+        merge_parser.add_argument('--comment', action='store_true',
+            help='Add comment to conflicting PR')
+        merge_parser.add_argument('base', type=str)
+        merge_parser.add_argument('--include', nargs="*",
+            help='PR labels to include in the merge')
+        merge_parser.add_argument('--exclude', nargs="*",
+            help='PR labels to exclude from the merge')
+        merge_parser.add_argument('--buildnumber', type=int, default=None,
+            help='The build number to use to push to team.git')
+
+    def __call__(self, args):
+        log.info("Merging PR based on: %s", args.base)
+        log.info("Excluding PR labelled as: %s", args.exclude)
+        log.info("Including PR labelled as: %s", args.include)
+
+        filters = {}
+        filters["base"] = args.base
+        filters["include"] = args.include
+        filters["exclude"] = args.exclude
+        cwd = os.path.abspath(os.getcwd())
+        main_repo = GitRepository(cwd, filters, args.reset)
+        main_repo.find_candidates()
+        try:
+            if not args.info:
+                main_repo.merge(args.comment)
+            main_repo.submodules(args.info, args.comment)  # Recursive
+
+            if args.buildnumber:
+                newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
+                call("git", "push", "team", newbranch)
+        finally:
+            main_repo.cleanup()
+
+
+class Rebase(Command):
+
+    def __init__(self, sub_parsers):
+        rebase_help = 'Rebase Pull Requests opened against a specific base branch.'
+        rebase_parser = sub_parsers.add_parser("rebase",
+                help=rebase_help, description=rebase_help)
+        rebase_parser.set_defaults(func=self.__call__)
+
+        rebase_parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
+        rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
+
+    def __call__(self, args):
+
+        cwd = os.path.abspath(os.getcwd())
+        main_repo = GitRepository(cwd, filters=[], reset=False)
+
+        try:
+            pr = main_repo.repo.get_pull(args.PR)
+            log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
+            pr_head = pr.head.sha
+            log.info("Head: %s", pr_head[0:6])
+            log.info("Merged: %s", pr.is_merged())
+        except:
+            log.error("Failed to find PR %g", args.PR, exc_info=1)
+
+        branching_sha1 = self.findBranchingPoint(pr_head, "origin/"+pr.base.ref)
+        self.rebase(args.newbase, branching_sha1[0:6], pr_head)
+
+    def rebase(self, newbase, upstream, sha1):
+        command = ["git", "rebase", "--onto", \
+                "origin/%s" % newbase, "%s" % upstream, "%s" % sha1]
+        dbg("Calling '%s'" % " ".join(command))
+        p = subprocess.Popen(command)
+        rc = p.wait()
+        if rc:
+            raise Exception("rc=%s" % rc)
+
+    def getRevList(self, commit):
+        revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
+        p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
+        (revlist, stderr) = p.communicate('')
+
+        if stderr or p.returncode:
+            print "Error output was:\n%s" % stderr
+            print "Output was:\n%s" % stdout
+            return False
+
+        return revlist.splitlines()
+
+    def findBranchingPoint(self, topic_branch, main_branch):
+        # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
+
+        topic_revlist = self.getRevList(topic_branch)
+        main_revlist = self.getRevList(main_branch)
+
+        # Compare sequences
+        s = difflib.SequenceMatcher(None, topic_revlist, main_revlist)
+        matching_block = s.get_matching_blocks()
+        if matching_block[0].size == 0:
+            raise Exception("No matching block found")
+
+        sha1 = main_revlist[matching_block[0].b]
+        log.info("Branching SHA1: %s" % sha1[0:6])
+        return sha1
 
 
 if __name__ == "__main__":
@@ -560,24 +655,11 @@ if __name__ == "__main__":
     scc_parser = argparse.ArgumentParser(description='Snoopy Crime Cop Script')
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
 
-    merge_help = 'Merge Pull Requests opened against a specific base branch.'
-    merge_parser = sub_parsers.add_parser("merge",
-            help=merge_help, description=merge_help)
-    merge_parser.set_defaults(func=merge)
-
-    merge_parser.add_argument('--reset', action='store_true',
-        help='Reset the current branch to its HEAD')
-    merge_parser.add_argument('--info', action='store_true',
-        help='Display merge candidates but do not merge them')
-    merge_parser.add_argument('--comment', action='store_true',
-        help='Add comment to conflicting PR')
-    merge_parser.add_argument('base', type=str)
-    merge_parser.add_argument('--include', nargs="*",
-        help='PR labels to include in the merge')
-    merge_parser.add_argument('--exclude', nargs="*",
-        help='PR labels to exclude from the merge')
-    merge_parser.add_argument('--buildnumber', type=int, default=None,
-        help='The build number to use to push to team.git')
+    for MyCommand in globals().values():
+        if not isinstance(MyCommand, type): continue
+        if not issubclass(MyCommand, Command): continue
+        if Command == MyCommand: continue
+        MyCommand(sub_parsers)
 
     ns = scc_parser.parse_args()
     ns.func(ns)
