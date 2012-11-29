@@ -620,7 +620,7 @@ class Rebase(Command):
             raise Exception("rc=%s" % rc)
 
     def getRevList(self, commit):
-
+        revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
         p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
         (revlist, stderr) = p.communicate('')
