@@ -459,6 +459,7 @@ class GitRepository(object):
                     submodule_repo.info()
                 else:
                     submodule_repo.fast_forward(self.filters["base"])
+                    submodule_repo.find_candidates()
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
             finally:
