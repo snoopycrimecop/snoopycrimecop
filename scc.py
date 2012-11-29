@@ -595,31 +595,11 @@ class Rebase(Command):
 
     def __call__(self, args):
 
-        # Create Github instance
-        if os.environ.has_key("GITHUB_TOKEN"):
-            token = os.environ["GITHUB_TOKEN"]
-            gh = GHWrapper(github.Github(token))
-            dbg("Creating Github instance identified as %s", gh.get_user().login)
-        else:
-            gh = GHWrapper(github.Github())
-            dbg("Creating anonymous Github instance")
-
-        rate_limiting = gh.rate_limiting
-        dbg("Remaining requests: %s out of %s", rate_limiting[0], rate_limiting[1] )
-
-        org = "openmicroscopy"
-        log.info("Organization: %s", org)
-        org = gh.get_organization(org)
+        cwd = os.path.abspath(os.getcwd())
+        main_repo = GitRepository(cwd, filters=[], reset=False)
 
         try:
-            repo = getRepository()
-            log.info("Repository: %s", repo)
-            repo = org.get_repo(repo)
-        except:
-            log.error("Failed to find %s", name, exc_info=1)
-
-        try:
-            pr = repo.get_pull(args.PR)
+            pr = main_repo.get_pull(args.PR)
             log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
             pr_head = pr.head.sha
             log.info("Head: %s", pr_head[0:6])
@@ -627,7 +607,7 @@ class Rebase(Command):
         except:
             log.error("Failed to find PR %g", args.PR, exc_info=1)
 
-        branching_sha1 = findBranchingPoint(pr_head, "origin/"+pr.base.ref)
+        branching_sha1 = self.findBranchingPoint(pr_head, "origin/"+pr.base.ref)
         self.rebase(args.newbase, branching_sha1[0:6], pr_head)
 
     def rebase(self, newbase, upstream, sha1):
@@ -638,6 +618,35 @@ class Rebase(Command):
         rc = p.wait()
         if rc:
             raise Exception("rc=%s" % rc)
+
+    def getRevList(self, commit):
+
+        p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
+        (revlist, stderr) = p.communicate('')
+
+        if stderr or p.returncode:
+            print "Error output was:\n%s" % stderr
+            print "Output was:\n%s" % stdout
+            return False
+
+        return revlist.splitlines()
+
+    def findBranchingPoint(self, topic_branch, main_branch):
+        # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
+
+        topic_revlist = self.getRevList(topic_branch)
+        main_revlist = self.getRevList(main_branch)
+
+        # Compare sequences
+        s = difflib.SequenceMatcher(None, topic_revlist, main_revlist)
+        matching_block = s.get_matching_blocks()
+        if matching_block[0].size == 0:
+            raise Exception("No matching block found")
+
+        sha1 = main_revlist[matching_block[0].b]
+        log.info("Branching SHA1: %s" % sha1[0:6])
+        return sha1
 
 
 if __name__ == "__main__":
