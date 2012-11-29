@@ -50,6 +50,7 @@ import subprocess
 import logging
 import threading
 import argparse
+import difflib
 
 fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
