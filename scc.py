@@ -20,12 +20,28 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 """
+
+Git management script for the Open Microscopy Environment (OME)
+This script is used to simplify various branching workflows
+by wrapping both local git and github access.
+
+
+FUNCTIONALITY
+-------------
+
+    merge:
+
 Automatically merge all pull requests with any of the given labels.
 It assumes that you have checked out the target branch locally and
 have updated any submodules. The SHA1s from the PRs will be merged
 into the current branch. AFTER the PRs are merged, any open PRs for
 each submodule with the same tags will also be merged into the
 CURRENT submodule sha1. A final commit will then update the submodules.
+
+    rebase:
+
+TBD
+
 """
 
 import os
@@ -263,9 +279,14 @@ class GitRepository(object):
         self.filters = filters
 
         gh = get_github(get_token())
-        self.org = gh.get_organization(org_name)
+
         try:
-            self.repo = self.org.get_repo(repo_name)
+            self.org_or_user = gh.get_organization(org_name)
+        except github.GithubException:
+            self.org_or_user = gh.get_user(org_name) # Likely snoopy himself!
+
+        try:
+            self.repo = self.org_or_user.get_repo(repo_name)
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
@@ -283,9 +304,14 @@ class GitRepository(object):
             found = False
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            if self.org.has_in_public_members(pullrequest.get_user()):
-                found = True
-            else:
+            found = False
+            try:
+                if self.org_or_user.has_in_public_members(pullrequest.get_user()):
+                    found = True
+            except:
+                pass
+
+            if not found:
                 if self.filters["include"]:
                     whitelist = [filt for filt in self.filters["include"] if filt.lower() in labels]
                     if whitelist:
@@ -499,32 +525,14 @@ def call(*command, **kwargs):
         raise Exception("rc=%s" % rc)
     return p
 
+
 def cd(directory):
     if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
         dbg("cd %s", directory)
         os.chdir(directory)
 
 
-
-if __name__ == "__main__":
-
-    # Create argument parser
-    parser = argparse.ArgumentParser(description='Merge Pull Requests opened against a specific base branch.')
-    parser.add_argument('--reset', action='store_true',
-        help='Reset the current branch to its HEAD')
-    parser.add_argument('--info', action='store_true',
-        help='Display merge candidates but do not merge them')
-    parser.add_argument('--comment', action='store_true',
-        help='Add comment to conflicting PR')
-    parser.add_argument('base', type=str)
-    parser.add_argument('--include', nargs="*",
-        help='PR labels to include in the merge')
-    parser.add_argument('--exclude', nargs="*",
-        help='PR labels to exclude from the merge')
-    parser.add_argument('--buildnumber', type=int, default=None,
-        help='The build number to use to push to team.git')
-    args = parser.parse_args()
-
+def merge(args):
     log.info("Merging PR based on: %s", args.base)
     log.info("Excluding PR labelled as: %s", args.exclude)
     log.info("Including PR labelled as: %s", args.include)
@@ -545,3 +553,31 @@ if __name__ == "__main__":
             call("git", "push", "team", newbranch)
     finally:
         main_repo.cleanup()
+
+
+if __name__ == "__main__":
+
+    scc_parser = argparse.ArgumentParser(description='Snoopy Crime Cop Script')
+    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+
+    merge_help = 'Merge Pull Requests opened against a specific base branch.'
+    merge_parser = sub_parsers.add_parser("merge",
+            help=merge_help, description=merge_help)
+    merge_parser.set_defaults(func=merge)
+
+    merge_parser.add_argument('--reset', action='store_true',
+        help='Reset the current branch to its HEAD')
+    merge_parser.add_argument('--info', action='store_true',
+        help='Display merge candidates but do not merge them')
+    merge_parser.add_argument('--comment', action='store_true',
+        help='Add comment to conflicting PR')
+    merge_parser.add_argument('base', type=str)
+    merge_parser.add_argument('--include', nargs="*",
+        help='PR labels to include in the merge')
+    merge_parser.add_argument('--exclude', nargs="*",
+        help='PR labels to exclude from the merge')
+    merge_parser.add_argument('--buildnumber', type=int, default=None,
+        help='The build number to use to push to team.git')
+
+    ns = scc_parser.parse_args()
+    ns.func(ns)
