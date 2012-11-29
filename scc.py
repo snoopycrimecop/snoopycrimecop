@@ -599,7 +599,7 @@ class Rebase(Command):
         main_repo = GitRepository(cwd, filters=[], reset=False)
 
         try:
-            pr = main_repo.get_pull(args.PR)
+            pr = main_repo.repo.get_pull(args.PR)
             log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
             pr_head = pr.head.sha
             log.info("Head: %s", pr_head[0:6])
