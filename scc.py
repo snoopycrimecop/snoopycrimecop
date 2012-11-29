@@ -55,7 +55,7 @@ import difflib
 fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
 logging.basicConfig(level=10, format=fmt)
 
-log = logging.getLogger("ome_merge")
+log = logging.getLogger("scc")
 dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
@@ -69,41 +69,45 @@ def get_token():
         token = None
     return token
 
-def get_github(token = None):
-    return gh_manager.get_github(token)
+def get_github(login_or_token = None, password = None):
+    return gh_manager.get_github(login_or_token, password)
 
 class GHManager(object):
     def __init__(self):
         self.gh_dictionary = {}
 
-    def get_github(self, token = None):
+    def get_github(self, login_or_token = None, password = None):
         gh = None
-        if self.gh_dictionary.has_key(token):
-            gh = self.gh_dictionary[token]
+        if self.gh_dictionary.has_key(login_or_token):
+            gh = self.gh_dictionary[login_or_token]
         else:
-            gh = GHWrapper(token)
-            self.gh_dictionary[token] = gh
+            gh = GHWrapper(login_or_token, password)
+            self.gh_dictionary[login_or_token] = gh
         return gh
 
 gh_manager = GHManager()
 
 class GHWrapper(object):
 
-    def __init__(self, token = None):
-        if token:
-            self.delegate = github.Github(token)
+    def __init__(self, login_or_token = None, password = None):
+        if password is not None:
+            self.github = github.Github(login_or_token, password)
             dbg("Creating Github instance identified as %s",
-                self.delegate.get_user().login)
+                self.github.get_user().login)
+        elif login_or_token is not None:
+            self.github = github.Github(login_or_token)
+            dbg("Creating Github instance identified as %s",
+                self.github.get_user().login)
         else:
-            self.delegate = github.Github()
+            self.github = github.Github()
             dbg("Creating anonymous Github instance")
 
     def __getattr__(self, key):
-        dbg("gh.%s", key)
-        return getattr(self.delegate, key)
+        dbg("github.%s", key)
+        return getattr(self.github, key)
 
     def get_rate_limiting(self):
-        requests = self.delegate.rate_limiting
+        requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
