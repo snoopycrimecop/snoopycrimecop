@@ -20,26 +20,48 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import unittest
-from ome_merge import *
+from scc import *
+
+class MockGithub(object):
+
+    def __init__(self, login_or_token = None, password = None):
+        if password is not None:
+            self.user = login_or_token
+        elif login_or_token is not None:
+            self.user = login_or_token
+        else:
+            self.user = None
 
 class MockGHWrapper(GHWrapper):
-    def __init__(self, token = None):
-        self.delegate = {}
+    FACTORY = MockGithub
+
+    def get_login(self):
+        return self.github.user
+
+class MockGHManager(GHManager):
+    FACTORY = MockGHWrapper
 
 class TestGHManager(unittest.TestCase):
 
     def setUp(self):
-        self.gm = GHManager()
+        self.gm = MockGHManager()
 
-    def testAnonymousGithub(self):
-        gh = get_github(None)
-        self.assertFalse(gh.get_user==None)
-
-    def testGHDictionary(self):
-        gh = self.gm.get_github(None)
+    def testAnonymousConnection(self):
+        gh = self.gm.get_github()
+        self.assertFalse(gh.get_login==None)
         self.assertEqual(self.gm.gh_dictionary[None], gh)
+
+    def testUserConnection(self):
+        gh = self.gm.get_github("test", "password")
+        self.assertTrue(gh.get_login() is "test")
+        self.assertEqual(self.gm.gh_dictionary["test"], gh)
+
+    def testTokenConnection(self):
+        gh = self.gm.get_github("abcdef")
+        self.assertFalse(gh.get_login=="abcdef")
+        self.assertEqual(self.gm.gh_dictionary["abcdef"], gh)
     
-    def testGHReconnection(self):
+    def testAnonymousReconnection(self):
         mock_gh = MockGHWrapper()
         self.gm.gh_dictionary[None] = mock_gh
         gh = self.gm.get_github(None)
@@ -47,14 +69,18 @@ class TestGHManager(unittest.TestCase):
     
     def testGHSwitch(self):
         mock_gh = MockGHWrapper()
-        mock_gh_2 = MockGHWrapper()
-        token = 100
+        mock_gh_2 = MockGHWrapper("test", "password")
+        mock_gh_3 = MockGHWrapper("abcdef")
         self.gm.gh_dictionary[None] = mock_gh
-        self.gm.gh_dictionary[token] = mock_gh_2
+        self.gm.gh_dictionary["test"] = mock_gh_2
+        self.gm.gh_dictionary["abcdef"] = mock_gh_3
+
         gh = self.gm.get_github(None)
         self.assertEqual(gh, mock_gh)
-        gh2 = self.gm.get_github(token)
+        gh2 = self.gm.get_github("test")
         self.assertEqual(gh2, mock_gh_2)
+        gh3 = self.gm.get_github("abcdef")
+        self.assertEqual(gh3, mock_gh_3)
 
 if __name__ == '__main__':
     unittest.main()
