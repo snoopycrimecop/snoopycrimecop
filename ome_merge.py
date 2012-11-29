@@ -391,12 +391,12 @@ class GitRepository(object):
                 call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflicting_pulls.append(pullrequest)
 
-                msg = "Conflicting PR #%g." % pullrequest.get_number()
-                if os.environ.has_key("JOB_NAME") and  os.environ.has_key("BUILD_NUMBER"):
-                    msg += "Removed from build %s #%s." % (os.environ.get("JOB_NAME"), \
-                        os.environ.get("BUILD_NUMBER"))
-                else:
-                    msg += "."
+                msg = "Conflicting PR."
+                job_dict = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
+                if all([key in os.environ for key in job_dict]):
+                    job_values = [os.environ.get(key) for key in job_dict]
+                    msg += " Removed from build [%s#%s](%s). See the [console output](%s) for more details." % \
+                        (job_values[0], job_values[1], job_values[2], job_values[2] +"/consoleText")
                 dbg(msg)
 
                 if comment and get_token():
