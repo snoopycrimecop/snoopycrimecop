@@ -330,7 +330,7 @@ class GitRepository(object):
 
         log.info("")
         self.path =  os.path.abspath(path)
-        [org_name, repo_name] = self.get_remote_info("origin")
+        [user_name, repo_name] = self.get_remote_info("origin")
         if reset:
             self.reset()
         self.get_status()
@@ -339,14 +339,8 @@ class GitRepository(object):
         self.filters = filters
 
         gh = get_github(get_token())
-
         try:
-            self.org_or_user = gh.get_organization(org_name)
-        except github.GithubException:
-            self.org_or_user = gh.get_user(org_name) # Likely snoopy himself!
-
-        try:
-            self.repo = self.org_or_user.get_repo(repo_name)
+            self.repo = gh.get_user(user_name).get_repo(repo_name)
         except:
             log.error("Failed to find %s", repo_name, exc_info=1)
         self.candidate_pulls = []
@@ -364,8 +358,8 @@ class GitRepository(object):
             labels = [x.lower() for x in pullrequest.get_labels()]
 
             found = False
-            try:
-                if self.org_or_user.has_in_public_members(pullrequest.get_user()):
+            if self.repo.organization:
+                if self.repo.organization.has_in_public_members(pullrequest.get_user()):
                     found = True
             except:
                 pass
@@ -429,10 +423,10 @@ class GitRepository(object):
 
     def get_remote_info(self, remote_name):
         """
-        Return organization and repository name of the specified remote.
+        Return user and repository name of the specified remote.
 
         Origin remote must be on Github, i.e. of type
-        *github/organization/repository.git
+        *github/user/repository.git
         """
         
         cd(self.path)
@@ -440,18 +434,18 @@ class GitRepository(object):
             "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
             stderr = subprocess.PIPE).communicate()[0]
 
-        # Read organization from origin URL
+        # Read user from origin URL
         dirname = os.path.dirname(originurl)
         assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
-        org = os.path.basename(dirname)
+        user = os.path.basename(dirname)
         if ":" in dirname:
-            org = org.split(":")[-1]
+            user = user.split(":")[-1]
 
         # Read repository from origin URL
         basename = os.path.basename(originurl)
         repo = os.path.splitext(basename)[0]
-        log.info("Repository: %s/%s", org, repo)
-        return [org , repo]
+        log.info("Repository: %s/%s", user, repo)
+        return [user , repo]
 
     def merge(self, comment=False):
         """Merge candidate pull requests."""
