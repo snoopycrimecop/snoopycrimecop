@@ -77,16 +77,42 @@ class GHWrapper(object):
 
     def __init__(self, login_or_token = None, password = None):
         if password is not None:
-            self.github = self.FACTORY(login_or_token, password)
-            dbg("Creating Github instance identified as %s",
-                self.get_login())
+            self.connect_user(login_or_token, password)
         elif login_or_token is not None:
-            self.github = self.FACTORY(login_or_token)
-            dbg("Creating Github instance identified as %s",
-                self.get_login())
+            try:
+                self.connect_token(login_or_token)
+            except github.GithubException:
+                password = self.ask_password(login_or_token)
+                if password is not  None:
+                    self.connect_user(login_or_token, password)
         else:
+            self.connect_anonymous()
+
+    def connect_anonymous(self):
+        try:
             self.github = self.FACTORY()
-            dbg("Creating anonymous Github instance")
+            dbg("Create anonymous Github instance")
+        except github.GithubException:
+            dbg("Anonymous connection failed")
+            raise
+
+    def connect_token(self, login_or_token):
+        try:
+            self.github = self.FACTORY(login_or_token)
+            dbg("Create Github instance identified as %s",
+                self.get_login())
+        except github.GithubException:
+            dbg("Token identification failed")
+            raise
+
+    def connect_user(self, login, password):
+        try:
+            self.github = self.FACTORY(login, password)
+            dbg("Create Github instance identified as %s",
+                self.get_login())
+        except github.GithubException:
+            dbg("User identification failed")
+            raise
 
     def __getattr__(self, key):
         dbg("github.%s", key)
@@ -99,18 +125,39 @@ class GHWrapper(object):
     def get_login(self):
         return self.github.get_user().login
 
+    def ask_password(self, login):
+        """
+        Reads from standard in. If hidden == True, then
+        uses getpass
+        """
+        try:
+            while True:
+                rv = raw_input("Enter password for user %s:" % login)
+                if not rv:
+                    print "Input required"
+                    continue
+                return rv
+        except KeyboardInterrupt:
+            raise Exception("Cancelled")
+
 class GHManager(object):
     FACTORY = GHWrapper
 
     def __init__(self):
         self.gh_dictionary = {}
 
+    def create_instance(self, login_or_token, password):
+        gh = self.FACTORY(login_or_token, password)
+        return gh
+
     def get_github(self, login_or_token = None, password = None):
         gh = None
         if self.gh_dictionary.has_key(login_or_token):
             gh = self.gh_dictionary[login_or_token]
+            dbg("Retrieve Github instance identified as %s",
+                gh.get_login())
         else:
-            gh = self.FACTORY(login_or_token, password)
+            gh = self.create_instance(login_or_token, password)
             self.gh_dictionary[login_or_token] = gh
         return gh
 
