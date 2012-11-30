@@ -154,8 +154,11 @@ class GHManager(object):
         gh = None
         if self.gh_dictionary.has_key(login_or_token):
             gh = self.gh_dictionary[login_or_token]
-            dbg("Retrieve Github instance identified as %s",
-                gh.get_login())
+            if login_or_token:
+                dbg("Retrieve Github instance identified as %s",
+                    gh.get_login())
+            else:
+                dbg("Retrieve anonymous Github instance")
         else:
             gh = self.create_instance(login_or_token, password)
             self.gh_dictionary[login_or_token] = gh
