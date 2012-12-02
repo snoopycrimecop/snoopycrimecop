@@ -324,34 +324,44 @@ class PullRequest(object):
         else:
             return []
 
+class GitHubRepository(object):
+
+    def __init__(self, user_name, repo_name):
+        gh = get_github(get_token())
+        try:
+            self.repo = gh.get_user(user_name).get_repo(repo_name)
+        except:
+            log.error("Failed to find %s/%s", user_name, repo_name, exc_info=1)
+            raise Exception("Did not find %s/%s")
+
+    def __getattr__(self, key):
+        return getattr(self.repo, key)
+
 class GitRepository(object):
 
-    def __init__(self, path, filters, reset=False):
+    def __init__(self, path, reset=False):
 
         log.info("")
         self.path =  os.path.abspath(path)
-        [user_name, repo_name] = self.get_remote_info("origin")
+
         if reset:
             self.reset()
         self.get_status()
 
         self.reset = reset
-        self.filters = filters
 
-        gh = get_github(get_token())
-        try:
-            self.repo = gh.get_user(user_name).get_repo(repo_name)
-        except:
-            log.error("Failed to find %s", repo_name, exc_info=1)
+        # Register the origin remote
+        [user_name, repo_name] = self.get_remote_info("origin")
+        self.repo = GitHubRepository(user_name, repo_name)
         self.candidate_pulls = []
 
-    def find_candidates(self):
+    def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         dbg("## PRs found:")
         directories_log = None
 
         # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == self.filters["base"])]
+        pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == filters["base"])]
         for pull in pulls:
             pullrequest = PullRequest(self.repo, pull)
             found = False
@@ -360,13 +370,12 @@ class GitRepository(object):
             found = False
             if self.repo.organization:
                 if self.repo.organization.has_in_public_members(pullrequest.get_user()):
+                    print "Found"
                     found = True
-            except:
-                pass
 
             if not found:
-                if self.filters["include"]:
-                    whitelist = [filt for filt in self.filters["include"] if filt.lower() in labels]
+                if filters["include"]:
+                    whitelist = [filt for filt in filters["include"] if filt.lower() in labels]
                     if whitelist:
                         dbg("# ... Include %s", whitelist)
                         found = True
@@ -375,8 +384,8 @@ class GitRepository(object):
                 continue
 
             # Exclude PRs if exclude labels are input
-            if self.filters["exclude"]:
-                blacklist = [filt for filt in self.filters["exclude"] if filt.lower() in labels]
+            if filters["exclude"]:
+                blacklist = [filt for filt in filters["exclude"] if filt.lower() in labels]
                 if blacklist:
                     dbg("# ... Exclude %s", blacklist)
                     continue
@@ -447,7 +456,7 @@ class GitRepository(object):
         log.info("Repository: %s/%s", user, repo)
         return [user , repo]
 
-    def merge(self, comment=False):
+    def merge(self, comment=False, commit_id = "merge"):
         """Merge candidate pull requests."""
         dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
@@ -464,7 +473,7 @@ class GitRepository(object):
 
             try:
                 call("git", "merge", "--no-ff", "-m", \
-                        "%s: PR %s (%s)" % (self.commit_id(), pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
+                        "%s: PR %s (%s)" % (commit_id, pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
                 merged_pulls.append(pullrequest)
             except:
                 call("git", "reset", "--hard", "%s" % premerge_sha)
@@ -494,7 +503,7 @@ class GitRepository(object):
 
         call("git", "submodule", "update")
 
-    def submodules(self, info=False, comment=False):
+    def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
         """Recursively merge PRs for each submodule."""
 
         submodule_paths = call("git", "submodule", "--quiet", "foreach", \
@@ -507,12 +516,12 @@ class GitRepository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                submodule_repo = GitRepository(directory, self.filters, self.reset)
+                submodule_repo = GitRepository(directory, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
-                    submodule_repo.fast_forward(self.filters["base"])
-                    submodule_repo.find_candidates()
+                    submodule_repo.fast_forward(filters["base"])
+                    submodule_repo.find_candidates(filters)
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
             finally:
@@ -523,23 +532,7 @@ class GitRepository(object):
                     cd(cwd)
 
         call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s: Update all modules w/o hooks" % self.commit_id())
-
-    def get_name(self):
-        """Return name of the repository."""
-        return self.repo.name
-
-    def commit_id(self):
-        """
-        Return commit identifier generated from base branch, include and 
-        exclude labels.
-        """
-        commit_id = "merge"+"_into_"+self.filters["base"]
-        if self.filters["include"]:
-            commit_id += "+" + "+".join(self.filters["include"])
-        if self.filters["exclude"]:
-            commit_id += "-" + "-".join(self.filters["exclude"])
-        return commit_id
+                "%s: Update all modules w/o hooks" % commit_id)
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -554,9 +547,9 @@ class GitRepository(object):
         for user in self.unique_logins():
             key = "merge_%s" % user
             if self.repo.private:
-                url = "git@github.com:%s/%s.git"  % (user, self.get_name())
+                url = "git@github.com:%s/%s.git"  % (user, self.repo.name)
             else:
-                url = "git://github.com/%s/%s.git" % (user, self.get_name())
+                url = "git://github.com/%s/%s.git" % (user, self.repo.name)
             remotes[key] = url
         return remotes
 
@@ -623,12 +616,25 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, filters, args.reset)
-        main_repo.find_candidates()
+        main_repo = GitRepository(cwd, args.reset)
+        main_repo.find_candidates(filters)
+
+        def commit_id(filters):
+            """
+            Return commit identifier generated from base branch, include and
+            exclude labels.
+            """
+            commit_id = "merge"+"_into_"+filters["base"]
+            if filters["include"]:
+                commit_id += "+" + "+".join(filters["include"])
+            if filters["exclude"]:
+                commit_id += "-" + "-".join(filters["exclude"])
+            return commit_id
+
         try:
             if not args.info:
-                main_repo.merge(args.comment)
-            main_repo.submodules(args.info, args.comment)  # Recursive
+                main_repo.merge(args.comment, commit_id = commit_id(filters))
+            main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
 
             if args.buildnumber:
                 newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
@@ -651,7 +657,7 @@ class Rebase(Command):
     def __call__(self, args):
 
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, filters=[], reset=False)
+        main_repo = GitRepository(cwd, reset=False)
 
         try:
             pr = main_repo.repo.get_pull(args.PR)
