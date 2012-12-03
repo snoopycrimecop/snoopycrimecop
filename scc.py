@@ -327,6 +327,10 @@ class GitHubRepository(object):
             dbg("Connect to Github repository %s/%s" %
                 (user_name, repo_name))
             self.repo = gh.get_user(user_name).get_repo(repo_name)
+            if self.repo.organization:
+                self.org = gh.get_organization(self.repo.organization.login)
+            else:
+                self.org = None
         except:
             log.error("Failed to find %s/%s", user_name, repo_name, exc_info=1)
             raise Exception("Did not find %s/%s")
@@ -336,6 +340,13 @@ class GitHubRepository(object):
 
     def get_owner(self):
         return self.owner.login
+
+    def is_whitelisted(self, user):
+        if self.org:
+            status = self.org.has_in_public_members(user)
+        else:
+            status = False
+        return status
 
 class GHRepoManager(Manager):
     FACTORY = GitHubRepository
@@ -376,13 +387,9 @@ class GitRepository(object):
         pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == filters["base"])]
         for pull in pulls:
             pullrequest = PullRequest(self.repo, pull)
-            found = False
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            found = False
-            if self.repo.organization:
-                if self.repo.organization.has_in_public_members(pullrequest.get_user()):
-                    found = True
+            found = self.repo.is_whitelisted(pullrequest.get_user())
 
             if not found:
                 if filters["include"]:
