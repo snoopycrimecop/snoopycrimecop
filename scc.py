@@ -70,49 +70,37 @@ def get_token():
     return token
 
 def get_github(login_or_token = None, password = None):
-    return gh_manager.get_github(login_or_token, password)
+    return gh_manager.get_instance(login_or_token, password)
 
 class GHWrapper(object):
     FACTORY = github.Github
 
     def __init__(self, login_or_token = None, password = None):
         if password is not None:
-            self.connect_user(login_or_token, password)
+            self.create_instance(login_or_token, password)
         elif login_or_token is not None:
             try:
-                self.connect_token(login_or_token)
+                self.create_instance(login_or_token)
             except github.GithubException:
                 password = self.ask_password(login_or_token)
                 if password is not  None:
-                    self.connect_user(login_or_token, password)
+                    self.create_instance(login_or_token, password)
         else:
-            self.connect_anonymous()
+            self.create_instance()
+        self.create_msg(login_or_token is None)
 
-    def connect_anonymous(self):
-        try:
-            self.github = self.FACTORY()
+    def create_msg(self, anonymous = True):
+        if not anonymous:
+            dbg("Create Github instance identified as %s",
+                self.get_login())
+        else:
             dbg("Create anonymous Github instance")
-        except github.GithubException:
-            dbg("Anonymous connection failed")
-            raise
 
-    def connect_token(self, login_or_token):
-        try:
-            self.github = self.FACTORY(login_or_token)
-            dbg("Create Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("Token identification failed")
-            raise
+    def get_login(self):
+        return self.github.get_user().login
 
-    def connect_user(self, login, password):
-        try:
-            self.github = self.FACTORY(login, password)
-            dbg("Create Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("User identification failed")
-            raise
+    def create_instance(self, *args):
+        self.github = self.FACTORY(*args)
 
     def __getattr__(self, key):
         dbg("github.%s", key)
@@ -122,13 +110,9 @@ class GHWrapper(object):
         requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
-    def get_login(self):
-        return self.github.get_user().login
-
     def ask_password(self, login):
         """
-        Reads from standard in. If hidden == True, then
-        uses getpass
+        Reads from standard in.
         """
         try:
             while True:
@@ -140,29 +124,34 @@ class GHWrapper(object):
         except KeyboardInterrupt:
             raise Exception("Cancelled")
 
-class GHManager(object):
-    FACTORY = GHWrapper
+class Manager(object):
 
     def __init__(self):
-        self.gh_dictionary = {}
+        self.dictionary = {}
 
-    def create_instance(self, login_or_token, password):
+    def get_instance(self, key = None, *args):
+        obj = None
+        if self.dictionary.has_key(key):
+            obj = self.dictionary[key]
+            self.retrieve_message(obj, key)
+        else:
+            obj = self.create_instance(key, *args)
+            self.dictionary[key] = obj
+        return obj
+
+class GHManager(Manager):
+    FACTORY = GHWrapper
+
+    def create_instance(self, login_or_token = None, password = None):
         gh = self.FACTORY(login_or_token, password)
         return gh
 
-    def get_github(self, login_or_token = None, password = None):
-        gh = None
-        if self.gh_dictionary.has_key(login_or_token):
-            gh = self.gh_dictionary[login_or_token]
-            if login_or_token:
-                dbg("Retrieve Github instance identified as %s",
-                    gh.get_login())
-            else:
-                dbg("Retrieve anonymous Github instance")
+    def retrieve_message(self, gh, login_or_token):
+        if login_or_token:
+            dbg("Retrieve Github instance identified as %s",
+                gh.get_login())
         else:
-            gh = self.create_instance(login_or_token, password)
-            self.gh_dictionary[login_or_token] = gh
-        return gh
+            dbg("Retrieve anonymous Github instance")
 
 gh_manager = GHManager()
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
