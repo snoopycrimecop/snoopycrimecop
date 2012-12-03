@@ -75,6 +75,9 @@ def get_github(login_or_token = None, password = None):
 def get_github_repo(username, reponame):
     return gh_repo_manager.get_instance((username, reponame))
 
+def get_git_repo(path, *args):
+    return git_manager.get_instance(os.path.abspath(path), *args)
+
 class GHWrapper(object):
     FACTORY = github.Github
 
@@ -361,7 +364,7 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.repo = GitHubRepository(user_name, repo_name)
+        self.repo = get_github_repo(user_name, repo_name)
         self.candidate_pulls = []
 
     def find_candidates(self, filters):
@@ -379,7 +382,6 @@ class GitRepository(object):
             found = False
             if self.repo.organization:
                 if self.repo.organization.has_in_public_members(pullrequest.get_user()):
-                    print "Found"
                     found = True
 
             if not found:
@@ -525,7 +527,7 @@ class GitRepository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                submodule_repo = GitRepository(directory, self.reset)
+                submodule_repo = get_git_repo(directory, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
@@ -569,6 +571,18 @@ class GitRepository(object):
                 call("git", "remote", "rm", key)
             except Exception:
                 log.error("Failed to remove", key, exc_info=1)
+
+class GitRepoManager(Manager):
+    FACTORY = GitRepository
+
+    def create_instance(self, path, *args):
+        repo = self.FACTORY(path, *args)
+        return repo
+
+    def retrieve_message(self, repo, *args):
+        dbg("Retrieve Git repository: %s", repo.path)
+
+git_manager = GitRepoManager()
 
 def call(*command, **kwargs):
     for x in ("stdout", "stderr"):
@@ -625,7 +639,7 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, args.reset)
+        main_repo = get_git_repo(cwd, args.reset)
         main_repo.find_candidates(filters)
 
         def commit_id(filters):
@@ -666,7 +680,7 @@ class Rebase(Command):
     def __call__(self, args):
 
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, reset=False)
+        main_repo = get_git_repo(cwd, reset=False)
 
         try:
             pr = main_repo.repo.get_pull(args.PR)
