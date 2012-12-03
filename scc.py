@@ -72,6 +72,9 @@ def get_token():
 def get_github(login_or_token = None, password = None):
     return gh_manager.get_instance(login_or_token, password)
 
+def get_github_repo(username, reponame):
+    return gh_repo_manager.get_instance((username, reponame))
+
 class GHWrapper(object):
     FACTORY = github.Github
 
@@ -318,6 +321,8 @@ class GitHubRepository(object):
     def __init__(self, user_name, repo_name):
         gh = get_github(get_token())
         try:
+            dbg("Connect to Github repository %s owned by %s" %
+                (user_name, repo_name))
             self.repo = gh.get_user(user_name).get_repo(repo_name)
         except:
             log.error("Failed to find %s/%s", user_name, repo_name, exc_info=1)
@@ -325,6 +330,18 @@ class GitHubRepository(object):
 
     def __getattr__(self, key):
         return getattr(self.repo, key)
+
+class GHRepoManager(Manager):
+    FACTORY = GitHubRepository
+
+    def create_instance(self, key):
+        gh = self.FACTORY(key[0], key[1])
+        return gh
+
+    def retrieve_message(self, repo, *args):
+        dbg("Retrieve Github repository: %s/%s", repo.owner.login, repo.name)
+
+gh_repo_manager = GHRepoManager()
 
 class GitRepository(object):
 
