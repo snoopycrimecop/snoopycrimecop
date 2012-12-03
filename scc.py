@@ -321,7 +321,7 @@ class GitHubRepository(object):
     def __init__(self, user_name, repo_name):
         gh = get_github(get_token())
         try:
-            dbg("Connect to Github repository %s owned by %s" %
+            dbg("Connect to Github repository %s/%s" %
                 (user_name, repo_name))
             self.repo = gh.get_user(user_name).get_repo(repo_name)
         except:
@@ -331,15 +331,18 @@ class GitHubRepository(object):
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
+    def get_owner(self):
+        return self.owner.login
+
 class GHRepoManager(Manager):
     FACTORY = GitHubRepository
 
     def create_instance(self, key):
-        gh = self.FACTORY(key[0], key[1])
-        return gh
+        repo = self.FACTORY(key[0], key[1])
+        return repo
 
     def retrieve_message(self, repo, *args):
-        dbg("Retrieve Github repository: %s/%s", repo.owner.login, repo.name)
+        dbg("Retrieve Github repository: %s/%s", repo.get_owner(), repo.name)
 
 gh_repo_manager = GHRepoManager()
 
