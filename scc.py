@@ -413,7 +413,7 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.repo = get_github_repo(user_name, repo_name)
+        self.origin = get_github_repo(user_name, repo_name)
         self.candidate_pulls = []
 
     def find_candidates(self, filters):
@@ -422,12 +422,12 @@ class GitRepository(object):
         directories_log = None
 
         # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == filters["base"])]
+        pulls = [pull for pull in self.origin.get_pulls() if (pull.base.ref == filters["base"])]
         for pull in pulls:
-            pullrequest = PullRequest(self.repo, pull)
+            pullrequest = PullRequest(self.origin, pull)
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            found = self.repo.is_whitelisted(pullrequest.get_user())
+            found = self.origin.is_whitelisted(pullrequest.get_user())
 
             if not found:
                 if filters["include"]:
@@ -602,10 +602,10 @@ class GitRepository(object):
         remotes = {}
         for user in self.unique_logins():
             key = "merge_%s" % user
-            if self.repo.private:
-                url = "git@github.com:%s/%s.git"  % (user, self.repo.name)
+            if self.origin.private:
+                url = "git@github.com:%s/%s.git"  % (user, self.origin.name)
             else:
-                url = "git://github.com/%s/%s.git" % (user, self.repo.name)
+                url = "git://github.com/%s/%s.git" % (user, self.origin.name)
             remotes[key] = url
         return remotes
 
@@ -728,10 +728,10 @@ class Rebase(Command):
     def __call__(self, args):
 
         cwd = os.path.abspath(os.getcwd())
-        main_repo = get_git_repo(cwd, reset=False)
+        main_repo = get_git_repo(cwd, False)
 
         try:
-            pr = main_repo.repo.get_pull(args.PR)
+            pr = main_repo.origin.get_pull(args.PR)
             log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
             pr_head = pr.head.sha
             log.info("Head: %s", pr_head[0:6])
