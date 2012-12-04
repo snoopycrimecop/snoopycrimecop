@@ -61,6 +61,9 @@ logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
 def get_token():
+    """
+    Get the Github API token.
+    """
     try:
         p = call("git", "config", "--get",
             "github.token", stdout = subprocess.PIPE).communicate()[0]
@@ -70,12 +73,27 @@ def get_token():
     return token
 
 def get_github(login_or_token = None, password = None):
+    """
+    Use the global Github manager to retrieve or create a Github instance.
+    Github instances can be constructed using an OAauth2 token, a Github login
+    and password or anonymously.
+    """
     return gh_manager.get_instance(login_or_token, password)
 
 def get_github_repo(username, reponame):
+    """
+    Use the global Github repository manager to retrieve or create a Github
+    repository. Github repository are constructed by passing the user and the
+    repository name as in https://github.com/username/reponame.git
+    """
     return gh_repo_manager.get_instance((username, reponame))
 
 def get_git_repo(path, *args):
+    """
+    Use the global Git repository manager to retrieve or create a local Git
+    repository. Git repository instances are constructed by passing the path
+    of the directory containing the repository.
+    """
     return git_manager.get_instance(os.path.abspath(path), *args)
 
 class GHWrapper(object):
