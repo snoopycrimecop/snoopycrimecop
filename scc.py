@@ -111,14 +111,6 @@ class GHWrapper(object):
                     self.create_instance(login_or_token, password)
         else:
             self.create_instance()
-        self.create_msg(login_or_token is None)
-
-    def create_msg(self, anonymous = True):
-        if not anonymous:
-            dbg("Create Github instance identified as %s",
-                self.get_login())
-        else:
-            dbg("Create anonymous Github instance")
 
     def get_login(self):
         return self.github.get_user().login
@@ -149,19 +141,36 @@ class GHWrapper(object):
             raise Exception("Cancelled")
 
 class Manager(object):
-
+    """
+    Object manager.
+    """
     def __init__(self):
         self.dictionary = {}
 
     def get_instance(self, key = None, *args):
+        """
+        Get instance of object identified by a given key. If the dictionary
+        has the inpu key, returns the corresponding value else instantiate the
+        object and add to the dictionary.
+        """
         obj = None
         if self.dictionary.has_key(key):
             obj = self.dictionary[key]
             self.retrieve_message(obj, key)
         else:
             obj = self.create_instance(key, *args)
+            self.create_message(obj, key)
             self.dictionary[key] = obj
         return obj
+
+    def create_instance(self, key, *args):
+        pass
+
+    def create_message(self, key, *args):
+        pass
+
+    def retrieve_message(self, key, *args):
+        pass
 
 class GHManager(Manager):
     FACTORY = GHWrapper
@@ -176,6 +185,13 @@ class GHManager(Manager):
                 gh.get_login())
         else:
             dbg("Retrieve anonymous Github instance")
+
+    def create_message(self, gh, login_or_token):
+        if login_or_token:
+            dbg("Create Github instance identified as %s",
+                gh.get_login())
+        else:
+            dbg("Create anonymous Github instance")
 
 gh_manager = GHManager()
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
@@ -342,8 +358,6 @@ class GitHubRepository(object):
     def __init__(self, user_name, repo_name):
         gh = get_github(get_token())
         try:
-            dbg("Connect to Github repository %s/%s" %
-                (user_name, repo_name))
             self.repo = gh.get_user(user_name).get_repo(repo_name)
             if self.repo.organization:
                 self.org = gh.get_organization(self.repo.organization.login)
@@ -367,6 +381,9 @@ class GitHubRepository(object):
         return status
 
 class GHRepoManager(Manager):
+    """
+    Manager of Github repositories
+    """
     FACTORY = GitHubRepository
 
     def create_instance(self, key):
@@ -375,6 +392,9 @@ class GHRepoManager(Manager):
 
     def retrieve_message(self, repo, *args):
         dbg("Retrieve Github repository: %s/%s", repo.get_owner(), repo.name)
+
+    def create_message(self, repo, *args):
+        dbg("Register Github repository %s/%s", repo.get_owner(), repo.name)
 
 gh_repo_manager = GHRepoManager()
 
@@ -606,6 +626,9 @@ class GitRepoManager(Manager):
 
     def retrieve_message(self, repo, *args):
         dbg("Retrieve Git repository: %s", repo.path)
+
+    def create_message(self, repo, *args):
+        dbg("Register Git repository %s", repo.path)
 
 git_manager = GitRepoManager()
 

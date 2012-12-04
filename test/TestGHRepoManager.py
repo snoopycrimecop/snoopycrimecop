@@ -30,8 +30,6 @@ class MockGHRepo(GitHubRepository):
         if user in self.USERS and repo is self.REPO:
             self.owner = user
             self.name = repo
-            dbg("Connect to Github repository %s/%s" %
-                (user, repo))
         else:
             raise Exception("Invalid repository")
     
