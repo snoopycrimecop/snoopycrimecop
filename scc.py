@@ -369,7 +369,7 @@ class GitHubRepository(object):
 
     def __init__(self, user_name, repo_name, gh = None):
         if not gh:
-            gh = gm.get_current()
+            gh = gh_manager.get_current()
             if not gh:
                 raise Exception("No Github instance created in the Github manager")
 
@@ -743,7 +743,7 @@ class Rebase(Command):
         rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
     def __call__(self, args):
-
+        gh = get_github(get_token())
         cwd = os.path.abspath(os.getcwd())
         main_repo = get_git_repo(cwd, False)
 
