@@ -46,38 +46,15 @@ class MockGithub(object):
 
 class MockGHWrapper(GHWrapper):
 
-    def connect_anonymous(self):
-        try:
-            self.github = MockGithub()
-            dbg("Creating anonymous Github instance")
-        except github.GithubException:
-            dbg("Anonymous connection failed")
-            raise
+    def create_instance(self, *args):
+        self.github = MockGithub(*args)
 
-    def connect_token(self, login_or_token):
-        try:
-            self.github = MockGithub(login_or_token)
-            dbg("Creating Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("Token identification failed")
-            raise
-
-    def connect_user(self, login, password):
-        try:
-            self.github = MockGithub(login, password)
-            dbg("Creating Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("User identification failed")
-            raise
-        
     def get_login(self):
         return self.github.user
 
 class MockGHManager(GHManager):
 
-    def create_instance(self, login_or_token, password):
+    def create_instance(self, login_or_token = None, password = None):
         gh = MockGHWrapper(login_or_token, password)
         return gh
 
@@ -89,67 +66,73 @@ class TestGHManager(unittest.TestCase):
     def setUp(self):
         self.gm = MockGHManager()
 
+    def testNoConnection(self):
+        self.assertEqual(self.gm.get_current(), None)
+
     def testAnonymousConnection(self):
-        gh = self.gm.get_github()
+        gh = self.gm.get_instance()
         self.assertFalse(gh.get_login==None)
-        self.assertEqual(self.gm.gh_dictionary[None], gh)
+        self.assertEqual(self.gm.dictionary[None], gh)
 
     def testGoodTokenConnection(self):
-        gh = self.gm.get_github(self.valid_token)
+        gh = self.gm.get_instance(self.valid_token)
         self.assertFalse(gh.get_login==self.valid_token)
-        self.assertEqual(self.gm.gh_dictionary[self.valid_token], gh)
+        self.assertEqual(self.gm.dictionary[self.valid_token], gh)
 
     def testInvalidTokenConnection(self):
         invalid_token = "invalidtoken"
-        self.assertRaises(Exception, self.gm.get_github, invalid_token)
-        self.assertFalse(invalid_token in self.gm.gh_dictionary)
+        self.assertRaises(Exception, self.gm.get_instance, invalid_token)
+        self.assertFalse(invalid_token in self.gm.dictionary)
 
     def testUserConnection(self):
-        gh = self.gm.get_github(self.valid_user, self.valid_password)
+        gh = self.gm.get_instance(self.valid_user, self.valid_password)
         self.assertTrue(gh.get_login() is self.valid_user)
-        self.assertEqual(self.gm.gh_dictionary[self.valid_user], gh)
+        self.assertEqual(self.gm.dictionary[self.valid_user], gh)
                     
     def testInvalidUserConnection(self):
         invaliduser = "invaliduser"
-        self.assertRaises(Exception, self.gm.get_github, (invaliduser, "password"))
-        self.assertFalse(invaliduser in self.gm.gh_dictionary)
+        self.assertRaises(Exception, self.gm.get_instance, (invaliduser, "password"))
+        self.assertFalse(invaliduser in self.gm.dictionary)
 
     def testInvalidPasswordConnection(self):
-        self.assertRaises(Exception, self.gm.get_github, (self.valid_user, "invalidpassword"))
-        self.assertFalse(self.valid_user in self.gm.gh_dictionary)
+        self.assertRaises(Exception, self.gm.get_instance, (self.valid_user, "invalidpassword"))
+        self.assertFalse(self.valid_user in self.gm.dictionary)
         
     def testAnonymousReconnection(self):
         mock_gh = MockGHWrapper()
-        self.gm.gh_dictionary[None] = mock_gh
-        gh = self.gm.get_github(None)
-        self.assertEqual(self.gm.gh_dictionary[None], mock_gh)
+        self.gm.dictionary[None] = mock_gh
+        gh = self.gm.get_instance(None)
+        self.assertEqual(self.gm.dictionary[None], mock_gh)
 
     def testTokenReconnection(self):
         mock_gh = MockGHWrapper(self.valid_token)
-        self.gm.gh_dictionary[self.valid_token] = mock_gh
-        gh = self.gm.get_github(self.valid_token)
-        self.assertEqual(self.gm.gh_dictionary[self.valid_token], mock_gh)
+        self.gm.dictionary[self.valid_token] = mock_gh
+        gh = self.gm.get_instance(self.valid_token)
+        self.assertEqual(self.gm.dictionary[self.valid_token], mock_gh)
 
     def testAnonymousReconnection(self):
         mock_gh = MockGHWrapper(self.valid_user, self.valid_password)
-        self.gm.gh_dictionary[self.valid_user] = mock_gh
-        gh = self.gm.get_github(self.valid_user)
-        self.assertEqual(self.gm.gh_dictionary[self.valid_user], mock_gh)
+        self.gm.dictionary[self.valid_user] = mock_gh
+        gh = self.gm.get_instance(self.valid_user)
+        self.assertEqual(self.gm.dictionary[self.valid_user], mock_gh)
     
     def testGHSwitch(self):
         mock_gh = MockGHWrapper()
         mock_gh_2 = MockGHWrapper("test", "password")
         mock_gh_3 = MockGHWrapper(self.valid_token)
-        self.gm.gh_dictionary[None] = mock_gh
-        self.gm.gh_dictionary["test"] = mock_gh_2
-        self.gm.gh_dictionary[self.valid_token] = mock_gh_3
+        self.gm.dictionary[None] = mock_gh
+        self.gm.dictionary["test"] = mock_gh_2
+        self.gm.dictionary[self.valid_token] = mock_gh_3
 
-        gh = self.gm.get_github(None)
+        gh = self.gm.get_instance(None)
         self.assertEqual(gh, mock_gh)
-        gh2 = self.gm.get_github("test")
+        self.assertEqual(self.gm.get_current(), mock_gh)
+        gh2 = self.gm.get_instance("test")
         self.assertEqual(gh2, mock_gh_2)
-        gh3 = self.gm.get_github(self.valid_token)
+        self.assertEqual(self.gm.get_current(), mock_gh_2)
+        gh3 = self.gm.get_instance(self.valid_token)
         self.assertEqual(gh3, mock_gh_3)
+        self.assertEqual(self.gm.get_current(), mock_gh_3)
 
 if __name__ == '__main__':
     unittest.main()

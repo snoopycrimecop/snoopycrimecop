@@ -23,7 +23,7 @@
 
 Git management script for the Open Microscopy Environment (OME)
 This script is used to simplify various branching workflows
-by wrapping both local git and github access.
+by wrapping both local git and Github access.
 
 
 FUNCTIONALITY
@@ -61,6 +61,9 @@ logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
 def get_token():
+    """
+    Get the Github API token.
+    """
     try:
         p = call("git", "config", "--get",
             "github.token", stdout = subprocess.PIPE).communicate()[0]
@@ -70,49 +73,50 @@ def get_token():
     return token
 
 def get_github(login_or_token = None, password = None):
-    return gh_manager.get_github(login_or_token, password)
+    """
+    Use the global Github manager to retrieve or create a Github instance.
+    Github instances can be constructed using an OAuth2 token, a Github login
+    and password or anonymously.
+    """
+    return gh_manager.get_instance(login_or_token, password)
+
+def get_github_repo(username, reponame, *args):
+    """
+    Use the global Github repository manager to retrieve or create a Github
+    repository. Github repository are constructed by passing the user and the
+    repository name as in https://github.com/username/reponame.git
+    """
+    return gh_repo_manager.get_instance((username, reponame), *args)
+
+def get_git_repo(path, *args):
+    """
+    Use the global Git repository manager to retrieve or create a local Git
+    repository. Git repository instances are constructed by passing the path
+    of the directory containing the repository.
+    """
+    return git_manager.get_instance(os.path.abspath(path), *args)
 
 class GHWrapper(object):
     FACTORY = github.Github
 
     def __init__(self, login_or_token = None, password = None):
         if password is not None:
-            self.connect_user(login_or_token, password)
+            self.create_instance(login_or_token, password)
         elif login_or_token is not None:
             try:
-                self.connect_token(login_or_token)
+                self.create_instance(login_or_token)
             except github.GithubException:
                 password = self.ask_password(login_or_token)
                 if password is not  None:
-                    self.connect_user(login_or_token, password)
+                    self.create_instance(login_or_token, password)
         else:
-            self.connect_anonymous()
+            self.create_instance()
 
-    def connect_anonymous(self):
-        try:
-            self.github = self.FACTORY()
-            dbg("Create anonymous Github instance")
-        except github.GithubException:
-            dbg("Anonymous connection failed")
-            raise
+    def get_login(self):
+        return self.github.get_user().login
 
-    def connect_token(self, login_or_token):
-        try:
-            self.github = self.FACTORY(login_or_token)
-            dbg("Create Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("Token identification failed")
-            raise
-
-    def connect_user(self, login, password):
-        try:
-            self.github = self.FACTORY(login, password)
-            dbg("Create Github instance identified as %s",
-                self.get_login())
-        except github.GithubException:
-            dbg("User identification failed")
-            raise
+    def create_instance(self, *args):
+        self.github = self.FACTORY(*args)
 
     def __getattr__(self, key):
         dbg("github.%s", key)
@@ -122,13 +126,9 @@ class GHWrapper(object):
         requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
-    def get_login(self):
-        return self.github.get_user().login
-
     def ask_password(self, login):
         """
-        Reads from standard in. If hidden == True, then
-        uses getpass
+        Reads from standard in.
         """
         try:
             while True:
@@ -140,29 +140,71 @@ class GHWrapper(object):
         except KeyboardInterrupt:
             raise Exception("Cancelled")
 
-class GHManager(object):
+class Manager(object):
+    """
+    Manage object creation/retrieval using a dictionary/identification keys.
+    """
+    def __init__(self):
+        self.dictionary = {}
+        self.current_key = None
+
+    def get_instance(self, key = None, *args):
+        """
+        Get instance of object identified by a given key. If the dictionary
+        has the input key, returns the corresponding value else instantiate 
+        the object and add to the dictionary.
+        """
+        obj = None
+        if self.dictionary.has_key(key):
+            obj = self.dictionary[key]
+            self.retrieve_message(obj, key)
+        else:
+            obj = self.create_instance(key, *args)
+            self.create_message(obj, key)
+            self.dictionary[key] = obj
+        self.current_key = key
+        return obj
+
+    def get_current(self):
+        """
+        Get current object in the manager, i.e. the object associated with
+        the current_key.
+        """
+        if self.dictionary.has_key(self.current_key):
+            obj = self.dictionary[self.current_key]
+            return obj
+        else:
+            return None
+
+    def create_instance(self, key, *args):
+        pass
+
+    def create_message(self, key, *args):
+        pass
+
+    def retrieve_message(self, key, *args):
+        pass
+
+class GHManager(Manager):
     FACTORY = GHWrapper
 
-    def __init__(self):
-        self.gh_dictionary = {}
-
-    def create_instance(self, login_or_token, password):
+    def create_instance(self, login_or_token = None, password = None):
         gh = self.FACTORY(login_or_token, password)
         return gh
 
-    def get_github(self, login_or_token = None, password = None):
-        gh = None
-        if self.gh_dictionary.has_key(login_or_token):
-            gh = self.gh_dictionary[login_or_token]
-            if login_or_token:
-                dbg("Retrieve Github instance identified as %s",
-                    gh.get_login())
-            else:
-                dbg("Retrieve anonymous Github instance")
+    def retrieve_message(self, gh, login_or_token):
+        if login_or_token:
+            dbg("Retrieve Github instance identified as %s",
+                gh.get_login())
         else:
-            gh = self.create_instance(login_or_token, password)
-            self.gh_dictionary[login_or_token] = gh
-        return gh
+            dbg("Retrieve anonymous Github instance")
+
+    def create_message(self, gh, login_or_token):
+        if login_or_token:
+            dbg("Create Github instance identified as %s",
+                gh.get_login())
+        else:
+            dbg("Create anonymous Github instance")
 
 gh_manager = GHManager()
 # http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
@@ -267,6 +309,7 @@ logWrap = LoggerWrapper(log)
 
 class PullRequest(object):
     def __init__(self, repo, pull):
+        """Register the Pull Request and its corresponding Issue"""
         self.pull = pull
         self.issue = repo.get_issue(self.get_number())
         dbg("login = %s", self.get_login())
@@ -324,55 +367,91 @@ class PullRequest(object):
         else:
             return []
 
+class GitHubRepository(object):
+
+    def __init__(self, user_name, repo_name, gh = None):
+        if not gh:
+            gh = gh_manager.get_current()
+            if not gh:
+                raise Exception("No Github instance created in the Github manager")
+
+        try:
+            self.repo = gh.get_user(user_name).get_repo(repo_name)
+            if self.repo.organization:
+                self.org = gh.get_organization(self.repo.organization.login)
+            else:
+                self.org = None
+        except:
+            log.error("Failed to find %s/%s", user_name, repo_name, exc_info=1)
+            raise Exception("Did not find %s/%s")
+
+    def __getattr__(self, key):
+        return getattr(self.repo, key)
+
+    def get_owner(self):
+        return self.owner.login
+
+    def is_whitelisted(self, user):
+        if self.org:
+            status = self.org.has_in_public_members(user)
+        else:
+            status = False
+        return status
+
+class GHRepoManager(Manager):
+    """Manager of Github repositories"""
+    FACTORY = GitHubRepository
+
+    def create_instance(self, key, *args):
+        repo = self.FACTORY(key[0], key[1], *args)
+        return repo
+
+    def retrieve_message(self, repo, *args):
+        dbg("Retrieve Github repository: %s/%s", repo.get_owner(), repo.name)
+
+    def create_message(self, repo, *args):
+        dbg("Register Github repository %s/%s", repo.get_owner(), repo.name)
+
+gh_repo_manager = GHRepoManager()
+
 class GitRepository(object):
 
-    def __init__(self, path, filters, reset=False):
+    def __init__(self, path, reset=False):
+        """
+        Register the git repository path, return the current status and
+        register the Github origin remote.
+        """
 
         log.info("")
         self.path =  os.path.abspath(path)
-        [org_name, repo_name] = self.get_remote_info("origin")
+
         if reset:
             self.reset()
         self.get_status()
 
         self.reset = reset
-        self.filters = filters
 
-        gh = get_github(get_token())
-
-        try:
-            self.org_or_user = gh.get_organization(org_name)
-        except github.GithubException:
-            self.org_or_user = gh.get_user(org_name) # Likely snoopy himself!
-
-        try:
-            self.repo = self.org_or_user.get_repo(repo_name)
-        except:
-            log.error("Failed to find %s", repo_name, exc_info=1)
+        # Register the origin remote
+        [user_name, repo_name] = self.get_remote_info("origin")
+        self.origin = get_github_repo(user_name, repo_name)
         self.candidate_pulls = []
 
-    def find_candidates(self):
+    def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         dbg("## PRs found:")
         directories_log = None
 
         # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.repo.get_pulls() if (pull.base.ref == self.filters["base"])]
+        pulls = [pull for pull in self.origin.get_pulls() if (pull.base.ref == filters["base"])]
         for pull in pulls:
-            pullrequest = PullRequest(self.repo, pull)
-            found = False
+            pullrequest = PullRequest(self.origin, pull)
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            found = False
-            try:
-                if self.org_or_user.has_in_public_members(pullrequest.get_user()):
-                    found = True
-            except:
-                pass
+            found = self.origin.is_whitelisted(pullrequest.get_user())
 
             if not found:
-                if self.filters["include"]:
-                    whitelist = [filt for filt in self.filters["include"] if filt.lower() in labels]
+                if filters["include"]:
+                    whitelist = [filt for filt in filters["include"] if filt.lower() in labels]
                     if whitelist:
                         dbg("# ... Include %s", whitelist)
                         found = True
@@ -381,8 +460,8 @@ class GitRepository(object):
                 continue
 
             # Exclude PRs if exclude labels are input
-            if self.filters["exclude"]:
-                blacklist = [filt for filt in self.filters["exclude"] if filt.lower() in labels]
+            if filters["exclude"]:
+                blacklist = [filt for filt in filters["exclude"] if filt.lower() in labels]
                 if blacklist:
                     dbg("# ... Exclude %s", blacklist)
                     continue
@@ -404,17 +483,20 @@ class GitRepository(object):
             directories_log.close()
 
     def get_status(self):
+        """Return the status of the git repository including its submodules"""
         cd(self.path)
         dbg("Check current status")
         call("git", "log", "--oneline", "-n", "1", "HEAD")
         call("git", "submodule", "status")
 
     def reset(self):
+        """Reset the git repository to its HEAD"""
         cd(self.path)
         dbg("Resetting...")
         call("git", "reset", "--hard", "HEAD")
 
     def info(self):
+        """List the candidate Pull Request to be merged"""
         for pullrequest in self.candidate_pulls:
             print "# %s" % " ".join(pullrequest.get_labels())
             print "%s %s by %s for \t\t[???]" % \
@@ -429,10 +511,10 @@ class GitRepository(object):
 
     def get_remote_info(self, remote_name):
         """
-        Return organization and repository name of the specified remote.
+        Return user and repository name of the specified remote.
 
         Origin remote must be on Github, i.e. of type
-        *github/organization/repository.git
+        *github/user/repository.git
         """
         
         cd(self.path)
@@ -440,24 +522,23 @@ class GitRepository(object):
             "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
             stderr = subprocess.PIPE).communicate()[0]
 
-        # Read organization from origin URL
+        # Read user from origin URL
         dirname = os.path.dirname(originurl)
         assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
-        org = os.path.basename(dirname)
+        user = os.path.basename(dirname)
         if ":" in dirname:
-            org = org.split(":")[-1]
+            user = user.split(":")[-1]
 
         # Read repository from origin URL
         basename = os.path.basename(originurl)
         repo = os.path.splitext(basename)[0]
-        log.info("Repository: %s/%s", org, repo)
-        return [org , repo]
+        log.info("Repository: %s/%s", user, repo)
+        return [user , repo]
 
-    def merge(self, comment=False):
+    def merge(self, comment=False, commit_id = "merge"):
         """Merge candidate pull requests."""
         dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
-            print key
             call("git", "remote", "add", key, url)
             call("git", "fetch", key)
 
@@ -470,7 +551,7 @@ class GitRepository(object):
 
             try:
                 call("git", "merge", "--no-ff", "-m", \
-                        "%s: PR %s (%s)" % (self.commit_id(), pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
+                        "%s: PR %s (%s)" % (commit_id, pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
                 merged_pulls.append(pullrequest)
             except:
                 call("git", "reset", "--hard", "%s" % premerge_sha)
@@ -500,7 +581,7 @@ class GitRepository(object):
 
         call("git", "submodule", "update")
 
-    def submodules(self, info=False, comment=False):
+    def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
         """Recursively merge PRs for each submodule."""
 
         submodule_paths = call("git", "submodule", "--quiet", "foreach", \
@@ -513,12 +594,12 @@ class GitRepository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                submodule_repo = GitRepository(directory, self.filters, self.reset)
+                submodule_repo = get_git_repo(directory, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
-                    submodule_repo.fast_forward(self.filters["base"])
-                    submodule_repo.find_candidates()
+                    submodule_repo.fast_forward(filters["base"])
+                    submodule_repo.find_candidates(filters)
                     submodule_repo.merge(comment)
                 submodule_repo.submodules(info)
             finally:
@@ -529,23 +610,7 @@ class GitRepository(object):
                     cd(cwd)
 
         call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s: Update all modules w/o hooks" % self.commit_id())
-
-    def get_name(self):
-        """Return name of the repository."""
-        return self.repo.name
-
-    def commit_id(self):
-        """
-        Return commit identifier generated from base branch, include and 
-        exclude labels.
-        """
-        commit_id = "merge"+"_into_"+self.filters["base"]
-        if self.filters["include"]:
-            commit_id += "+" + "+".join(self.filters["include"])
-        if self.filters["exclude"]:
-            commit_id += "-" + "-".join(self.filters["exclude"])
-        return commit_id
+                "%s: Update all modules w/o hooks" % commit_id)
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -559,10 +624,10 @@ class GitRepository(object):
         remotes = {}
         for user in self.unique_logins():
             key = "merge_%s" % user
-            if self.repo.private:
-                url = "git@github.com:%s/%s.git"  % (user, self.get_name())
+            if self.origin.private:
+                url = "git@github.com:%s/%s.git"  % (user, self.origin.name)
             else:
-                url = "git://github.com/%s/%s.git" % (user, self.get_name())
+                url = "git://github.com/%s/%s.git" % (user, self.origin.name)
             remotes[key] = url
         return remotes
 
@@ -573,6 +638,22 @@ class GitRepository(object):
                 call("git", "remote", "rm", key)
             except Exception:
                 log.error("Failed to remove", key, exc_info=1)
+
+class GitRepoManager(Manager):
+    """Manager of local git repositories"""
+    FACTORY = GitRepository
+
+    def create_instance(self, path, *args):
+        repo = self.FACTORY(path, *args)
+        return repo
+
+    def retrieve_message(self, repo, *args):
+        dbg("Retrieve Git repository: %s", repo.path)
+
+    def create_message(self, repo, *args):
+        dbg("Register Git repository %s", repo.path)
+
+git_manager = GitRepoManager()
 
 def call(*command, **kwargs):
     for x in ("stdout", "stderr"):
@@ -620,6 +701,7 @@ class Merge(Command):
             help='The build number to use to push to team.git')
 
     def __call__(self, args):
+        gh = get_github(get_token())
         log.info("Merging PR based on: %s", args.base)
         log.info("Excluding PR labelled as: %s", args.exclude)
         log.info("Including PR labelled as: %s", args.include)
@@ -629,12 +711,25 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, filters, args.reset)
-        main_repo.find_candidates()
+        main_repo = get_git_repo(cwd, args.reset)
+        main_repo.find_candidates(filters)
+
+        def commit_id(filters):
+            """
+            Return commit identifier generated from base branch, include and
+            exclude labels.
+            """
+            commit_id = "merge"+"_into_"+filters["base"]
+            if filters["include"]:
+                commit_id += "+" + "+".join(filters["include"])
+            if filters["exclude"]:
+                commit_id += "-" + "-".join(filters["exclude"])
+            return commit_id
+
         try:
             if not args.info:
-                main_repo.merge(args.comment)
-            main_repo.submodules(args.info, args.comment)  # Recursive
+                main_repo.merge(args.comment, commit_id = commit_id(filters))
+            main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
 
             if args.buildnumber:
                 newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
@@ -655,12 +750,12 @@ class Rebase(Command):
         rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
     def __call__(self, args):
-
+        gh = get_github(get_token())
         cwd = os.path.abspath(os.getcwd())
-        main_repo = GitRepository(cwd, filters=[], reset=False)
+        main_repo = get_git_repo(cwd, False)
 
         try:
-            pr = main_repo.repo.get_pull(args.PR)
+            pr = main_repo.origin.get_pull(args.PR)
             log.info("PR %g: %s opened by %s against %s", args.PR, pr.title, pr.head.user.name, pr.base.ref)
             pr_head = pr.head.sha
             log.info("Head: %s", pr_head[0:6])
