@@ -23,7 +23,7 @@
 
 Git management script for the Open Microscopy Environment (OME)
 This script is used to simplify various branching workflows
-by wrapping both local git and github access.
+by wrapping both local git and Github access.
 
 
 FUNCTIONALITY
@@ -75,7 +75,7 @@ def get_token():
 def get_github(login_or_token = None, password = None):
     """
     Use the global Github manager to retrieve or create a Github instance.
-    Github instances can be constructed using an OAauth2 token, a Github login
+    Github instances can be constructed using an OAuth2 token, a Github login
     and password or anonymously.
     """
     return gh_manager.get_instance(login_or_token, password)
@@ -142,7 +142,7 @@ class GHWrapper(object):
 
 class Manager(object):
     """
-    Object manager.
+    Manage object creation/retrieval using a dictionary/identification keys.
     """
     def __init__(self):
         self.dictionary = {}
@@ -167,7 +167,8 @@ class Manager(object):
 
     def get_current(self):
         """
-        Get current object in the manager identifier by curren_key.
+        Get current object in the manager, i.e. the object associated with
+        the current_key.
         """
         if self.dictionary.has_key(self.current_key):
             obj = self.dictionary[self.current_key]
@@ -308,6 +309,7 @@ logWrap = LoggerWrapper(log)
 
 class PullRequest(object):
     def __init__(self, repo, pull):
+        """Register the Pull Request and its corresponding Issue"""
         self.pull = pull
         self.issue = repo.get_issue(self.get_number())
         dbg("login = %s", self.get_login())
@@ -397,9 +399,7 @@ class GitHubRepository(object):
         return status
 
 class GHRepoManager(Manager):
-    """
-    Manager of Github repositories
-    """
+    """Manager of Github repositories"""
     FACTORY = GitHubRepository
 
     def create_instance(self, key, *args):
@@ -417,6 +417,10 @@ gh_repo_manager = GHRepoManager()
 class GitRepository(object):
 
     def __init__(self, path, reset=False):
+        """
+        Register the git repository path, return the current status and
+        register the Github origin remote.
+        """
 
         log.info("")
         self.path =  os.path.abspath(path)
@@ -479,17 +483,20 @@ class GitRepository(object):
             directories_log.close()
 
     def get_status(self):
+        """Return the status of the git repository including its submodules"""
         cd(self.path)
         dbg("Check current status")
         call("git", "log", "--oneline", "-n", "1", "HEAD")
         call("git", "submodule", "status")
 
     def reset(self):
+        """Reset the git repository to its HEAD"""
         cd(self.path)
         dbg("Resetting...")
         call("git", "reset", "--hard", "HEAD")
 
     def info(self):
+        """List the candidate Pull Request to be merged"""
         for pullrequest in self.candidate_pulls:
             print "# %s" % " ".join(pullrequest.get_labels())
             print "%s %s by %s for \t\t[???]" % \
@@ -634,6 +641,7 @@ class GitRepository(object):
                 log.error("Failed to remove", key, exc_info=1)
 
 class GitRepoManager(Manager):
+    """Manager of local git repositories"""
     FACTORY = GitRepository
 
     def create_instance(self, path, *args):
