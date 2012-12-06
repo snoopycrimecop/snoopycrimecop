@@ -539,7 +539,6 @@ class GitRepository(object):
         """Merge candidate pull requests."""
         dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
-            print key
             call("git", "remote", "add", key, url)
             call("git", "fetch", key)
 
