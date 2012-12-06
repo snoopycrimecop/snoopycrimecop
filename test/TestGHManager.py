@@ -66,6 +66,9 @@ class TestGHManager(unittest.TestCase):
     def setUp(self):
         self.gm = MockGHManager()
 
+    def testNoConnection(self):
+        self.assertEqual(self.gm.get_current(), None)
+
     def testAnonymousConnection(self):
         gh = self.gm.get_instance()
         self.assertFalse(gh.get_login==None)
@@ -123,10 +126,13 @@ class TestGHManager(unittest.TestCase):
 
         gh = self.gm.get_instance(None)
         self.assertEqual(gh, mock_gh)
+        self.assertEqual(self.gm.get_current(), mock_gh)
         gh2 = self.gm.get_instance("test")
         self.assertEqual(gh2, mock_gh_2)
+        self.assertEqual(self.gm.get_current(), mock_gh_2)
         gh3 = self.gm.get_instance(self.valid_token)
         self.assertEqual(gh3, mock_gh_3)
+        self.assertEqual(self.gm.get_current(), mock_gh_3)
 
 if __name__ == '__main__':
     unittest.main()

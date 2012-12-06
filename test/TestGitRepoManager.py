@@ -45,6 +45,9 @@ class TestGHManager(unittest.TestCase):
     def setUp(self):
         self.gm = MockGitRepoManager()
 
+    def testNoGitRepo(self):
+        self.assertEqual(self.gm.get_current(), None)
+
     def testValidGitRepo(self):
         repo = self.gm.get_instance(self.valid_path)
         self.assertTrue(repo.path==self.valid_path)

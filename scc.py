@@ -80,13 +80,13 @@ def get_github(login_or_token = None, password = None):
     """
     return gh_manager.get_instance(login_or_token, password)
 
-def get_github_repo(username, reponame):
+def get_github_repo(username, reponame, *args):
     """
     Use the global Github repository manager to retrieve or create a Github
     repository. Github repository are constructed by passing the user and the
     repository name as in https://github.com/username/reponame.git
     """
-    return gh_repo_manager.get_instance((username, reponame))
+    return gh_repo_manager.get_instance((username, reponame), *args)
 
 def get_git_repo(path, *args):
     """
@@ -146,12 +146,13 @@ class Manager(object):
     """
     def __init__(self):
         self.dictionary = {}
+        self.current_key = None
 
     def get_instance(self, key = None, *args):
         """
         Get instance of object identified by a given key. If the dictionary
-        has the inpu key, returns the corresponding value else instantiate the
-        object and add to the dictionary.
+        has the input key, returns the corresponding value else instantiate 
+        the object and add to the dictionary.
         """
         obj = None
         if self.dictionary.has_key(key):
@@ -161,7 +162,18 @@ class Manager(object):
             obj = self.create_instance(key, *args)
             self.create_message(obj, key)
             self.dictionary[key] = obj
+        self.current_key = key
         return obj
+
+    def get_current(self):
+        """
+        Get current object in the manager identifier by curren_key.
+        """
+        if self.dictionary.has_key(self.current_key):
+            obj = self.dictionary[self.current_key]
+            return obj
+        else:
+            return None
 
     def create_instance(self, key, *args):
         pass
@@ -355,8 +367,12 @@ class PullRequest(object):
 
 class GitHubRepository(object):
 
-    def __init__(self, user_name, repo_name):
-        gh = get_github(get_token())
+    def __init__(self, user_name, repo_name, gh = None):
+        if not gh:
+            gh = gm.get_current()
+            if not gh:
+                raise Exception("No Github instance created in the Github manager")
+
         try:
             self.repo = gh.get_user(user_name).get_repo(repo_name)
             if self.repo.organization:
@@ -386,8 +402,8 @@ class GHRepoManager(Manager):
     """
     FACTORY = GitHubRepository
 
-    def create_instance(self, key):
-        repo = self.FACTORY(key[0], key[1])
+    def create_instance(self, key, *args):
+        repo = self.FACTORY(key[0], key[1], *args)
         return repo
 
     def retrieve_message(self, repo, *args):
@@ -678,6 +694,7 @@ class Merge(Command):
             help='The build number to use to push to team.git')
 
     def __call__(self, args):
+        gh = get_github(get_token())
         log.info("Merging PR based on: %s", args.base)
         log.info("Excluding PR labelled as: %s", args.exclude)
         log.info("Including PR labelled as: %s", args.include)

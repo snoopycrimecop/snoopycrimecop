@@ -49,6 +49,9 @@ class TestGHManager(unittest.TestCase):
     def setUp(self):
         self.gm = MockGHRepoManager()
 
+    def testNoRepoConnection(self):
+        self.assertEqual(self.gm.get_current(), None)
+
     def testGoodRepoConnection(self):
         repo = self.gm.get_instance((self.valid_users[0], self.valid_repo))
         self.assertTrue(repo.owner==self.valid_users[0])
@@ -72,10 +75,12 @@ class TestGHManager(unittest.TestCase):
         self.assertTrue(new_repo2.owner==self.valid_users[1])
         self.assertTrue(new_repo2.name==self.valid_repo)
         self.assertEqual(repo2, new_repo2)
+        self.assertEqual(self.gm.get_current(), repo2)
         new_repo1 = self.gm.get_instance((self.valid_users[0], self.valid_repo))
         self.assertTrue(new_repo1.owner==self.valid_users[0])
         self.assertTrue(new_repo1.name==self.valid_repo)
         self.assertEqual(repo1, new_repo1)
+        self.assertEqual(self.gm.get_current(), repo1)
 
 if __name__ == '__main__':
     unittest.main()
