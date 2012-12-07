@@ -741,7 +741,8 @@ class Command(object):
     Base type. At the moment just a marker class which
     signifies that a subclass is a CLI command. Subclasses
     should register themselves with the parser during
-    instantiation.
+    instantiation. Note: Command.__call__ implementations
+    are responsible for calling cleanup()
     """
     def __init__(self):
         raise Exception("Abstract")
@@ -772,6 +773,16 @@ class Merge(Command):
 
     def __call__(self, args):
         gh = get_github(get_token())
+        cwd = os.path.abspath(os.getcwd())
+        main_repo = get_git_repo(cwd, args.reset)
+        main_repo.find_candidates(filters)
+
+        try:
+            self.merge(args, gh, cwd, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def merge(self, args, gh, cwd, main_repo):
         log.info("Merging PR based on: %s", args.base)
         log.info("Excluding PR labelled as: %s", args.exclude)
         log.info("Including PR labelled as: %s", args.include)
@@ -780,9 +791,6 @@ class Merge(Command):
         filters["base"] = args.base
         filters["include"] = args.include
         filters["exclude"] = args.exclude
-        cwd = os.path.abspath(os.getcwd())
-        main_repo = get_git_repo(cwd, args.reset)
-        main_repo.find_candidates(filters)
 
         def commit_id(filters):
             """
@@ -796,16 +804,14 @@ class Merge(Command):
                 commit_id += "-" + "-".join(filters["exclude"])
             return commit_id
 
-        try:
-            if not args.info:
-                main_repo.merge(args.comment, commit_id = commit_id(filters))
-            main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
+        if not args.info:
+            main_repo.merge(args.comment, commit_id = commit_id(filters))
 
-            if args.buildnumber:
-                newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
-                call("git", "push", "team", newbranch)
-        finally:
-            main_repo.cleanup()
+        main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
+
+        if args.buildnumber:
+            newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
+            call("git", "push", "team", newbranch)
 
 
 class Rebase(Command):
@@ -823,6 +829,12 @@ class Rebase(Command):
         gh = get_github(get_token())
         cwd = os.path.abspath(os.getcwd())
         main_repo = get_git_repo(cwd, False)
+        try:
+            self.rebase(args, gh, cwd, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def rebase(args, gh, cwd, main_repo):
 
         try:
             pr = main_repo.origin.get_pull(args.PR)
