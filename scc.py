@@ -404,8 +404,8 @@ class GitHubRepository(object):
             else:
                 self.org = None
         except:
-            log.error("Failed to find %s/%s", user_name, repo_name, exc_info=1)
-            raise Exception("Did not find %s/%s")
+            log.error("Failed to find %s/%s", user_name, repo_name)
+            raise
 
     def __getattr__(self, key):
         return getattr(self.repo, key)
