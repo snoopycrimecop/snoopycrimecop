@@ -61,17 +61,24 @@ dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
+
+#
+# Public global functions
+#
+
+
 def get_token():
     """
     Get the Github API token.
     """
     try:
         p = call("git", "config", "--get",
-            "github.token", stdout = subprocess.PIPE).communicate()[0]
+            "github.token", stdout=subprocess.PIPE).communicate()[0]
         token = p.split("\n")[0]
     except Exception:
         token = None
     return token
+
 
 def get_github(login_or_token = None, password = None):
     """
@@ -81,6 +88,7 @@ def get_github(login_or_token = None, password = None):
     """
     return gh_manager.get_instance(login_or_token, password)
 
+
 def get_github_repo(username, reponame, *args):
     """
     Use the global Github repository manager to retrieve or create a Github
@@ -89,6 +97,7 @@ def get_github_repo(username, reponame, *args):
     """
     return gh_repo_manager.get_instance((username, reponame), *args)
 
+
 def get_git_repo(path, *args):
     """
     Use the global Git repository manager to retrieve or create a local Git
@@ -96,6 +105,12 @@ def get_git_repo(path, *args):
     of the directory containing the repository.
     """
     return git_manager.get_instance(os.path.abspath(path), *args)
+
+
+#
+# Management classes. These allow for proper mocking in tests.
+#
+
 
 class GHWrapper(object):
     FACTORY = github.Github
@@ -208,7 +223,11 @@ class GHManager(Manager):
             dbg("Create anonymous Github instance")
 
 gh_manager = GHManager()
-# http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
+
+#
+# Utility classes
+#
+
 class LoggerWrapper(threading.Thread):
     """
     Read text message from a pipe and redirect them
@@ -217,6 +236,8 @@ class LoggerWrapper(threading.Thread):
     descriptor to be used for writing
 
     fdWrite ==> fdRead ==> pipeReader
+
+    See: http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
     """
 
     def __init__(self, logger, level=logging.DEBUG):
@@ -437,6 +458,22 @@ class GitRepository(object):
         self.origin = get_github_repo(user_name, repo_name)
         self.candidate_pulls = []
 
+    def cd(self, directory):
+        if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
+            dbg("cd %s", directory)
+            os.chdir(directory)
+
+    def call(self, *command, **kwargs):
+        for x in ("stdout", "stderr"):
+            if x not in kwargs:
+                kwargs[x] = logWrap
+        dbg("Calling '%s'" % " ".join(command))
+        p = subprocess.Popen(command, **kwargs)
+        rc = p.wait()
+        if rc:
+            raise Exception("rc=%s" % rc)
+        return p
+
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         dbg("## PRs found:")
@@ -485,16 +522,16 @@ class GitRepository(object):
 
     def get_status(self):
         """Return the status of the git repository including its submodules"""
-        cd(self.path)
+        self.cd(self.path)
         dbg("Check current status")
-        call("git", "log", "--oneline", "-n", "1", "HEAD")
-        call("git", "submodule", "status")
+        self.call("git", "log", "--oneline", "-n", "1", "HEAD")
+        self.call("git", "submodule", "status")
 
     def reset(self):
         """Reset the git repository to its HEAD"""
-        cd(self.path)
+        self.cd(self.path)
         dbg("Resetting...")
-        call("git", "reset", "--hard", "HEAD")
+        self.call("git", "reset", "--hard", "HEAD")
 
     def info(self):
         """List the candidate Pull Request to be merged"""
@@ -517,9 +554,8 @@ class GitRepository(object):
         Origin remote must be on Github, i.e. of type
         *github/user/repository.git
         """
-        
-        cd(self.path)
-        originurl = call("git", "config", "--get", \
+        self.cd(self.path)
+        originurl = self.call("git", "config", "--get", \
             "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
             stderr = subprocess.PIPE).communicate()[0]
 
@@ -540,22 +576,22 @@ class GitRepository(object):
         """Merge candidate pull requests."""
         dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
-            call("git", "remote", "add", key, url)
-            call("git", "fetch", key)
+            self.call("git", "remote", "add", key, url)
+            self.call("git", "fetch", key)
 
         conflicting_pulls = []
         merged_pulls = []
 
         for pullrequest in self.candidate_pulls:
-            premerge_sha, e = call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+            premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
-                call("git", "merge", "--no-ff", "-m", \
+                self.call("git", "merge", "--no-ff", "-m", \
                         "%s: PR %s (%s)" % (commit_id, pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
                 merged_pulls.append(pullrequest)
             except:
-                call("git", "reset", "--hard", "%s" % premerge_sha)
+                self.call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflicting_pulls.append(pullrequest)
 
                 msg = "Conflicting PR."
@@ -580,12 +616,12 @@ class GitRepository(object):
             for conflicting_pull in conflicting_pulls:
                 log.info(conflicting_pull)
 
-        call("git", "submodule", "update")
+        self.call("git", "submodule", "update")
 
     def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
         """Recursively merge PRs for each submodule."""
 
-        submodule_paths = call("git", "submodule", "--quiet", "foreach", \
+        submodule_paths = self.call("git", "submodule", "--quiet", "foreach", \
                 "echo $path", \
                 stdout=subprocess.PIPE).communicate()[0]
 
@@ -608,9 +644,9 @@ class GitRepository(object):
                     if submodule_repo:
                         submodule_repo.cleanup()
                 finally:
-                    cd(cwd)
+                    self.cd(cwd)
 
-        call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
+        self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                 "%s: Update all modules w/o hooks" % commit_id)
 
     def unique_logins(self):
@@ -636,7 +672,7 @@ class GitRepository(object):
         """Remove remote branches created for merging."""
         for key in self.remotes().keys():
             try:
-                call("git", "remote", "rm", key)
+                self.call("git", "remote", "rm", key)
             except Exception:
                 log.error("Failed to remove", key, exc_info=1)
 
@@ -656,22 +692,6 @@ class GitRepoManager(Manager):
 
 git_manager = GitRepoManager()
 
-def call(*command, **kwargs):
-    for x in ("stdout", "stderr"):
-        if x not in kwargs:
-            kwargs[x] = logWrap
-    dbg("Calling '%s'" % " ".join(command))
-    p = subprocess.Popen(command, **kwargs)
-    rc = p.wait()
-    if rc:
-        raise Exception("rc=%s" % rc)
-    return p
-
-
-def cd(directory):
-    if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
-        dbg("cd %s", directory)
-        os.chdir(directory)
 
 #
 # What follows are the commands which are available from the command-line.
@@ -817,6 +837,11 @@ class Rebase(Command):
 
 
 def main(args=None):
+    """
+    Reusable entry point. Arguments are parsed
+    via the argparse-subcommands configured via
+    each Command class found in globals().
+    """
 
     if args is None: args = sys.argv[1:]
     scc_parser = argparse.ArgumentParser(description='Snoopy Crime Cop Script')
