@@ -673,9 +673,19 @@ def cd(directory):
         dbg("cd %s", directory)
         os.chdir(directory)
 
+#
+# What follows are the commands which are available from the command-line.
+#
 
 class Command(object):
-    pass
+    """
+    Base type. At the moment just a marker class which
+    signifies that a subclass is a CLI command. Subclasses
+    should register themselves with the parser during
+    instantiation.
+    """
+    def __init__(self):
+        raise Exception("Abstract")
 
 
 class Merge(Command):
