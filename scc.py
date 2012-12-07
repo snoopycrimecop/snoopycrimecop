@@ -424,6 +424,11 @@ class GitHubRepository(object):
             status = False
         return status
 
+    def open_pr(self, title, description, base, head):
+        rv = self.repo.create_pull(title, description, base, head)
+        print rv
+
+
 class GHRepoManager(Manager):
     """Manager of Github repositories"""
     FACTORY = GitHubRepository
@@ -832,6 +837,13 @@ class Rebase(Command):
                 help=rebase_help, description=rebase_help)
         rebase_parser.set_defaults(func=self.__call__)
 
+        rebase_parser.add_argument('--push', action='store_true',
+            help='Push the newly created branch to github')
+        rebase_parser.add_argument('--pr', action='store_true',
+            help='Create a PR for the newly created branch. Assumes --push')
+        rebase_parser.add_argument('--drop', action='store_true',
+            help='Drop the newly created branch when finished')
+
         rebase_parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
         rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
@@ -844,7 +856,7 @@ class Rebase(Command):
         finally:
             main_repo.cleanup()
 
-    def rebase(args, gh, cwd, main_repo):
+    def rebase(self, args, gh, cwd, main_repo):
 
         try:
             pr = main_repo.origin.get_pull(args.PR)
@@ -858,14 +870,25 @@ class Rebase(Command):
         branching_sha1 = self.findBranchingPoint(pr_head, "origin/"+pr.base.ref)
         self.rebase(args.newbase, branching_sha1[0:6], pr_head)
 
+        if args.push or args.pr:
+            main_repo.push_branch()
+            if args.pr:
+                template_args = {"id":id, "base":base,
+                                "description":description}
+                title = "%(title)s (on %(base)s)" % template_args
+                description = """
+
+                This is the same as gh-%(id)s but rebased onto %(base)s.
+                -----
+
+                %(description)s
+
+                """ % template_args
+                gh.open_pr(title, description, base=base, head=head)
+
     def rebase(self, newbase, upstream, sha1):
-        command = ["git", "rebase", "--onto", \
-                "origin/%s" % newbase, "%s" % upstream, "%s" % sha1]
-        dbg("Calling '%s'" % " ".join(command))
-        p = subprocess.Popen(command)
-        rc = p.wait()
-        if rc:
-            raise Exception("rc=%s" % rc)
+        call("git", "remote", "--onto", \
+                "origin/%s" % newbase, "%s" % upstream, "%s" % sha1)
 
     def getRevList(self, commit):
         revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]

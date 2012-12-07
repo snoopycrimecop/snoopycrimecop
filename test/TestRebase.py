@@ -76,7 +76,13 @@ class TestRebase(SandboxTest):
         user = self.gh.get_login()
         self.sandbox.add_remote(user)
         self.sandbox.push_branch(name, remote=user)
+        self.gh.open_pr(
+            title="test %s" % name,
+            description="This is a call to sandbox.open_pr",
+            base="origin:master",
+            head="%s:name" % user)
         # self.sandbox.delete_branch(name, remote=user)
+
 
 if __name__ == '__main__':
     unittest.main()
