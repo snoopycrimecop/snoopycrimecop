@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
+import uuid
 import shutil
 import unittest
 import tempfile
@@ -27,9 +28,9 @@ import tempfile
 from scc import *
 from subprocess import *
 
-sandbox_url = "git://github.com/openmicroscopy/snoopys-sandbox.git"
+sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
 
-class TestRebase(unittest.TestCase):
+class SandboxTest(unittest.TestCase):
 
     def setUp(self):
         self.gh = get_github()
@@ -43,11 +44,36 @@ class TestRebase(unittest.TestCase):
             shutil.rmtree(self.path)
             raise
 
-    def test(self):
-        print self.sandbox
+    def unique_file(self):
+        """
+        Call open() with a unique file name
+        and "w" for writing
+        """
+
+        name = os.path.join(self.path, str(uuid.uuid4()))
+        return open(name, "w")
 
     def tearDown(self):
-        shutil.rmtree(self.path)
+        try:
+            self.sandbox.cleanup()
+        except:
+            shutil.rmtree(self.path)
+
+class TestRebase(SandboxTest):
+
+    def test(self):
+        f = self.unique_file()
+        f.write("hi")
+        f.close()
+        name = f.name
+        self.sandbox.add(f.name)
+
+        name = name.split(os.path.sep)[-1]
+        self.sandbox.commit("Writing %s" % name)
+        self.sandbox.get_status()
+        self.sandbox.name_branch(name)
+        # This needs to be to a fork!
+        #self.sandbox.push_branch(name)
 
 if __name__ == '__main__':
     unittest.main()

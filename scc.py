@@ -527,6 +527,10 @@ class GitRepository(object):
         if directories_log:
             directories_log.close()
 
+    #
+    # General git commands
+    #
+
     def get_status(self):
         """Return the status of the git repository including its submodules"""
         self.cd(self.path)
@@ -534,11 +538,39 @@ class GitRepository(object):
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
 
+    def add(self, file):
+        """
+        Add a file to the repository. The path should
+        be relative to the top of the repository.
+        """
+        self.cd(self.path)
+        dbg("Adding %s...", file)
+        self.call("git", "add", file)
+
+    def commit(self, msg):
+        self.cd(self.path)
+        dbg("Committing %s...", msg)
+        self.call("git", "commit", "-m", msg)
+
+    def name_branch(self, name, head="HEAD"):
+        self.cd(self.path)
+        dbg("Naming %s branch %s...", head, name)
+        self.call("git", "checkout", "-b", name, head)
+
+    def push_branch(self, name, remote="origin"):
+        self.cd(self.path)
+        dbg("Pushing branch %s to %s..." % (name, remote))
+        self.call("git", "push", remote, name)
+
     def reset(self):
         """Reset the git repository to its HEAD"""
         self.cd(self.path)
         dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
+
+    #
+    # Higher level git commands
+    #
 
     def info(self):
         """List the candidate Pull Request to be merged"""
