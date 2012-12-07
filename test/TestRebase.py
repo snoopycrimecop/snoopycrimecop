@@ -27,7 +27,7 @@ import tempfile
 from scc import *
 from subprocess import *
 
-sandbox_url = "git://github.com/openmicroscopy/snoopys-sandbox"
+sandbox_url = "git://github.com/openmicroscopy/snoopys-sandbox.git"
 
 class TestRebase(unittest.TestCase):
 
