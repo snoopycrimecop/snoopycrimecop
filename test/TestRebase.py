@@ -72,8 +72,11 @@ class TestRebase(SandboxTest):
         self.sandbox.commit("Writing %s" % name)
         self.sandbox.get_status()
         self.sandbox.name_branch(name)
-        # This needs to be to a fork!
-        #self.sandbox.push_branch(name)
+
+        user = self.gh.get_login()
+        self.sandbox.add_remote(user)
+        self.sandbox.push_branch(name, remote=user)
+        # self.sandbox.delete_branch(name, remote=user)
 
 if __name__ == '__main__':
     unittest.main()

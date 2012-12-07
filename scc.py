@@ -554,10 +554,23 @@ class GitRepository(object):
         dbg("Naming %s branch %s...", head, name)
         self.call("git", "checkout", "-b", name, head)
 
+    def add_remote(self, name, url=None):
+        self.cd(self.path)
+        if url is None:
+            repo_name = self.origin.repo.name
+            url = "git@github.com:%s/%s.git" % (name, repo_name)
+        dbg("Adding remote %s for %s...", name, url)
+        self.call("git", "remote", "add", name, url)
+
     def push_branch(self, name, remote="origin"):
         self.cd(self.path)
         dbg("Pushing branch %s to %s..." % (name, remote))
         self.call("git", "push", remote, name)
+
+    def delete_branch(self, name, remote="origin"):
+        self.cd(self.path)
+        dbg("Deleting branch %s from %s..." % (name, remote))
+        self.call("git", "push", remote, ":%s" % name)
 
     def reset(self):
         """Reset the git repository to its HEAD"""
