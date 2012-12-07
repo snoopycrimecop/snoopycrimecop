@@ -68,9 +68,13 @@ log.setLevel(logging.DEBUG)
 
 def get_config(name):
     try:
-        p = subprocess.Popen("git", "config", "--get",
-            name, stdout=subprocess.PIPE).communicate()[0]
-        value = p.split("\n")[0]
+        cmd = ["git", "config", "--get", name]
+        p = subprocess.Popen(cmd, \
+                stdout=subprocess.PIPE).communicate()[0]
+        value = p.split("\n")[0].strip()
+        if value:
+            dbg("Found %s", name)
+        return value
     except Exception:
         dbg("Error retrieving %s", name, exc_info=1)
         value = None
@@ -82,7 +86,7 @@ def get_token():
     Get the Github API token.
     """
     token = get_config("github.token")
-    if token is None:
+    if not token:
         token = get_config("github.user")
     return token
 
@@ -123,14 +127,20 @@ class GHWrapper(object):
     FACTORY = github.Github
 
     def __init__(self, login_or_token = None, password = None):
+        self.authorize(login_or_token, password)
+
+    def authorize(self, login_or_token=None, password=None):
         if password is not None:
             self.create_instance(login_or_token, password)
         elif login_or_token is not None:
             try:
                 self.create_instance(login_or_token)
+                self.get_login() # Trigger
             except github.GithubException:
-                password = self.ask_password(login_or_token)
-                if password is not  None:
+                import getpass
+                msg = "Enter password for user %s:" % login_or_token
+                password = getpass.getpass(msg)
+                if password is not None:
                     self.create_instance(login_or_token, password)
         else:
             self.create_instance()
@@ -149,19 +159,6 @@ class GHWrapper(object):
         requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
-    def ask_password(self, login):
-        """
-        Reads from standard in.
-        """
-        try:
-            while True:
-                rv = raw_input("Enter password for user %s:" % login)
-                if not rv:
-                    print "Input required"
-                    continue
-                return rv
-        except KeyboardInterrupt:
-            raise Exception("Cancelled")
 
 class Manager(object):
     """
