@@ -45,6 +45,7 @@ TBD
 """
 
 import os
+import sys
 import github  # PyGithub
 import subprocess
 import logging
@@ -805,8 +806,9 @@ class Rebase(Command):
         return sha1
 
 
-if __name__ == "__main__":
+def main(args=None):
 
+    if args is None: args = sys.argv[1:]
     scc_parser = argparse.ArgumentParser(description='Snoopy Crime Cop Script')
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
 
@@ -816,5 +818,9 @@ if __name__ == "__main__":
         if Command == MyCommand: continue
         MyCommand(sub_parsers)
 
-    ns = scc_parser.parse_args()
+    ns = scc_parser.parse_args(args)
     ns.func(ns)
+
+
+if __name__ == "__main__":
+    main()
