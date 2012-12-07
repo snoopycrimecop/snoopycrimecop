@@ -348,6 +348,10 @@ class PullRequest(object):
         """Return the number of the Pull Request."""
         return int(self.pull.issue_url.split("/")[-1])
 
+    def get_head_login(self):
+        """Return the login of the branch where the changes are implemented."""
+        return self.pull.head.user.login
+
     def get_sha(self):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
@@ -616,7 +620,7 @@ class GitRepository(object):
         """Return a set of unique logins."""
         unique_logins = set()
         for pull in self.candidate_pulls:
-            unique_logins.add(pull.get_login())
+            unique_logins.add(pull.get_head_login())
         return unique_logins
 
     def remotes(self):
