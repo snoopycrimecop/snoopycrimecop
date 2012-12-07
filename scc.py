@@ -66,17 +66,24 @@ log.setLevel(logging.DEBUG)
 # Public global functions
 #
 
+def get_config(name):
+    try:
+        p = subprocess.Popen("git", "config", "--get",
+            name, stdout=subprocess.PIPE).communicate()[0]
+        value = p.split("\n")[0]
+    except Exception:
+        dbg("Error retrieving %s", name, exc_info=1)
+        value = None
+    return value
+
 
 def get_token():
     """
     Get the Github API token.
     """
-    try:
-        p = call("git", "config", "--get",
-            "github.token", stdout=subprocess.PIPE).communicate()[0]
-        token = p.split("\n")[0]
-    except Exception:
-        token = None
+    token = get_config("github.token")
+    if token is None:
+        token = get_config("github.user")
     return token
 
 
