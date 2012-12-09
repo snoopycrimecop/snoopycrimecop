@@ -25,22 +25,7 @@ Git management script for the Open Microscopy Environment (OME)
 This script is used to simplify various branching workflows
 by wrapping both local git and Github access.
 
-
-FUNCTIONALITY
--------------
-
-    merge:
-
-Automatically merge all pull requests with any of the given labels.
-It assumes that you have checked out the target branch locally and
-have updated any submodules. The SHA1s from the PRs will be merged
-into the current branch. AFTER the PRs are merged, any open PRs for
-each submodule with the same tags will also be merged into the
-CURRENT submodule sha1. A final commit will then update the submodules.
-
-    rebase:
-
-TBD
+See the documentation on each Command subclass for specifics.
 
 """
 
@@ -854,6 +839,14 @@ Removes all branches from your fork of snoopys-sandbox"""
 
 
 class Merge(Command):
+    """
+    Automatically merge all pull requests with any of the given labels.
+    It assumes that you have checked out the target branch locally and
+    have updated any submodules. The SHA1s from the PRs will be merged
+    into the current branch. AFTER the PRs are merged, any open PRs for
+    each submodule with the same tags will also be merged into the
+    CURRENT submodule sha1. A final commit will then update the submodules.
+    """
 
     NAME = "merge"
 
