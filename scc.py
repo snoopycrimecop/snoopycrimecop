@@ -396,6 +396,7 @@ class PullRequest(object):
 class GitHubRepository(object):
 
     def __init__(self, user_name, repo_name, gh = None):
+        self.repo_name = repo_name
         if not gh:
             gh = gh_manager.get_current()
             if not gh:
@@ -424,9 +425,20 @@ class GitHubRepository(object):
             status = False
         return status
 
+    def push(self, name):
+        # TODO: We need to make it possible
+        # to create a GitRepository object
+        # with only a remote connection for
+        # just those actions which don't
+        # require a clone.
+        repo = "git@github.com:%s/%s.git" % (self.get_owner(), self.repo_name)
+        p = subprocess.Popen(["git", "push", repo, name])
+        rc = p.wait()
+        if rc != 0:
+            raise Exception("'git push %s %s' failed", repo, name)
+
     def open_pr(self, title, description, base, head):
         rv = self.repo.create_pull(title, description, base, head)
-        print rv
 
 
 class GHRepoManager(Manager):
@@ -749,6 +761,7 @@ git_manager = GitRepoManager()
 
 #
 # What follows are the commands which are available from the command-line.
+# Alphabetically listed please.
 #
 
 class Command(object):
@@ -761,6 +774,44 @@ class Command(object):
     """
     def __init__(self):
         raise Exception("Abstract")
+
+    def __call__(self, args):
+        self.gh = get_github(get_token())
+        self.cwd = os.path.abspath(os.getcwd())
+
+
+class CleanSandbox(Command):
+
+    def __init__(self, sub_parsers):
+
+        clean_help = """Cleans snoopys-sandbox repo after testing
+
+Removes all branches from your fork of snoopys-sandbox"""
+        clean_parser = sub_parsers.add_parser("clean-sandbox",
+            help=clean_help, description=clean_help)
+        clean_parser.set_defaults(func=self.__call__)
+
+        group = clean_parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('-f', '--force', action="store_true",
+                help="Perform a clean of all non-master branches")
+        group.add_argument('-n', '--dry-run', action="store_true",
+                help="Perform a dry-run without removing any branches")
+
+    def __call__(self, args):
+        super(CleanSandbox, self).__call__(args)
+        user = self.gh.get_login()
+        gh_repo = GitHubRepository(user, "snoopys-sandbox", self.gh)
+        branches = gh_repo.repo.get_branches()
+        for b in branches:
+            if "master" == b.name:
+                if args.dry_run:
+                    print "Would not delete master"
+            elif args.dry_run:
+                print "Would delete", b.name
+            elif args.force:
+                gh_repo.push(":%s" % b.name)
+            else:
+                raise Exception("Not possible!")
 
 
 class Merge(Command):
@@ -787,17 +838,16 @@ class Merge(Command):
             help='The build number to use to push to team.git')
 
     def __call__(self, args):
-        gh = get_github(get_token())
-        cwd = os.path.abspath(os.getcwd())
-        main_repo = get_git_repo(cwd, args.reset)
+        super(Merge, self).__call__(args)
+        main_repo = get_git_repo(self.cwd, args.reset)
         main_repo.find_candidates(filters)
 
         try:
-            self.merge(args, gh, cwd, main_repo)
+            self.merge(args, main_repo)
         finally:
             main_repo.cleanup()
 
-    def merge(self, args, gh, cwd, main_repo):
+    def merge(self, args, main_repo):
         log.info("Merging PR based on: %s", args.base)
         log.info("Excluding PR labelled as: %s", args.exclude)
         log.info("Including PR labelled as: %s", args.include)
@@ -848,15 +898,14 @@ class Rebase(Command):
         rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
     def __call__(self, args):
-        gh = get_github(get_token())
-        cwd = os.path.abspath(os.getcwd())
-        main_repo = get_git_repo(cwd, False)
+        super(Rebase, self).__call__(args)
+        main_repo = get_git_repo(self.cwd, False)
         try:
-            self.rebase(args, gh, cwd, main_repo)
+            self.rebase(args, main_repo)
         finally:
             main_repo.cleanup()
 
-    def rebase(self, args, gh, cwd, main_repo):
+    def rebase(self, args, main_repo):
 
         try:
             pr = main_repo.origin.get_pull(args.PR)
@@ -884,7 +933,7 @@ class Rebase(Command):
                 %(description)s
 
                 """ % template_args
-                gh.open_pr(title, description, base=base, head=head)
+                self.gh.open_pr(title, description, base=base, head=head)
 
     def rebase(self, newbase, upstream, sha1):
         call("git", "remote", "--onto", \
