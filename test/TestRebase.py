@@ -76,11 +76,13 @@ class TestRebase(SandboxTest):
         user = self.gh.get_login()
         self.sandbox.add_remote(user)
         self.sandbox.push_branch(name, remote=user)
-        self.gh.open_pr(
+
+        gh_repo = GitHubRepository("openmicroscopy", "snoopys-sandbox", self.gh)
+        gh_repo.open_pr(
             title="test %s" % name,
             description="This is a call to sandbox.open_pr",
-            base="origin:master",
-            head="%s:name" % user)
+            base="master",
+            head="%s:%s" % (user, name))
         # self.sandbox.delete_branch(name, remote=user)
 
 
