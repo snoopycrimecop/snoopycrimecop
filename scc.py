@@ -1012,7 +1012,7 @@ class Token(Command):
 
     NAME = "token"
 
-    HELP = """get or set tokens for use by scc"""
+    HELP = """Get, set, and create tokens for use by scc"""
 
     def __init__(self, sub_parsers):
         super(Token, self).__init__(sub_parsers)
