@@ -66,10 +66,20 @@ log.setLevel(logging.DEBUG)
 # Public global functions
 #
 
-def get_config(name):
+def git_config(name, user=False, local=False, value=None):
     try:
-        cmd = ["git", "config", "--get", name]
-        p = subprocess.Popen(cmd, \
+
+        pre_cmd = ["git", "config"]
+        if value is None:
+            post_cmd = ["--get", name]
+        else:
+            post_cmd = [name, value]
+
+        if user:
+            pre_cmd.append("--global")
+        elif local:
+            pre_cmd.append("--local")
+        p = subprocess.Popen(pre_cmd + post_cmd, \
                 stdout=subprocess.PIPE).communicate()[0]
         value = p.split("\n")[0].strip()
         if value:
@@ -85,9 +95,9 @@ def get_token():
     """
     Get the Github API token.
     """
-    token = get_config("github.token")
+    token = git_config("github.token")
     if not token:
-        token = get_config("github.user")
+        token = git_config("github.user")
     return token
 
 
@@ -996,6 +1006,59 @@ class Rebase(Command):
         sha1 = main_revlist[matching_block[0].b]
         log.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
+
+
+class Token(Command):
+
+    NAME = "token"
+
+    HELP = """get or set tokens for use by scc"""
+
+    def __init__(self, sub_parsers):
+        super(Token, self).__init__(sub_parsers)
+
+        self.parser.add_argument("--local", action="store_true",
+            help="Access token only in local repository")
+        self.parser.add_argument("--user", action="store_true",
+            help="Access token only in user configuration")
+        self.parser.add_argument("--all", action="store_true",
+            help="""Print all known tokens with key""")
+        self.parser.add_argument("--set",
+            help="Set token to specified value")
+        self.parser.add_argument("--create", action="store_true",
+            help="""Create token by authorizing with github.""")
+
+    def __call__(self, args):
+        # Skip super call since it requires a login
+        # super(Token, self).__call__(args)
+
+        if args.all:
+            for key in ("github.token", "github.user"):
+
+                for user, local, msg in \
+                    ((False, True, "local"), (True, False, "user")):
+
+                    rv = git_config(key, user=user, local=local)
+                    print "[%s] %s=%s" % (msg, key, rv)
+
+        elif (args.set or args.create):
+            if args.create:
+                user = git_config("github.user")
+                if not user:
+                    raise Exception("No github.user configured")
+                gh = get_github(user)
+                user = gh.github.get_user()
+                auth = user.create_authorization(["public_repo"], "scc token")
+                git_config("github.token", user=args.user,
+                    local=args.local, value=auth.token)
+            else:
+                git_config("github.token", user=args.user,
+                    local=args.local, value=args.set)
+        else:
+            token = git_config("github.token",
+                user=args.user, local=args.local)
+            if token:
+                print token
 
 
 def main(args=None):
