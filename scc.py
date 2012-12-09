@@ -232,6 +232,29 @@ gh_manager = GHManager()
 # Utility classes
 #
 
+class HelpFormatter(argparse.RawTextHelpFormatter):
+    """
+    argparse.HelpFormatter subclass which cleans up our usage, preventing very long
+    lines in subcommands.
+
+    Borrowed from omero/cli.py
+    """
+
+    def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
+        argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
+        self._action_max_length = 20
+
+    def _split_lines(self, text, width):
+        return [text.splitlines()[0]]
+
+    class _Section(argparse.RawTextHelpFormatter._Section):
+
+        def __init__(self, formatter, parent, heading=None):
+            #if heading:
+            #    heading = "\n%s\n%s" % ("=" * 40, heading)
+            argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
+
+
 class LoggerWrapper(threading.Thread):
     """
     Read text message from a pipe and redirect them
@@ -983,13 +1006,15 @@ def main(args=None):
     """
 
     if args is None: args = sys.argv[1:]
-    scc_parser = argparse.ArgumentParser(description='Snoopy Crime Cop Script')
+    scc_parser = argparse.ArgumentParser(
+        description='Snoopy Crime Cop Script',
+        formatter_class=HelpFormatter)
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
 
-    for MyCommand in globals().values():
+    for name, MyCommand in sorted(globals().items()):
         if not isinstance(MyCommand, type): continue
         if not issubclass(MyCommand, Command): continue
-        if Command == MyCommand: continue
+        if MyCommand == Command: continue
         MyCommand(sub_parsers)
 
     ns = scc_parser.parse_args(args)
