@@ -772,8 +772,14 @@ class Command(object):
     instantiation. Note: Command.__call__ implementations
     are responsible for calling cleanup()
     """
-    def __init__(self):
-        raise Exception("Abstract")
+
+    NAME = "abstract"
+    HELP = """Undefined"""
+
+    def __init__(self, sub_parsers):
+        self.parser = sub_parsers.add_parser(self.NAME,
+            help=self.HELP, description=self.HELP)
+        self.parser.set_defaults(func=self.__call__)
 
     def __call__(self, args):
         self.gh = get_github(get_token())
@@ -782,16 +788,16 @@ class Command(object):
 
 class CleanSandbox(Command):
 
-    def __init__(self, sub_parsers):
+    NAME = "clean-sandbox"
 
-        clean_help = """Cleans snoopys-sandbox repo after testing
+    HELP = """Cleans snoopys-sandbox repo after testing
 
 Removes all branches from your fork of snoopys-sandbox"""
-        clean_parser = sub_parsers.add_parser("clean-sandbox",
-            help=clean_help, description=clean_help)
-        clean_parser.set_defaults(func=self.__call__)
 
-        group = clean_parser.add_mutually_exclusive_group(required=True)
+    def __init__(self, sub_parsers):
+        super(CleanSandbox, self).__init__(sub_parsers)
+
+        group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument('-f', '--force', action="store_true",
                 help="Perform a clean of all non-master branches")
         group.add_argument('-n', '--dry-run', action="store_true",
@@ -816,25 +822,25 @@ Removes all branches from your fork of snoopys-sandbox"""
 
 class Merge(Command):
 
+    NAME = "merge"
+
+    HELP = 'Merge Pull Requests opened against a specific base branch.'
+
     def __init__(self, sub_parsers):
+        super(Merge, self).__init__(sub_parsers)
 
-        merge_help = 'Merge Pull Requests opened against a specific base branch.'
-        merge_parser = sub_parsers.add_parser("merge",
-                help=merge_help, description=merge_help)
-        merge_parser.set_defaults(func=self.__call__)
-
-        merge_parser.add_argument('--reset', action='store_true',
+        self.parser.add_argument('--reset', action='store_true',
             help='Reset the current branch to its HEAD')
-        merge_parser.add_argument('--info', action='store_true',
+        self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
-        merge_parser.add_argument('--comment', action='store_true',
+        self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
-        merge_parser.add_argument('base', type=str)
-        merge_parser.add_argument('--include', nargs="*",
+        self.parser.add_argument('base', type=str)
+        self.parser.add_argument('--include', nargs="*",
             help='PR labels to include in the merge')
-        merge_parser.add_argument('--exclude', nargs="*",
+        self.parser.add_argument('--exclude', nargs="*",
             help='PR labels to exclude from the merge')
-        merge_parser.add_argument('--buildnumber', type=int, default=None,
+        self.parser.add_argument('--buildnumber', type=int, default=None,
             help='The build number to use to push to team.git')
 
     def __call__(self, args):
@@ -881,21 +887,21 @@ class Merge(Command):
 
 class Rebase(Command):
 
-    def __init__(self, sub_parsers):
-        rebase_help = 'Rebase Pull Requests opened against a specific base branch.'
-        rebase_parser = sub_parsers.add_parser("rebase",
-                help=rebase_help, description=rebase_help)
-        rebase_parser.set_defaults(func=self.__call__)
+    NAME = "rebase"
 
-        rebase_parser.add_argument('--push', action='store_true',
+    HELP = """Rebase Pull Requests opened against a specific base branch."""
+
+    def __init__(self, sub_parsers):
+        super(Rebase, self).__init__(sub_parsers)
+        self.parser.add_argument('--push', action='store_true',
             help='Push the newly created branch to github')
-        rebase_parser.add_argument('--pr', action='store_true',
+        self.parser.add_argument('--pr', action='store_true',
             help='Create a PR for the newly created branch. Assumes --push')
-        rebase_parser.add_argument('--drop', action='store_true',
+        self.parser.add_argument('--drop', action='store_true',
             help='Drop the newly created branch when finished')
 
-        rebase_parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
-        rebase_parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
+        self.parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
+        self.parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
     def __call__(self, args):
         super(Rebase, self).__call__(args)
