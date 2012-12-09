@@ -53,37 +53,50 @@ class SandboxTest(unittest.TestCase):
         name = os.path.join(self.path, str(uuid.uuid4()))
         return open(name, "w")
 
+    def fake_branch(self, head="master"):
+        f = self.unique_file()
+        f.write("hi")
+        f.close()
+
+        path = f.name
+        name = f.name.split(os.path.sep)[-1]
+
+        self.sandbox.new_branch(name, head=head)
+        self.sandbox.add(path)
+
+        self.sandbox.commit("Writing %s" % name)
+        self.sandbox.get_status()
+        return name
+
     def tearDown(self):
         try:
             self.sandbox.cleanup()
         except:
             shutil.rmtree(self.path)
 
+
 class TestRebase(SandboxTest):
 
     def test(self):
-        f = self.unique_file()
-        f.write("hi")
-        f.close()
-        name = f.name
-        self.sandbox.add(f.name)
 
-        name = name.split(os.path.sep)[-1]
-        self.sandbox.commit("Writing %s" % name)
-        self.sandbox.get_status()
-        self.sandbox.name_branch(name)
-
+        # Setup
         user = self.gh.get_login()
+        gh_repo = GitHubRepository("openmicroscopy", "snoopys-sandbox", self.gh)
+
+        # Create first PR from master
+        name = self.fake_branch(head="master")
         self.sandbox.add_remote(user)
         self.sandbox.push_branch(name, remote=user)
-
-        gh_repo = GitHubRepository("openmicroscopy", "snoopys-sandbox", self.gh)
-        gh_repo.open_pr(
+        pr = gh_repo.open_pr(
             title="test %s" % name,
             description="This is a call to sandbox.open_pr",
             base="master",
             head="%s:%s" % (user, name))
-        # self.sandbox.delete_branch(name, remote=user)
+
+        # Now test rebasing on some other fake branch
+        fake = self.fake_branch(head="master")
+        self.sandbox.push_branch(fake, remote=user)
+        main(["rebase", "--push", str(pr.number), fake])
 
 
 if __name__ == '__main__':
