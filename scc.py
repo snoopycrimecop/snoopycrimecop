@@ -27,6 +27,9 @@ by wrapping both local git and Github access.
 
 See the documentation on each Command subclass for specifics.
 
+Environment variables:
+    SCC_DEBUG_LEVEL     default: logging.WARN
+
 """
 
 import os
@@ -38,13 +41,23 @@ import threading
 import argparse
 import difflib
 
-fmt = """%(asctime)s %(levelname)-5.5s %(message)s"""
-logging.basicConfig(level=10, format=fmt)
+
+log_format = "%(message)s"
+log_level = logging.WARN
+if "SCC_DEBUG_LEVEL" in os.environ:
+    try:
+        log_level = int(os.environ.get("SCC_DEBUG_LEVEL"))
+    except:
+        log_level = 10 # Assume poorly formatted means "debug"
+
+if log_level <= 10:
+    log_format = """%(asctime)s %(levelname)-5.5s [%(name)12.12s] %(message)s"""
+
+logging.basicConfig(level=log_level, format=log_format)
 
 log = logging.getLogger("scc")
 dbg = log.debug
 logging.getLogger('github').setLevel(logging.INFO)
-log.setLevel(logging.DEBUG)
 
 
 #
