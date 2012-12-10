@@ -923,7 +923,6 @@ class Merge(Command):
     def __call__(self, args):
         super(Merge, self).__call__(args)
         main_repo = get_git_repo(self.cwd, args.reset)
-        main_repo.find_candidates(filters)
 
         try:
             self.merge(args, main_repo)
@@ -939,6 +938,7 @@ class Merge(Command):
         filters["base"] = args.base
         filters["include"] = args.include
         filters["exclude"] = args.exclude
+        main_repo.find_candidates(filters)
 
         def commit_id(filters):
             """
