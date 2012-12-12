@@ -677,6 +677,29 @@ class GitRepository(object):
         dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
 
+    def fast_forward(self, base, remote = "origin"):
+        """Execute merge --ff-only against the current base"""
+        dbg("## Merging base to ensure closed PRs are included.")
+        p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
+        log.info(p.rstrip("/n"))
+
+    def rebase(self, newbase, upstream, sha1):
+        self.call("git", "rebase", "--onto", \
+                "%s" % newbase, "%s" % upstream, "%s" % sha1)
+
+    def get_rev_list(self, commit):
+        revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
+        p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
+        (revlist, stderr) = p.communicate('')
+
+        if stderr or p.returncode:
+            print "Error output was:\n%s" % stderr
+            print "Output was:\n%s" % stdout
+            return False
+
+        return revlist.splitlines()
+
     #
     # Higher level git commands
     #
@@ -688,12 +711,6 @@ class GitRepository(object):
             print "%s %s by %s for \t\t[???]" % \
                 (pullrequest.pr.issue_url, pullrequest.get_title(), pullrequest.get_login())
             print
-
-    def fast_forward(self, base, remote = "origin"):
-        """Execute merge --ff-only against the current base"""
-        dbg("## Merging base to ensure closed PRs are included.")
-        p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
-        log.info(p.rstrip("/n"))
 
     def get_remote_info(self, remote_name):
         """
@@ -766,27 +783,10 @@ class GitRepository(object):
 
         self.call("git", "submodule", "update")
 
-    def rebase(self, newbase, upstream, sha1):
-        self.call("git", "rebase", "--onto", \
-                "%s" % newbase, "%s" % upstream, "%s" % sha1)
-
-    def getRevList(self, commit):
-        revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
-        p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
-        (revlist, stderr) = p.communicate('')
-
-        if stderr or p.returncode:
-            print "Error output was:\n%s" % stderr
-            print "Output was:\n%s" % stdout
-            return False
-
-        return revlist.splitlines()
-
     def findBranchingPoint(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
-        topic_revlist = self.getRevList(topic_branch)
-        main_revlist = self.getRevList(main_branch)
+        topic_revlist = self.get_rev_list(topic_branch)
+        main_revlist = self.get_rev_list(main_branch)
 
         # Compare sequences
         s = difflib.SequenceMatcher(None, topic_revlist, main_revlist)
