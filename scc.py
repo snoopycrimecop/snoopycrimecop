@@ -94,7 +94,14 @@ def get_token():
     """
     Get the Github API token.
     """
-    token = git_config("github.token")
+    return git_config("github.token")
+
+
+def get_token_or_user():
+    """
+    Get the Github API token or the Github user if undefined.
+    """
+    token = get_token()
     if not token:
         token = git_config("github.user")
     return token
@@ -889,7 +896,7 @@ class Command(object):
         self.parser.set_defaults(func=self.__call__)
 
     def __call__(self, args):
-        self.gh = get_github(get_token())
+        self.gh = get_github(get_token_or_user())
         self.cwd = os.path.abspath(os.getcwd())
 
 

@@ -33,7 +33,7 @@ sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
 class SandboxTest(unittest.TestCase):
 
     def setUp(self):
-        self.gh = get_github(get_token())
+        self.gh = get_github(get_token_or_user())
         self.path = tempfile.mkdtemp("","sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
