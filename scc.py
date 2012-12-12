@@ -783,7 +783,7 @@ class GitRepository(object):
 
         self.call("git", "submodule", "update")
 
-    def findBranchingPoint(self, topic_branch, main_branch):
+    def find_branching_point(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
         topic_revlist = self.get_rev_list(topic_branch)
         main_revlist = self.get_rev_list(main_branch)
@@ -1066,7 +1066,7 @@ class Rebase(Command):
         log.info("Head: %s", pr_head[0:6])
         log.info("Merged: %s", pr.is_merged())
 
-        branching_sha1 = main_repo.findBranchingPoint(pr_head,
+        branching_sha1 = main_repo.find_branching_point(pr_head,
                 "%s/%s" % (args.remote, pr.base.ref))
         main_repo.rebase("%s/%s" % (args.remote, args.newbase),
                 branching_sha1[0:6], pr_head)
