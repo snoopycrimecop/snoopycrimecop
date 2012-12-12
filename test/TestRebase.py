@@ -84,19 +84,23 @@ class TestRebase(SandboxTest):
         gh_repo = GitHubRepository("openmicroscopy", "snoopys-sandbox", self.gh)
 
         # Create first PR from master
-        name = self.fake_branch(head="master")
+        name = self.fake_branch(head="origin/dev_4_4")
         self.sandbox.add_remote(user)
         self.sandbox.push_branch(name, remote=user)
-        pr = gh_repo.open_pr(
-            title="test %s" % name,
-            description="This is a call to sandbox.open_pr",
-            base="master",
-            head="%s:%s" % (user, name))
+        try:
+            pr = gh_repo.open_pr(
+                title="test %s" % name,
+                description="This is a call to sandbox.open_pr",
+                base="dev_4_4",
+                head="%s:%s" % (user, name))
 
-        # Now test rebasing on some other fake branch
-        fake = self.fake_branch(head="master")
-        self.sandbox.push_branch(fake, remote=user)
-        main(["rebase", "--push", str(pr.number), fake])
+            main(["rebase", "--pr", str(pr.number), "develop"])
+            # If it succeeds, then we immediately close the PR
+            self.sandbox.push_branch(":rebased/develop/%s"%name, remote=user)
+
+        finally:
+            # This will also clean the first PR
+            self.sandbox.push_branch(":%s"%name, remote=user)
 
 
 if __name__ == '__main__':
