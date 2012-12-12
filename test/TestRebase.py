@@ -94,7 +94,7 @@ class TestRebase(SandboxTest):
                 base="dev_4_4",
                 head="%s:%s" % (user, name))
 
-            main(["rebase", "--pr", str(pr.number), "develop"])
+            main(["rebase", str(pr.number), "develop"])
             # If it succeeds, then we immediately close the PR
             self.sandbox.push_branch(":rebased/develop/%s"%name, remote=user)
 

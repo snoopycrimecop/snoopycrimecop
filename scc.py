@@ -1026,12 +1026,15 @@ class Rebase(Command):
 
     def __init__(self, sub_parsers):
         super(Rebase, self).__init__(sub_parsers)
-        self.parser.add_argument('--push', action='store_true',
-            help='Push the newly created branch to github')
-        self.parser.add_argument('--pr', action='store_true',
-            help='Create a PR for the newly created branch. Assumes --push')
-        self.parser.add_argument('--keep', action='store_true',
-            help='Keep the newly created branch when finished')
+
+        for name, help in (
+                ('push', 'Push the newly created branch to github'),
+                ('pr', 'Create a PR for the newly created branch. Assumes --push'),
+                ('delete', 'Keep the newly created branch when finished')):
+
+            self.parser.add_argument('--no-%s'%name, action='store_false',
+                dest=name, default=True, help=help)
+
         self.parser.add_argument('--remote', default="origin",
             help='Name of the remote to use as the origin')
 
@@ -1112,7 +1115,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
             finally:
                 main_repo.checkout_branch(old_branch)
 
-            if not args.keep:
+            if args.delete:
                 main_repo.delete_local_branch(new_branch, force=True)
 
 
