@@ -34,6 +34,7 @@ Environment variables:
 
 import os
 import sys
+import time
 import github  # PyGithub
 import subprocess
 import logging
@@ -515,6 +516,20 @@ class GitRepository(object):
             dbg("cd %s", directory)
             os.chdir(directory)
 
+    def communicate(self, *command):
+        dbg("Calling '%s' for stdout/err" % " ".join(command))
+        p = subprocess.Popen(command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
+        o, e = p.communicate()
+        if p.returncode:
+            msg = """Failed to run '%s'
+    rc:     %s
+    stdout: %s
+    stderr: %s""" % (" ".join(command), p.returncode, o, e)
+            raise Exception(msg)
+        return o, e
+
     def call(self, *command, **kwargs):
         for x in ("stdout", "stderr"):
             if x not in kwargs:
@@ -576,6 +591,24 @@ class GitRepository(object):
     # General git commands
     #
 
+    def get_current_head(self):
+        """Return the symbolic name for the current branch"""
+        self.cd(self.path)
+        dbg("Get current head")
+        o, e = self.communicate("git", "symbolic-ref", "HEAD")
+        o = o.strip()
+        refsheads = "refs/heads/"
+        if o.startswith(refsheads):
+            o = o[len(refsheads):]
+        return o
+
+    def get_current_sha1(self):
+        """Return the sha1 for the current commit"""
+        self.cd(self.path)
+        dbg("Get current sha1")
+        o, e = self.communicate("git", "rev-parse", "HEAD")
+        return o.strip()
+
     def get_status(self):
         """Return the status of the git repository including its submodules"""
         self.cd(self.path)
@@ -619,6 +652,12 @@ class GitRepository(object):
         self.cd(self.path)
         dbg("Pushing branch %s to %s..." % (name, remote))
         self.call("git", "push", remote, name)
+
+    def delete_local_branch(self, name, force=False):
+        self.cd(self.path)
+        dbg("Deleting branch %s locally..." % name)
+        d_switch = force and "-D" or "-d"
+        self.call("git", "branch", d_switch, name)
 
     def delete_branch(self, name, remote="origin"):
         self.cd(self.path)
@@ -739,7 +778,6 @@ class GitRepository(object):
 
     def findBranchingPoint(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
-
         topic_revlist = self.getRevList(topic_branch)
         main_revlist = self.getRevList(main_branch)
 
@@ -963,6 +1001,17 @@ class Merge(Command):
 
 
 class Rebase(Command):
+    """
+    The workflow currently is:
+
+        * Find the branch point for the original PR
+        * Rebase all commits from the branch point to the tip
+        * Create a branch named "rebase/develop/ORIG_NAME"
+        * If push is set, also push to GH, and switch branches.
+        * If pr is set, push to GH, open a PR, and switch branches
+        * If keep is set, omit the deleting of the newbranch.
+
+    """
 
     NAME = "rebase"
 
@@ -976,6 +1025,8 @@ class Rebase(Command):
             help='Create a PR for the newly created branch. Assumes --push')
         self.parser.add_argument('--keep', action='store_true',
             help='Keep the newly created branch when finished')
+        self.parser.add_argument('--remote', default="origin",
+            help='Name of the remote to use as the origin')
 
         self.parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
         self.parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
@@ -990,6 +1041,17 @@ class Rebase(Command):
 
     def rebase(self, args, main_repo):
 
+        # Local information
+        [origin_name, origin_repo] = main_repo.get_remote_info(args.remote)
+        # If we are pushing the branch somewhere, we likely will
+        # be deleting the new one, and so should remember what
+        # commit we are on now in order to go back to it.
+        try:
+            old_branch = main_repo.get_current_head()
+        except:
+            old_branch = main_repo.get_current_sha1()
+
+        # Remote information
         pr = main_repo.origin.get_pull(args.PR)
         log.info("PR %g: %s opened by %s against %s", \
             args.PR, pr.title, pr.head.user.name, pr.base.ref)
@@ -997,32 +1059,54 @@ class Rebase(Command):
         log.info("Head: %s", pr_head[0:6])
         log.info("Merged: %s", pr.is_merged())
 
-        branching_sha1 = main_repo.findBranchingPoint(pr_head, "origin/"+pr.base.ref)
-        main_repo.rebase(args.newbase, branching_sha1[0:6], pr_head)
+        branching_sha1 = main_repo.findBranchingPoint(pr_head,
+                "%s/%s" % (args.remote, pr.base.ref))
+        main_repo.rebase("%s/%s" % (args.remote, args.newbase),
+                branching_sha1[0:6], pr_head)
+
+        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
+        main_repo.new_branch(new_branch)
+        print >> sys.stderr, "# Created local branch %s" % new_branch
 
         if args.push or args.pr:
+            try:
+                user = self.gh.get_login()
+                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
 
-            user = self.gh.get_login()
-            # CREATE SYMBOLIC NAME HERE
-            main_repo.push_branch(pr_head, remote=user)
+                main_repo.push_branch(new_branch, remote=remote)
+                print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
 
-            if args.pr:
-                template_args = {"id":id, "base":args.newbase, "title": pr.title}
-                title = "%(title)s (on %(base)s)" % template_args
-                description = """
+                if args.pr:
+                    template_args = {"id":pr.number, "base":args.newbase,
+                            "title": pr.title, "body": pr.body}
+                    title = "%(title)s (rebased onto %(base)s)" % template_args
+                    body= """
 
-                This is the same as gh-%(id)s but rebased onto %(base)s.
-                -----
+This is the same as gh-%(id)s but rebased onto %(base)s.
 
-                %(description)s
+----
 
-                """ % template_args
+%(body)s
 
-                self.gh.open_pr(title, description, \
-                    base=args.newbase, head=pr_head)
+                    """ % template_args
 
-                if args.keep:
-                    print "TBD"
+                    gh_repo = GitHubRepository(origin_name, origin_repo, self.gh)
+                    pr = gh_repo.open_pr(title, body,
+                            base=args.newbase, head="%s:%s" % (user, new_branch))
+                    print pr.html_url
+                    # Reload in order to prevent mergeable being null.
+                    time.sleep(0.5)
+                    pr = main_repo.origin.get_pull(pr.number)
+                    if not pr.mergeable:
+                        print >> sys.stderr, "#"
+                        print >> sys.stderr, "# WARNING: PR is NOT mergeable!"
+                        print >> sys.stderr, "#"
+
+            finally:
+                main_repo.checkout_branch(old_branch)
+
+            if not args.keep:
+                main_repo.delete_local_branch(new_branch, force=True)
 
 
 class Token(Command):
