@@ -83,27 +83,29 @@ def git_config(name, user=False, local=False, value=None):
         value = p.split("\n")[0].strip()
         if value:
             dbg("Found %s", name)
-        return value
+            return value
+        else:
+            return None
     except Exception:
         dbg("Error retrieving %s", name, exc_info=1)
         value = None
     return value
 
 
-def get_token():
+def get_token(local=False):
     """
     Get the Github API token.
     """
-    return git_config("github.token")
+    return git_config("github.token", local=local)
 
 
-def get_token_or_user():
+def get_token_or_user(local=False):
     """
     Get the Github API token or the Github user if undefined.
     """
     token = get_token()
     if not token:
-        token = git_config("github.user")
+        token = git_config("github.user", local=local)
     return token
 
 
@@ -1146,7 +1148,8 @@ class Token(Command):
                     ((False, True, "local"), (True, False, "user")):
 
                     rv = git_config(key, user=user, local=local)
-                    print "[%s] %s=%s" % (msg, key, rv)
+                    if rv is not None:
+                        print "[%s] %s=%s" % (msg, key, rv)
 
         elif (args.set or args.create):
             if args.create:
