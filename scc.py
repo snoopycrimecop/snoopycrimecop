@@ -905,7 +905,7 @@ class Merge(Command):
         super(Merge, self).__call__(args)
         self.login(args)
 
-        main_repo = self.git_repo(self.cwd, args.reset)
+        main_repo = self.gh.git_repo(self.cwd, args.reset)
 
         try:
             self.merge(args, main_repo)
