@@ -849,6 +849,8 @@ Removes all branches from your fork of snoopys-sandbox
         group.add_argument('-n', '--dry-run', action="store_true",
                 help="Perform a dry-run without removing any branches")
 
+        self.parser.add_argument("--skip", action="append", default=["master"])
+
     def __call__(self, args):
         super(CleanSandbox, self).__call__(args)
         self.login(args)
@@ -856,9 +858,9 @@ Removes all branches from your fork of snoopys-sandbox
         gh_repo = self.gh.gh_repo("snoopys-sandbox")
         branches = gh_repo.repo.get_branches()
         for b in branches:
-            if "master" == b.name:
+            if b.name in args.skip:
                 if args.dry_run:
-                    print "Would not delete master"
+                    print "Would not delete", b.name
             elif args.dry_run:
                 print "Would delete", b.name
             elif args.force:
