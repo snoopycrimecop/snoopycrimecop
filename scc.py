@@ -111,33 +111,10 @@ def get_token_or_user(local=False):
 
 def get_github(login_or_token = None, password = None):
     """
-    Use the global Github manager to retrieve or create a Github instance.
-    Github instances can be constructed using an OAuth2 token, a Github login
-    and password or anonymously.
+    Create a Github instance. Can be constructed using an OAuth2 token,
+    a Github login and password or anonymously.
     """
-    return gh_manager.get_instance(login_or_token, password)
-
-
-def get_github_repo(username, reponame, *args, **kwargs):
-    """
-    Use the global Github repository manager to retrieve or create a Github
-    repository. Github repository are constructed by passing the user and the
-    repository name as in https://github.com/username/reponame.git
-
-    kwargs can contain "gh" for providing an authenticated GHWrapper.
-    """
-    return gh_repo_manager.get_instance((username, reponame), *args, **kwargs)
-
-
-def get_git_repo(path, *args, **kwargs):
-    """
-    Use the global Git repository manager to retrieve or create a local Git
-    repository. Git repository instances are constructed by passing the path
-    of the directory containing the repository.
-
-    kwargs can contain "gh" for providing an authenticated GHWrapper.
-    """
-    return git_manager.get_instance(os.path.abspath(path), *args, **kwargs)
+    return GHManager(login_or_token, password)
 
 
 #
@@ -145,7 +122,7 @@ def get_git_repo(path, *args, **kwargs):
 #
 
 
-class GHWrapper(object):
+class GHManager(object):
     FACTORY = github.Github
 
     def __init__(self, login_or_token = None, password = None):
@@ -181,74 +158,24 @@ class GHWrapper(object):
         requests = self.github.rate_limiting
         dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
-
-class Manager(object):
-    """
-    Manage object creation/retrieval using a dictionary/identification keys.
-    """
-    def __init__(self):
-        self.dictionary = {}
-        self.current_key = None
-
-    def get_instance(self, key = None, *args, **kwargs):
+    def gh_repo(self, reponame, username=None):
         """
-        Get instance of object identified by a given key. If the dictionary
-        has the input key, returns the corresponding value else instantiate 
-        the object and add to the dictionary.
+        Github repository are constructed by passing the user and the
+        repository name as in https://github.com/username/reponame.git
         """
-        obj = None
-        if self.dictionary.has_key(key):
-            obj = self.dictionary[key]
-            self.retrieve_message(obj, key, **kwargs)
-        else:
-            obj = self.create_instance(key, *args, **kwargs)
-            self.create_message(obj, key)
-            self.dictionary[key] = obj
-        self.current_key = key
-        return obj
+        if username is None:
+            username = self.get_login()
+        return GitHubRepository(self, username, reponame)
 
-    def get_current(self):
+
+    def git_repo(self, path, *args, **kwargs):
         """
-        Get current object in the manager, i.e. the object associated with
-        the current_key.
+        Git repository instances are constructed by passing the path
+        of the directory containing the repository.
         """
-        if self.dictionary.has_key(self.current_key):
-            obj = self.dictionary[self.current_key]
-            return obj
-        else:
-            return None
+        return GitRepository(self, os.path.abspath(path), *args, **kwargs)
 
-    def create_instance(self, key, *args, **kwargs):
-        pass
 
-    def create_message(self, key, *args, **kwargs):
-        pass
-
-    def retrieve_message(self, key, *args, **kwargs):
-        pass
-
-class GHManager(Manager):
-    FACTORY = GHWrapper
-
-    def create_instance(self, login_or_token = None, password = None):
-        gh = self.FACTORY(login_or_token, password)
-        return gh
-
-    def retrieve_message(self, gh, login_or_token):
-        if login_or_token:
-            dbg("Retrieve Github instance identified as %s",
-                gh.get_login())
-        else:
-            dbg("Retrieve anonymous Github instance")
-
-    def create_message(self, gh, login_or_token):
-        if login_or_token:
-            dbg("Create Github instance identified as %s",
-                gh.get_login())
-        else:
-            dbg("Create anonymous Github instance")
-
-gh_manager = GHManager()
 
 #
 # Utility classes
@@ -440,12 +367,10 @@ class PullRequest(object):
 
 class GitHubRepository(object):
 
-    def __init__(self, user_name, repo_name, gh = None):
+    def __init__(self, gh, user_name, repo_name):
+        self.gh = gh
+        self.user_name = user_name
         self.repo_name = repo_name
-        if not gh:
-            gh = gh_manager.get_current()
-            if not gh:
-                raise Exception("No Github instance created in the Github manager")
 
         try:
             self.repo = gh.get_user(user_name).get_repo(repo_name)
@@ -486,31 +411,15 @@ class GitHubRepository(object):
         return self.repo.create_pull(title, description, base, head)
 
 
-class GHRepoManager(Manager):
-    """Manager of Github repositories"""
-    FACTORY = GitHubRepository
-
-    def create_instance(self, key, *args, **kwargs):
-        repo = self.FACTORY(key[0], key[1], *args, **kwargs)
-        return repo
-
-    def retrieve_message(self, repo, *args, **kwargs):
-        dbg("Retrieve Github repository: %s/%s", repo.get_owner(), repo.name)
-
-    def create_message(self, repo, *args, **kwargs):
-        dbg("Register Github repository %s/%s", repo.get_owner(), repo.name)
-
-gh_repo_manager = GHRepoManager()
-
 class GitRepository(object):
 
-    def __init__(self, path, reset=False, gh=None):
+    def __init__(self, gh, path, reset=False):
         """
         Register the git repository path, return the current status and
         register the Github origin remote.
         """
 
-        log.info("")
+        self.gh = gh
         self.path =  os.path.abspath(path)
 
         if reset:
@@ -521,7 +430,7 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.origin = get_github_repo(user_name, repo_name, gh=gh)
+        self.origin = gh.gh_repo(repo_name, user_name)
         self.candidate_pulls = []
 
     def cd(self, directory):
@@ -817,7 +726,7 @@ class GitRepository(object):
             directory = lines.pop(0).strip()
             try:
                 submodule_repo = None
-                submodule_repo = get_git_repo(directory, self.reset)
+                submodule_repo = self.gh.git_repo(directory, self.reset)
                 if info:
                     submodule_repo.info()
                 else:
@@ -861,22 +770,6 @@ class GitRepository(object):
                 self.call("git", "remote", "rm", key)
             except Exception:
                 log.error("Failed to remove", key, exc_info=1)
-
-class GitRepoManager(Manager):
-    """Manager of local git repositories"""
-    FACTORY = GitRepository
-
-    def create_instance(self, path, *args, **kwargs):
-        repo = self.FACTORY(path, *args, **kwargs)
-        return repo
-
-    def retrieve_message(self, repo, *args, **kwargs):
-        dbg("Retrieve Git repository: %s", repo.path)
-
-    def create_message(self, repo, *args, **kwargs):
-        dbg("Register Git repository %s", repo.path)
-
-git_manager = GitRepoManager()
 
 
 #
@@ -930,8 +823,7 @@ Removes all branches from your fork of snoopys-sandbox
 
     def __call__(self, args):
         super(CleanSandbox, self).__call__(args)
-        user = self.gh.get_login()
-        gh_repo = GitHubRepository(user, "snoopys-sandbox", self.gh)
+        gh_repo = self.gh.gh_repo("snoopys-sandbox")
         branches = gh_repo.repo.get_branches()
         for b in branches:
             if "master" == b.name:
@@ -978,7 +870,7 @@ class Merge(Command):
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
-        main_repo = get_git_repo(self.cwd, args.reset)
+        main_repo = self.git_repo(self.cwd, args.reset)
 
         try:
             self.merge(args, main_repo)
@@ -1051,7 +943,7 @@ class Rebase(Command):
 
     def __call__(self, args):
         super(Rebase, self).__call__(args)
-        main_repo = get_git_repo(self.cwd, False)
+        main_repo = self.git_repo(self.cwd, False)
         try:
             self.rebase(args, main_repo)
         finally:
@@ -1108,7 +1000,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
                     """ % template_args
 
-                    gh_repo = GitHubRepository(origin_name, origin_repo, self.gh)
+                    gh_repo = self.gh.gh_repo(origin_repo, origin_name)
                     pr = gh_repo.open_pr(title, body,
                             base=args.newbase, head="%s:%s" % (user, new_branch))
                     print pr.html_url

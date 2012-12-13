@@ -36,7 +36,7 @@ class TestRebase(SandboxTest):
 
         # Setup
         user = self.gh.get_login()
-        gh_repo = GitHubRepository("openmicroscopy", "snoopys-sandbox", self.gh)
+        gh_repo = self.gh.gh_repo("snoopys-sandbox", "openmicroscopy")
 
         # Create first PR from master
         name = self.fake_branch(head="origin/dev_4_4")

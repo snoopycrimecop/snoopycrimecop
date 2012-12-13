@@ -33,6 +33,7 @@ sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
 class SandboxTest(unittest.TestCase):
 
     def setUp(self):
+        unittest.TestCase.setUp(self)
         self.cwd = os.getcwd()
         # Only read from the invoking repository which will
         # usually be the scc.git itself.
@@ -43,7 +44,7 @@ class SandboxTest(unittest.TestCase):
         try:
             p = Popen(["git", "clone", sandbox_url, self.path])
             self.assertEquals(0, p.wait())
-            self.sandbox = get_git_repo(self.path, gh=self.gh)
+            self.sandbox = self.gh.git_repo(self.path)
         except:
             shutil.rmtree(self.path)
             raise
@@ -89,3 +90,4 @@ class SandboxTest(unittest.TestCase):
             finally:
                 # Return to cwd regardless.
                 os.chdir(self.cwd)
+        unittest.TestCase.tearDown(self)
