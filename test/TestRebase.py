@@ -26,53 +26,8 @@ import unittest
 import tempfile
 
 from scc import *
+from Sandbox import *
 from subprocess import *
-
-sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
-
-class SandboxTest(unittest.TestCase):
-
-    def setUp(self):
-        self.gh = get_github(get_token_or_user())
-        self.path = tempfile.mkdtemp("","sandbox-", ".")
-        self.path = os.path.abspath(self.path)
-        try:
-            p = Popen(["git", "clone", sandbox_url, self.path])
-            self.assertEquals(0, p.wait())
-            self.sandbox = get_git_repo(self.path)
-        except:
-            shutil.rmtree(self.path)
-            raise
-
-    def unique_file(self):
-        """
-        Call open() with a unique file name
-        and "w" for writing
-        """
-
-        name = os.path.join(self.path, str(uuid.uuid4()))
-        return open(name, "w")
-
-    def fake_branch(self, head="master"):
-        f = self.unique_file()
-        f.write("hi")
-        f.close()
-
-        path = f.name
-        name = f.name.split(os.path.sep)[-1]
-
-        self.sandbox.new_branch(name, head=head)
-        self.sandbox.add(path)
-
-        self.sandbox.commit("Writing %s" % name)
-        self.sandbox.get_status()
-        return name
-
-    def tearDown(self):
-        try:
-            self.sandbox.cleanup()
-        except:
-            shutil.rmtree(self.path)
 
 
 class TestRebase(SandboxTest):
