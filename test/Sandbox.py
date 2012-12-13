@@ -38,7 +38,7 @@ class SandboxTest(unittest.TestCase):
         # Only read from the invoking repository which will
         # usually be the scc.git itself.
         self.token = get_token_or_user(local=True)
-        self.gh = get_github(self.token)
+        self.gh = get_github(self.token, dont_ask=True)
         self.path = tempfile.mkdtemp("","sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:

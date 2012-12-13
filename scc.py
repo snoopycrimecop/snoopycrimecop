@@ -109,12 +109,12 @@ def get_token_or_user(local=False):
     return token
 
 
-def get_github(login_or_token = None, password = None):
+def get_github(login_or_token=None, password=None, **kwargs):
     """
     Create a Github instance. Can be constructed using an OAuth2 token,
     a Github login and password or anonymously.
     """
-    return GHManager(login_or_token, password)
+    return GHManager(login_or_token, password, **kwargs)
 
 
 #
@@ -123,24 +123,33 @@ def get_github(login_or_token = None, password = None):
 
 
 class GHManager(object):
+    """
+    By setting dont_ask to true, it's possible to prevent the call
+    to getpass.getpass. This is useful during unit tests.
+    """
+
     FACTORY = github.Github
 
-    def __init__(self, login_or_token = None, password = None):
-        self.authorize(login_or_token, password)
+    def __init__(self, login_or_token=None, password=None, dont_ask=False):
+        self.login_or_token = login_or_token
+        self.dont_ask = dont_ask
+        self.authorize(password)
 
-    def authorize(self, login_or_token=None, password=None):
+    def authorize(self, password):
         if password is not None:
-            self.create_instance(login_or_token, password)
-        elif login_or_token is not None:
+            self.create_instance(self.login_or_token, password)
+        elif self.login_or_token is not None:
             try:
-                self.create_instance(login_or_token)
+                self.create_instance(self.login_or_token)
                 self.get_login() # Trigger
             except github.GithubException:
+                if self.dont_ask:
+                    raise
                 import getpass
-                msg = "Enter password for user %s:" % login_or_token
+                msg = "Enter password for user %s:" % self.login_or_token
                 password = getpass.getpass(msg)
                 if password is not None:
-                    self.create_instance(login_or_token, password)
+                    self.create_instance(self.login_or_token, password)
         else:
             self.create_instance()
 
