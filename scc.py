@@ -118,22 +118,26 @@ def get_github(login_or_token = None, password = None):
     return gh_manager.get_instance(login_or_token, password)
 
 
-def get_github_repo(username, reponame, *args):
+def get_github_repo(username, reponame, *args, **kwargs):
     """
     Use the global Github repository manager to retrieve or create a Github
     repository. Github repository are constructed by passing the user and the
     repository name as in https://github.com/username/reponame.git
+
+    kwargs can contain "gh" for providing an authenticated GHWrapper.
     """
-    return gh_repo_manager.get_instance((username, reponame), *args)
+    return gh_repo_manager.get_instance((username, reponame), *args, **kwargs)
 
 
-def get_git_repo(path, *args):
+def get_git_repo(path, *args, **kwargs):
     """
     Use the global Git repository manager to retrieve or create a local Git
     repository. Git repository instances are constructed by passing the path
     of the directory containing the repository.
+
+    kwargs can contain "gh" for providing an authenticated GHWrapper.
     """
-    return git_manager.get_instance(os.path.abspath(path), *args)
+    return git_manager.get_instance(os.path.abspath(path), *args, **kwargs)
 
 
 #
@@ -166,8 +170,8 @@ class GHWrapper(object):
     def get_login(self):
         return self.github.get_user().login
 
-    def create_instance(self, *args):
-        self.github = self.FACTORY(*args)
+    def create_instance(self, *args, **kwargs):
+        self.github = self.FACTORY(*args, **kwargs)
 
     def __getattr__(self, key):
         dbg("github.%s", key)
@@ -186,7 +190,7 @@ class Manager(object):
         self.dictionary = {}
         self.current_key = None
 
-    def get_instance(self, key = None, *args):
+    def get_instance(self, key = None, *args, **kwargs):
         """
         Get instance of object identified by a given key. If the dictionary
         has the input key, returns the corresponding value else instantiate 
@@ -195,9 +199,9 @@ class Manager(object):
         obj = None
         if self.dictionary.has_key(key):
             obj = self.dictionary[key]
-            self.retrieve_message(obj, key)
+            self.retrieve_message(obj, key, **kwargs)
         else:
-            obj = self.create_instance(key, *args)
+            obj = self.create_instance(key, *args, **kwargs)
             self.create_message(obj, key)
             self.dictionary[key] = obj
         self.current_key = key
@@ -214,13 +218,13 @@ class Manager(object):
         else:
             return None
 
-    def create_instance(self, key, *args):
+    def create_instance(self, key, *args, **kwargs):
         pass
 
-    def create_message(self, key, *args):
+    def create_message(self, key, *args, **kwargs):
         pass
 
-    def retrieve_message(self, key, *args):
+    def retrieve_message(self, key, *args, **kwargs):
         pass
 
 class GHManager(Manager):
@@ -486,21 +490,21 @@ class GHRepoManager(Manager):
     """Manager of Github repositories"""
     FACTORY = GitHubRepository
 
-    def create_instance(self, key, *args):
-        repo = self.FACTORY(key[0], key[1], *args)
+    def create_instance(self, key, *args, **kwargs):
+        repo = self.FACTORY(key[0], key[1], *args, **kwargs)
         return repo
 
-    def retrieve_message(self, repo, *args):
+    def retrieve_message(self, repo, *args, **kwargs):
         dbg("Retrieve Github repository: %s/%s", repo.get_owner(), repo.name)
 
-    def create_message(self, repo, *args):
+    def create_message(self, repo, *args, **kwargs):
         dbg("Register Github repository %s/%s", repo.get_owner(), repo.name)
 
 gh_repo_manager = GHRepoManager()
 
 class GitRepository(object):
 
-    def __init__(self, path, reset=False):
+    def __init__(self, path, reset=False, gh=None):
         """
         Register the git repository path, return the current status and
         register the Github origin remote.
@@ -517,7 +521,7 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.origin = get_github_repo(user_name, repo_name)
+        self.origin = get_github_repo(user_name, repo_name, gh=gh)
         self.candidate_pulls = []
 
     def cd(self, directory):
@@ -862,14 +866,14 @@ class GitRepoManager(Manager):
     """Manager of local git repositories"""
     FACTORY = GitRepository
 
-    def create_instance(self, path, *args):
-        repo = self.FACTORY(path, *args)
+    def create_instance(self, path, *args, **kwargs):
+        repo = self.FACTORY(path, *args, **kwargs)
         return repo
 
-    def retrieve_message(self, repo, *args):
+    def retrieve_message(self, repo, *args, **kwargs):
         dbg("Retrieve Git repository: %s", repo.path)
 
-    def create_message(self, repo, *args):
+    def create_message(self, repo, *args, **kwargs):
         dbg("Register Git repository %s", repo.path)
 
 git_manager = GitRepoManager()
