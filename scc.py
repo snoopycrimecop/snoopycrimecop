@@ -902,7 +902,12 @@ class Command(object):
         self.parser.set_defaults(func=self.__call__)
 
     def __call__(self, args):
-        self.gh = get_github(get_token_or_user())
+        token = get_token_or_user()
+        if token is None:
+            print "# github.token and github.user not found."
+            print "# See `%s token` for simpifying use." % sys.argv[0]
+            token = raw_input("Username or token: ").strip()
+        self.gh = get_github(token)
         self.cwd = os.path.abspath(os.getcwd())
 
 
