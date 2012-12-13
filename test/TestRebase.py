@@ -49,7 +49,11 @@ class TestRebase(SandboxTest):
                 base="dev_4_4",
                 head="%s:%s" % (user, name))
 
-            main(["rebase", str(pr.number), "develop"])
+            main(["rebase", \
+                    "--token=%s"%self.gh.login_or_token, \
+                    "--no-ask", \
+                    str(pr.number), \
+                    "develop"])
             # If it succeeds, then we immediately close the PR
             self.sandbox.push_branch(":rebased/develop/%s"%name, remote=user)
 

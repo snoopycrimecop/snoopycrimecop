@@ -133,7 +133,14 @@ class GHManager(object):
     def __init__(self, login_or_token=None, password=None, dont_ask=False):
         self.login_or_token = login_or_token
         self.dont_ask = dont_ask
-        self.authorize(password)
+        try:
+            self.authorize(password)
+        except github.GithubException, ge:
+            if ge.status == 401:
+                msg = ge.data.get("message", "")
+                if "Bad credentials" == msg:
+                    print msg
+                    sys.exit(ge.status)
 
     def authorize(self, password):
         if password is not None:
@@ -803,14 +810,25 @@ class Command(object):
             help=help, description=help)
         self.parser.set_defaults(func=self.__call__)
 
+    def add_token_args(self):
+        self.parser.add_argument("--token",
+            help="Token to use rather than from config files")
+        self.parser.add_argument("--no-ask", action='store_true',
+            help="Don't ask for a password if token usage fails")
+
     def __call__(self, args):
-        token = get_token_or_user()
-        if token is None:
+        self.cwd = os.path.abspath(os.getcwd())
+
+    def login(self, args):
+        if args.token:
+            token = args.token
+        else:
+            token = get_token_or_user()
+        if token is None and not args.no_ask:
             print "# github.token and github.user not found."
             print "# See `%s token` for simpifying use." % sys.argv[0]
             token = raw_input("Username or token: ").strip()
-        self.gh = get_github(token)
-        self.cwd = os.path.abspath(os.getcwd())
+        self.gh = get_github(token, dont_ask=args.no_ask)
 
 
 class CleanSandbox(Command):
@@ -823,6 +841,7 @@ Removes all branches from your fork of snoopys-sandbox
 
     def __init__(self, sub_parsers):
         super(CleanSandbox, self).__init__(sub_parsers)
+        self.add_token_args()
 
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument('-f', '--force', action="store_true",
@@ -832,6 +851,8 @@ Removes all branches from your fork of snoopys-sandbox
 
     def __call__(self, args):
         super(CleanSandbox, self).__call__(args)
+        self.login(args)
+
         gh_repo = self.gh.gh_repo("snoopys-sandbox")
         branches = gh_repo.repo.get_branches()
         for b in branches:
@@ -862,6 +883,7 @@ class Merge(Command):
 
     def __init__(self, sub_parsers):
         super(Merge, self).__init__(sub_parsers)
+        self.add_token_args()
 
         self.parser.add_argument('--reset', action='store_true',
             help='Reset the current branch to its HEAD')
@@ -879,6 +901,8 @@ class Merge(Command):
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
+        self.login(args)
+
         main_repo = self.git_repo(self.cwd, args.reset)
 
         try:
@@ -935,6 +959,7 @@ class Rebase(Command):
 
     def __init__(self, sub_parsers):
         super(Rebase, self).__init__(sub_parsers)
+        self.add_token_args()
 
         for name, help in (
                 ('pr', 'Skip creating a PR.'),
@@ -952,7 +977,9 @@ class Rebase(Command):
 
     def __call__(self, args):
         super(Rebase, self).__call__(args)
-        main_repo = self.git_repo(self.cwd, False)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
         try:
             self.rebase(args, main_repo)
         finally:
@@ -1035,6 +1062,7 @@ class Token(Command):
 
     def __init__(self, sub_parsers):
         super(Token, self).__init__(sub_parsers)
+        # No token args
 
         self.parser.add_argument("--local", action="store_true",
             help="Access token only in local repository")
@@ -1048,8 +1076,8 @@ class Token(Command):
             help="""Create token by authorizing with github.""")
 
     def __call__(self, args):
-        # Skip super call since it requires a login
-        # super(Token, self).__call__(args)
+        super(Token, self).__call__(args)
+        # No login
 
         if args.all:
             for key in ("github.token", "github.user"):
