@@ -888,11 +888,11 @@ class Command(object):
     """
 
     NAME = "abstract"
-    HELP = """Undefined"""
 
     def __init__(self, sub_parsers):
+        help = self.__doc__.lstrip()
         self.parser = sub_parsers.add_parser(self.NAME,
-            help=self.HELP, description=self.HELP)
+            help=help, description=help)
         self.parser.set_defaults(func=self.__call__)
 
     def __call__(self, args):
@@ -901,12 +901,12 @@ class Command(object):
 
 
 class CleanSandbox(Command):
+    """Cleans snoopys-sandbox repo after testing
+
+Removes all branches from your fork of snoopys-sandbox
+    """
 
     NAME = "clean-sandbox"
-
-    HELP = """Cleans snoopys-sandbox repo after testing
-
-Removes all branches from your fork of snoopys-sandbox"""
 
     def __init__(self, sub_parsers):
         super(CleanSandbox, self).__init__(sub_parsers)
@@ -936,6 +936,8 @@ Removes all branches from your fork of snoopys-sandbox"""
 
 class Merge(Command):
     """
+    Merge Pull Requests opened against a specific base branch.
+
     Automatically merge all pull requests with any of the given labels.
     It assumes that you have checked out the target branch locally and
     have updated any submodules. The SHA1s from the PRs will be merged
@@ -945,8 +947,6 @@ class Merge(Command):
     """
 
     NAME = "merge"
-
-    HELP = 'Merge Pull Requests opened against a specific base branch.'
 
     def __init__(self, sub_parsers):
         super(Merge, self).__init__(sub_parsers)
@@ -1008,29 +1008,26 @@ class Merge(Command):
 
 
 class Rebase(Command):
-    """
-    The workflow currently is:
+    """Rebase Pull Requests opened against a specific base branch.
 
-        * Find the branch point for the original PR
-        * Rebase all commits from the branch point to the tip
-        * Create a branch named "rebase/develop/ORIG_NAME"
-        * If push is set, also push to GH, and switch branches.
-        * If pr is set, push to GH, open a PR, and switch branches
-        * If keep is set, omit the deleting of the newbranch.
+        The workflow currently is:
 
-    """
+        1) Find the branch point for the original PR.
+        2) Rebase all commits from the branch point to the tip.
+        3) Create a branch named "rebase/develop/ORIG_NAME".
+        4) If push is set, also push to GH, and switch branches.
+        5) If pr is set, push to GH, open a PR, and switch branches.
+        6) If keep is set, omit the deleting of the newbranch."""
 
     NAME = "rebase"
-
-    HELP = """Rebase Pull Requests opened against a specific base branch."""
 
     def __init__(self, sub_parsers):
         super(Rebase, self).__init__(sub_parsers)
 
         for name, help in (
-                ('push', 'Push the newly created branch to github'),
-                ('pr', 'Create a PR for the newly created branch. Assumes --push'),
-                ('delete', 'Keep the newly created branch when finished')):
+                ('pr', 'Skip creating a PR.'),
+                ('push', 'Skip pushing github'),
+                ('delete', 'Skip deleting local branch')):
 
             self.parser.add_argument('--no-%s'%name, action='store_false',
                 dest=name, default=True, help=help)
@@ -1120,10 +1117,9 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
 
 class Token(Command):
+    """Get, set, and create tokens for use by scc"""
 
     NAME = "token"
-
-    HELP = """Get, set, and create tokens for use by scc"""
 
     def __init__(self, sub_parsers):
         super(Token, self).__init__(sub_parsers)
