@@ -461,12 +461,25 @@ class GitRepository(object):
             self.reset()
         self.get_status()
 
-        self.reset = reset
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
         self.origin = gh.gh_repo(repo_name, user_name)
         self.candidate_pulls = []
+        self.submodules = []
+
+    def register_submodules(self, reset=False):
+        if len(self.submodules) == 0:
+            submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
+                    "echo $path", stdout=subprocess.PIPE).communicate()[0]
+
+            lines = submodule_paths.split("\n")
+            while "".join(lines):
+                directory = lines.pop(0).strip()
+                try:
+                    self.submodules.append(self.gh.git_repo(directory, reset))
+                finally:
+                    self.cd(self.path)
 
     def cd(self, directory):
         if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
@@ -773,28 +786,16 @@ class GitRepository(object):
         if info:
             self.info()
         else:
+            self.cd(self.path)
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             self.find_candidates(filters)
             merge_msg += self.merge(comment, commit_id = commit_id)
 
-        submodule_paths = self.call("git", "submodule", "--quiet", "foreach", \
-                "echo $path", \
-                stdout=subprocess.PIPE).communicate()[0]
-
-        cwd = os.path.abspath(os.getcwd())
-        lines = submodule_paths.split("\n")
-        while "".join(lines):
-            directory = lines.pop(0).strip()
+        for submodule_repo in self.submodules:
             try:
-                submodule_repo = None
-                submodule_repo = self.gh.git_repo(directory, self.reset)
                 merge_msg += submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
             finally:
-                try:
-                    if submodule_repo:
-                        submodule_repo.cleanup()
-                finally:
-                    self.cd(cwd)
+                self.cd(self.path)
 
         self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                 "%s\n\n%s" % (commit_id, merge_msg))
@@ -819,8 +820,19 @@ class GitRepository(object):
             remotes[key] = url
         return remotes
 
+    def rcleanup(self):
+        """Recursively remove remote branches created for merging."""
+
+        self.cleanup()
+        for submodule_repo in self.submodules:
+            try:
+                submodule_repo.rcleanup()
+            finally:
+                self.cd(self.path)
+
     def cleanup(self):
         """Remove remote branches created for merging."""
+        self.cd(self.path)
         for key in self.remotes().keys():
             try:
                 self.call("git", "remote", "rm", key)
@@ -963,11 +975,13 @@ class Merge(Command):
         self.login(args)
 
         main_repo = self.gh.git_repo(self.cwd, args.reset)
+        main_repo.register_submodules(args.reset)
 
         try:
             self.merge(args, main_repo)
         finally:
-            main_repo.cleanup()
+            dbg("Cleaning remote branches created for merging")
+            main_repo.rcleanup()
 
     def merge(self, args, main_repo):
         self.log.info("Merging PR based on: %s", args.base)
