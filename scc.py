@@ -117,7 +117,6 @@ def get_github(login_or_token=None, password=None, **kwargs):
     """
     return GHManager(login_or_token, password, **kwargs)
 
-
 #
 # Management classes. These allow for proper mocking in tests.
 #
@@ -967,8 +966,8 @@ class Merge(Command):
             help='PR labels to include in the merge')
         self.parser.add_argument('--exclude', nargs="*",
             help='PR labels to exclude from the merge')
-        self.parser.add_argument('--buildnumber', type=int, default=None,
-            help='The build number to use to push to team.git')
+        self.parser.add_argument('--push', action='store_true',
+            help='Push merged repositories to github')
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
@@ -982,6 +981,22 @@ class Merge(Command):
         finally:
             dbg("Cleaning remote branches created for merging")
             main_repo.rcleanup()
+
+        if args.push:
+            branch_name = "merge/%s/latest" % (args.base)
+
+            user = self.gh.get_login()
+            remote = "git@github.com:%s/%s.git" % (user, main_repo.origin.repo_name)
+            main_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote)
+            print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
+
+            for submodule_repo in main_repo.submodules:
+                try:
+                    remote = "git@github.com:%s/%s.git" % (user, submodule_repo.origin.repo_name)
+                    submodule_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote)
+                    print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
+                finally:
+                    main_repo.cd(main_repo.path)
 
     def merge(self, args, main_repo):
         self.log.info("Merging PR based on: %s", args.base)
@@ -1006,10 +1021,6 @@ class Merge(Command):
             return commit_id
 
         main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id(filters))
-
-        if args.buildnumber:
-            newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
-            call("git", "push", "team", newbranch)
 
 
 class Rebase(Command):
