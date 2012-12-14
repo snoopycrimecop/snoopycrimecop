@@ -129,8 +129,6 @@ class GHManager(object):
     to getpass.getpass. This is useful during unit tests.
     """
 
-    FACTORY = github.Github
-
     def __init__(self, login_or_token=None, password=None, dont_ask=False):
         self.log = logging.getLogger("scc.gh")
         self.dbg = self.log.debug
@@ -167,7 +165,11 @@ class GHManager(object):
         return self.github.get_user().login
 
     def create_instance(self, *args, **kwargs):
-        self.github = self.FACTORY(*args, **kwargs)
+        """
+        Subclasses can override this method in order
+        to prevent use of the pygithub2 library.
+        """
+        self.github = github.Github(*args, **kwargs)
 
     def __getattr__(self, key):
         self.dbg("github.%s", key)
