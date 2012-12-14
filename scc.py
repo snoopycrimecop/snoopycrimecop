@@ -408,6 +408,9 @@ class GitHubRepository(object):
             self.log.error("Failed to find %s/%s", user_name, repo_name)
             raise
 
+    def __repr__(self):
+        return "Repository: %s/%s" % (self.user_name, self.repo_name)
+
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
@@ -641,6 +644,7 @@ class GitRepository(object):
         self.dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
         self.info(p.rstrip("/n"))
+        return  p.rstrip("/n").split("\n")[0]
 
     def rebase(self, newbase, upstream, sha1):
         self.call_info("git", "rebase", "--onto", \
@@ -693,7 +697,6 @@ class GitRepository(object):
         # Read repository from origin URL
         basename = os.path.basename(originurl)
         repo = os.path.splitext(basename)[0]
-        self.info("Repository: %s/%s", user, repo)
         return [user , repo]
 
     def merge(self, comment=False, commit_id = "merge"):
@@ -730,17 +733,22 @@ class GitRepository(object):
                     self.dbg("Adding comment to issue #%g." % pullrequest.get_number())
                     pullrequest.issue.create_comment(msg)
 
+        merge_msg = ""
         if merged_pulls:
-            self.info("Merged PRs:")
+            merge_msg += "Merged PRs:\n"
             for merged_pull in merged_pulls:
-                self.info(merged_pull)
+                merge_msg += str(merged_pull) + "\n"
 
         if conflicting_pulls:
-            self.info("Conflicting PRs (not included):")
+            merge_msg += "Conflicting PRs (not included):\n"
             for conflicting_pull in conflicting_pulls:
-                self.info(conflicting_pull)
+                merge_msg += str(conflicting_pull) + "\n"
+
+        for line in merge_msg.split("\n"):
+            self.info(line)
 
         self.call("git", "submodule", "update")
+        return merge_msg
 
     def find_branching_point(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
@@ -757,8 +765,17 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge"):
         """Recursively merge PRs for each submodule."""
+
+        merge_msg = ""
+        merge_msg += str(self.origin) + "\n"
+        if info:
+            self.info()
+        else:
+            merge_msg += self.fast_forward(filters["base"])  + "\n"
+            self.find_candidates(filters)
+            merge_msg += self.merge(comment, commit_id = commit_id)
 
         submodule_paths = self.call("git", "submodule", "--quiet", "foreach", \
                 "echo $path", \
@@ -771,13 +788,7 @@ class GitRepository(object):
             try:
                 submodule_repo = None
                 submodule_repo = self.gh.git_repo(directory, self.reset)
-                if info:
-                    submodule_repo.info()
-                else:
-                    submodule_repo.fast_forward(filters["base"])
-                    submodule_repo.find_candidates(filters)
-                    submodule_repo.merge(comment)
-                submodule_repo.submodules(info)
+                merge_msg += submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
             finally:
                 try:
                     if submodule_repo:
@@ -786,7 +797,8 @@ class GitRepository(object):
                     self.cd(cwd)
 
         self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s: Update all modules w/o hooks" % commit_id)
+                "%s\n\n%s" % (commit_id, merge_msg))
+        return merge_msg
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -966,7 +978,6 @@ class Merge(Command):
         filters["base"] = args.base
         filters["include"] = args.include
         filters["exclude"] = args.exclude
-        main_repo.find_candidates(filters)
 
         def commit_id(filters):
             """
@@ -980,10 +991,7 @@ class Merge(Command):
                 commit_id += "-" + "-".join(filters["exclude"])
             return commit_id
 
-        if not args.info:
-            main_repo.merge(args.comment, commit_id = commit_id(filters))
-
-        main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
+        main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id(filters))
 
         if args.buildnumber:
             newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
