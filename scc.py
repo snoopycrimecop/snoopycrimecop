@@ -35,12 +35,24 @@ Environment variables:
 import os
 import sys
 import time
-import github  # PyGithub
 import subprocess
 import logging
 import threading
-import argparse
 import difflib
+
+
+try:
+    import argparse
+except ImportError:
+    print >>sys.stderr, \
+            "# argparse missing. Install via 'pip install argparse'"
+
+try:
+    import github  # PyGithub
+except ImportError, ie:
+    print >>sys.stderr, \
+            "# github missing. Install via 'pip install pygithub'"
+
 
 SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
