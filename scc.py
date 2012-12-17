@@ -476,7 +476,9 @@ class GitRepository(object):
             while "".join(lines):
                 directory = lines.pop(0).strip()
                 try:
-                    self.submodules.append(self.gh.git_repo(directory, reset))
+                    submodule_repo = self.gh.git_repo(directory, reset)
+                    self.submodules.append(submodule_repo)
+                    submodule_repo.register_submodules(reset)
                 finally:
                     self.cd(self.path)
 
