@@ -35,12 +35,24 @@ Environment variables:
 import os
 import sys
 import time
-import github  # PyGithub
 import subprocess
 import logging
 import threading
-import argparse
 import difflib
+
+
+try:
+    import argparse
+except ImportError:
+    print >>sys.stderr, \
+            "# argparse missing. Install via 'pip install argparse'"
+
+try:
+    import github  # PyGithub
+except ImportError, ie:
+    print >>sys.stderr, \
+            "# github missing. Install via 'pip install pygithub'"
+
 
 SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
@@ -117,8 +129,6 @@ class GHManager(object):
     to getpass.getpass. This is useful during unit tests.
     """
 
-    FACTORY = github.Github
-
     def __init__(self, login_or_token=None, password=None, dont_ask=False):
         self.log = logging.getLogger("scc.gh")
         self.dbg = self.log.debug
@@ -155,7 +165,11 @@ class GHManager(object):
         return self.github.get_user().login
 
     def create_instance(self, *args, **kwargs):
-        self.github = self.FACTORY(*args, **kwargs)
+        """
+        Subclasses can override this method in order
+        to prevent use of the pygithub2 library.
+        """
+        self.github = github.Github(*args, **kwargs)
 
     def __getattr__(self, key):
         self.dbg("github.%s", key)
