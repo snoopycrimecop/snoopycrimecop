@@ -1068,6 +1068,76 @@ Removes all branches from your fork of snoopys-sandbox
                 raise Exception("Not possible!")
 
 
+class Label(Command):
+    """
+    Query/add/remove labels from Github issues.
+    """
+
+    NAME = "label"
+
+    def __init__(self, sub_parsers):
+        super(Label, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument('issue', nargs="*", type=int,
+                help="The number of the issue to check")
+
+        # Actions
+        group = self.parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('--add', action='append',
+            help='List labels attached to the issue')
+        group.add_argument('--available', action='store_true',
+            help='List all available labels for this repo')
+        group.add_argument('--list', action='store_true',
+            help='List labels attached to the issue')
+
+    def __call__(self, args):
+        super(Label, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+            self.labels(args, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def labels(self, args, main_repo):
+        if args.add:
+            self.add(args, main_repo)
+        elif args.available:
+            self.available(args, main_repo)
+        elif args.list:
+            self.list(args, main_repo)
+
+    def get_issue(self, args, main_repo, issue):
+        # Copied from Rebase command.
+        # TODO: this could be refactored
+        if args.issue and len(args.issue) > 1:
+            if print_issue_num:
+                print "# %s" % issue
+        return main_repo.origin.get_issue(issue)
+
+    def add(self, args, main_repo):
+        for label in args.add:
+            label = main_repo.origin.get_label(label)
+            for issue in args.issue:
+                issue = self.get_issue(args, main_repo, issue)
+                issue.add_to_labels(label)
+
+    def available(self, args, main_repo):
+        if args.issue:
+            print >>sys.stderr, "# Ignoring issues: %s" % args.issue
+        for label in main_repo.origin.get_labels():
+            print label.name
+
+    def list(self, args, main_repo):
+        for issue in args.issue:
+            issue = self.get_issue(args, main_repo, issue)
+            labels = issue.get_labels()
+            for label in labels:
+                print label.name
+
+
 class Merge(Command):
     """
     Merge Pull Requests opened against a specific base branch.
