@@ -28,7 +28,7 @@ by wrapping both local git and Github access.
 See the documentation on each Command subclass for specifics.
 
 Environment variables:
-    SCC_DEBUG_LEVEL     default: logging.WARN
+    SCC_DEBUG_LEVEL     default: logging.INFO
 
 """
 
@@ -42,23 +42,12 @@ import threading
 import argparse
 import difflib
 
-
-log_format = "%(message)s"
-log_level = logging.WARN
+SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
     try:
         log_level = int(os.environ.get("SCC_DEBUG_LEVEL"))
     except:
         log_level = 10 # Assume poorly formatted means "debug"
-
-if log_level <= 10:
-    log_format = """%(asctime)s %(levelname)-5.5s [%(name)12.12s] %(message)s"""
-
-logging.basicConfig(level=log_level, format=log_format)
-
-log = logging.getLogger("scc")
-dbg = log.debug
-logging.getLogger('github').setLevel(logging.INFO)
 
 
 #
@@ -66,8 +55,8 @@ logging.getLogger('github').setLevel(logging.INFO)
 #
 
 def git_config(name, user=False, local=False, value=None):
+    dbg = logging.getLogger("scc.config").debug
     try:
-
         pre_cmd = ["git", "config"]
         if value is None:
             post_cmd = ["--get", name]
@@ -131,6 +120,8 @@ class GHManager(object):
     FACTORY = github.Github
 
     def __init__(self, login_or_token=None, password=None, dont_ask=False):
+        self.log = logging.getLogger("scc.gh")
+        self.dbg = self.log.debug
         self.login_or_token = login_or_token
         self.dont_ask = dont_ask
         try:
@@ -167,12 +158,12 @@ class GHManager(object):
         self.github = self.FACTORY(*args, **kwargs)
 
     def __getattr__(self, key):
-        dbg("github.%s", key)
+        self.dbg("github.%s", key)
         return getattr(self.github, key)
 
     def get_rate_limiting(self):
         requests = self.github.rate_limiting
-        dbg("Remaining requests: %s out of %s", requests[0], requests[1])
+        self.dbg("Remaining requests: %s out of %s", requests[0], requests[1])
 
     def gh_repo(self, reponame, username=None):
         """
@@ -318,9 +309,6 @@ class LoggerWrapper(threading.Thread):
     # end write
 
 
-logWrap = LoggerWrapper(log)
-
-
 class PullRequest(object):
     def __init__(self, repo, pull):
         """Register the Pull Request and its corresponding Issue"""
@@ -388,6 +376,7 @@ class PullRequest(object):
 class GitHubRepository(object):
 
     def __init__(self, gh, user_name, repo_name):
+        self.log = logging.getLogger("scc.repo")
         self.gh = gh
         self.user_name = user_name
         self.repo_name = repo_name
@@ -399,7 +388,7 @@ class GitHubRepository(object):
             else:
                 self.org = None
         except:
-            log.error("Failed to find %s/%s", user_name, repo_name)
+            self.log.error("Failed to find %s/%s", user_name, repo_name)
             raise
 
     def __getattr__(self, key):
@@ -439,6 +428,12 @@ class GitRepository(object):
         register the Github origin remote.
         """
 
+        self.log = logging.getLogger("scc.git")
+        self.dbg = self.log.debug
+        self.info = self.log.info
+        self.debugWrap = LoggerWrapper(self.log, logging.DEBUG)
+        self.infoWrap = LoggerWrapper(self.log, logging.INFO)
+
         self.gh = gh
         self.path =  os.path.abspath(path)
 
@@ -455,11 +450,11 @@ class GitRepository(object):
 
     def cd(self, directory):
         if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
-            dbg("cd %s", directory)
+            self.dbg("cd %s", directory)
             os.chdir(directory)
 
     def communicate(self, *command):
-        dbg("Calling '%s' for stdout/err" % " ".join(command))
+        self.dbg("Calling '%s' for stdout/err" % " ".join(command))
         p = subprocess.Popen(command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE)
@@ -472,11 +467,23 @@ class GitRepository(object):
             raise Exception(msg)
         return o, e
 
+    def call_info(self, *command, **kwargs):
+        """
+        Call wrap_call with a info LoggerWrapper
+        """
+        return self.wrap_call(self.infoWrap, *command, **kwargs)
+
     def call(self, *command, **kwargs):
+        """
+        Call wrap_call with a debug LoggerWrapper
+        """
+        return self.wrap_call(self.debugWrap, *command, **kwargs)
+
+    def wrap_call(self, logWrap, *command, **kwargs):
         for x in ("stdout", "stderr"):
             if x not in kwargs:
                 kwargs[x] = logWrap
-        dbg("Calling '%s'" % " ".join(command))
+        self.dbg("Calling '%s'" % " ".join(command))
         p = subprocess.Popen(command, **kwargs)
         rc = p.wait()
         if rc:
@@ -485,7 +492,7 @@ class GitRepository(object):
 
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
-        dbg("## PRs found:")
+        self.dbg("## PRs found:")
         directories_log = None
 
         # Loop over pull requests opened aainst base
@@ -500,7 +507,7 @@ class GitRepository(object):
                 if filters["include"]:
                     whitelist = [filt for filt in filters["include"] if filt.lower() in labels]
                     if whitelist:
-                        dbg("# ... Include %s", whitelist)
+                        self.dbg("# ... Include %s", whitelist)
                         found = True
 
             if not found:
@@ -510,11 +517,11 @@ class GitRepository(object):
             if filters["exclude"]:
                 blacklist = [filt for filt in filters["exclude"] if filt.lower() in labels]
                 if blacklist:
-                    dbg("# ... Exclude %s", blacklist)
+                    self.dbg("# ... Exclude %s", blacklist)
                     continue
 
             if found:
-                dbg(pullrequest)
+                self.dbg(pullrequest)
                 self.candidate_pulls.append(pullrequest)
                 directories = pullrequest.test_directories()
                 if directories:
@@ -536,7 +543,7 @@ class GitRepository(object):
     def get_current_head(self):
         """Return the symbolic name for the current branch"""
         self.cd(self.path)
-        dbg("Get current head")
+        self.dbg("Get current head")
         o, e = self.communicate("git", "symbolic-ref", "HEAD")
         o = o.strip()
         refsheads = "refs/heads/"
@@ -547,14 +554,14 @@ class GitRepository(object):
     def get_current_sha1(self):
         """Return the sha1 for the current commit"""
         self.cd(self.path)
-        dbg("Get current sha1")
+        self.dbg("Get current sha1")
         o, e = self.communicate("git", "rev-parse", "HEAD")
         return o.strip()
 
     def get_status(self):
         """Return the status of the git repository including its submodules"""
         self.cd(self.path)
-        dbg("Check current status")
+        self.dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
 
@@ -564,22 +571,22 @@ class GitRepository(object):
         be relative to the top of the repository.
         """
         self.cd(self.path)
-        dbg("Adding %s...", file)
+        self.dbg("Adding %s...", file)
         self.call("git", "add", file)
 
     def commit(self, msg):
         self.cd(self.path)
-        dbg("Committing %s...", msg)
+        self.dbg("Committing %s...", msg)
         self.call("git", "commit", "-m", msg)
 
     def new_branch(self, name, head="HEAD"):
         self.cd(self.path)
-        dbg("New branch %s from %s...", name, head)
+        self.dbg("New branch %s from %s...", name, head)
         self.call("git", "checkout", "-b", name, head)
 
     def checkout_branch(self, name):
         self.cd(self.path)
-        dbg("Checkout branch %s...", name)
+        self.dbg("Checkout branch %s...", name)
         self.call("git", "checkout", name)
 
     def add_remote(self, name, url=None):
@@ -587,50 +594,50 @@ class GitRepository(object):
         if url is None:
             repo_name = self.origin.repo.name
             url = "git@github.com:%s/%s.git" % (name, repo_name)
-        dbg("Adding remote %s for %s...", name, url)
+        self.dbg("Adding remote %s for %s...", name, url)
         self.call("git", "remote", "add", name, url)
 
     def push_branch(self, name, remote="origin"):
         self.cd(self.path)
-        dbg("Pushing branch %s to %s..." % (name, remote))
+        self.dbg("Pushing branch %s to %s..." % (name, remote))
         self.call("git", "push", remote, name)
 
     def delete_local_branch(self, name, force=False):
         self.cd(self.path)
-        dbg("Deleting branch %s locally..." % name)
+        self.dbg("Deleting branch %s locally..." % name)
         d_switch = force and "-D" or "-d"
         self.call("git", "branch", d_switch, name)
 
     def delete_branch(self, name, remote="origin"):
         self.cd(self.path)
-        dbg("Deleting branch %s from %s..." % (name, remote))
+        self.dbg("Deleting branch %s from %s..." % (name, remote))
         self.call("git", "push", remote, ":%s" % name)
 
     def reset(self):
         """Reset the git repository to its HEAD"""
         self.cd(self.path)
-        dbg("Resetting...")
+        self.dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
 
     def fast_forward(self, base, remote = "origin"):
         """Execute merge --ff-only against the current base"""
-        dbg("## Merging base to ensure closed PRs are included.")
+        self.dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
-        log.info(p.rstrip("/n"))
+        self.info(p.rstrip("/n"))
 
     def rebase(self, newbase, upstream, sha1):
-        self.call("git", "rebase", "--onto", \
+        self.call_info("git", "rebase", "--onto", \
                 "%s" % newbase, "%s" % upstream, "%s" % sha1)
 
     def get_rev_list(self, commit):
         revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
         p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
+        self.dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
         (revlist, stderr) = p.communicate('')
 
         if stderr or p.returncode:
             print "Error output was:\n%s" % stderr
-            print "Output was:\n%s" % stdout
+            print "Output was:\n%s" % revlist
             return False
 
         return revlist.splitlines()
@@ -669,12 +676,12 @@ class GitRepository(object):
         # Read repository from origin URL
         basename = os.path.basename(originurl)
         repo = os.path.splitext(basename)[0]
-        log.info("Repository: %s/%s", user, repo)
+        self.info("Repository: %s/%s", user, repo)
         return [user , repo]
 
     def merge(self, comment=False, commit_id = "merge"):
         """Merge candidate pull requests."""
-        dbg("## Unique users: %s", self.unique_logins())
+        self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
             self.call("git", "remote", "add", key, url)
             self.call("git", "fetch", key)
@@ -700,21 +707,21 @@ class GitRepository(object):
                     job_values = [os.environ.get(key) for key in job_dict]
                     msg += " Removed from build [%s#%s](%s). See the [console output](%s) for more details." % \
                         (job_values[0], job_values[1], job_values[2], job_values[2] +"/consoleText")
-                dbg(msg)
+                self.dbg(msg)
 
                 if comment and get_token():
-                    dbg("Adding comment to issue #%g." % pullrequest.get_number())
+                    self.dbg("Adding comment to issue #%g." % pullrequest.get_number())
                     pullrequest.issue.create_comment(msg)
 
         if merged_pulls:
-            log.info("Merged PRs:")
+            self.info("Merged PRs:")
             for merged_pull in merged_pulls:
-                log.info(merged_pull)
+                self.info(merged_pull)
 
         if conflicting_pulls:
-            log.info("Conflicting PRs (not included):")
+            self.info("Conflicting PRs (not included):")
             for conflicting_pull in conflicting_pulls:
-                log.info(conflicting_pull)
+                self.info(conflicting_pull)
 
         self.call("git", "submodule", "update")
 
@@ -730,7 +737,7 @@ class GitRepository(object):
             raise Exception("No matching block found")
 
         sha1 = main_revlist[matching_block[0].b]
-        log.info("Branching SHA1: %s" % sha1[0:6])
+        self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
     def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
@@ -789,7 +796,7 @@ class GitRepository(object):
             try:
                 self.call("git", "remote", "rm", key)
             except Exception:
-                log.error("Failed to remove", key, exc_info=1)
+                self.log.error("Failed to remove", key, exc_info=1)
 
 
 #
@@ -809,10 +816,18 @@ class Command(object):
     NAME = "abstract"
 
     def __init__(self, sub_parsers):
+        self.log = logging.getLogger("scc.%s"%self.NAME)
+        self.log_level = SCC_DEBUG_LEVEL
+
         help = self.__doc__.lstrip()
         self.parser = sub_parsers.add_parser(self.NAME,
             help=help, description=help)
         self.parser.set_defaults(func=self.__call__)
+
+        self.parser.add_argument("-v", "--verbose", action="count", default=0,
+            help="Increase the logging level by multiples of 10")
+        self.parser.add_argument("-q", "--quiet", action="count", default=0,
+            help="Decrease the logging level by multiples of 10")
 
     def add_token_args(self):
         self.parser.add_argument("--token",
@@ -821,6 +836,7 @@ class Command(object):
             help="Don't ask for a password if token usage fails")
 
     def __call__(self, args):
+        self.configure_logging(args)
         self.cwd = os.path.abspath(os.getcwd())
 
     def login(self, args):
@@ -833,6 +849,14 @@ class Command(object):
             print "# See `%s token` for simpifying use." % sys.argv[0]
             token = raw_input("Username or token: ").strip()
         self.gh = get_github(token, dont_ask=args.no_ask)
+
+    def configure_logging(self, args):
+        self.log_level += args.quiet * 10
+        self.log_level -= args.verbose * 10
+
+        log_format = """%(asctime)s %(levelname)-5.5s [%(name)12.12s] %(message)s"""
+        logging.basicConfig(level=self.log_level, format=log_format)
+        logging.getLogger('github').setLevel(logging.INFO)
 
 
 class CleanSandbox(Command):
@@ -917,9 +941,9 @@ class Merge(Command):
             main_repo.cleanup()
 
     def merge(self, args, main_repo):
-        log.info("Merging PR based on: %s", args.base)
-        log.info("Excluding PR labelled as: %s", args.exclude)
-        log.info("Including PR labelled as: %s", args.include)
+        self.log.info("Merging PR based on: %s", args.base)
+        self.log.info("Excluding PR labelled as: %s", args.exclude)
+        self.log.info("Including PR labelled as: %s", args.include)
 
         filters = {}
         filters["base"] = args.base
@@ -1005,11 +1029,11 @@ class Rebase(Command):
 
         # Remote information
         pr = main_repo.origin.get_pull(args.PR)
-        log.info("PR %g: %s opened by %s against %s", \
+        self.log.info("PR %g: %s opened by %s against %s", \
             args.PR, pr.title, pr.head.user.name, pr.base.ref)
         pr_head = pr.head.sha
-        log.info("Head: %s", pr_head[0:6])
-        log.info("Merged: %s", pr.is_merged())
+        self.log.info("Head: %s", pr_head[0:6])
+        self.log.info("Merged: %s", pr.is_merged())
 
         branching_sha1 = main_repo.find_branching_point(pr_head,
                 "%s/%s" % (args.remote, pr.base.ref))
