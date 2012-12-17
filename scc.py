@@ -629,10 +629,13 @@ class GitRepository(object):
         self.dbg("Adding remote %s for %s...", name, url)
         self.call("git", "remote", "add", name, url)
 
-    def push_branch(self, name, remote="origin"):
+    def push_branch(self, name, remote="origin", force=False):
         self.cd(self.path)
         self.dbg("Pushing branch %s to %s..." % (name, remote))
-        self.call("git", "push", remote, name)
+        if force:
+            self.call("git", "push", "-f", remote, name)
+        else:
+            self.call("git", "push", remote, name)
 
     def delete_local_branch(self, name, force=False):
         self.cd(self.path)
@@ -987,13 +990,13 @@ class Merge(Command):
 
             user = self.gh.get_login()
             remote = "git@github.com:%s/%s.git" % (user, main_repo.origin.repo_name)
-            main_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote)
+            main_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote, force=True)
             print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
 
             for submodule_repo in main_repo.submodules:
                 try:
                     remote = "git@github.com:%s/%s.git" % (user, submodule_repo.origin.repo_name)
-                    submodule_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote)
+                    submodule_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote, force=True)
                     print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
                 finally:
                     main_repo.cd(main_repo.path)
