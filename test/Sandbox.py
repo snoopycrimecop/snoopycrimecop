@@ -84,7 +84,7 @@ class SandboxTest(unittest.TestCase):
     def tearDown(self):
         try:
             self.sandbox.cleanup()
-        except:
+        finally:
             try:
                 shutil.rmtree(self.path)
             finally:
