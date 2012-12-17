@@ -57,9 +57,9 @@ except ImportError, ie:
 SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
     try:
-        log_level = int(os.environ.get("SCC_DEBUG_LEVEL"))
+        SCC_DEBUG_LEVEL = int(os.environ.get("SCC_DEBUG_LEVEL"))
     except:
-        log_level = 10 # Assume poorly formatted means "debug"
+        SCC_DEBUG_LEVEL = 10 # Assume poorly formatted means "debug"
 
 
 #
