@@ -40,22 +40,12 @@ class TestMerge(SandboxTest):
         self.user = self.gh.get_login()
         gh_repo = self.gh.gh_repo("snoopys-sandbox", "openmicroscopy")
 
-        # Create first PR from origin/dev_4_4
-        self.name = self.fake_branch(head="origin/dev_4_4")
-        self.sandbox.add_remote(self.user)
-        self.sandbox.push_branch(self.name, remote=self.user)
-        
-        pr = gh_repo.open_pr(
-            title="test %s" % self.name,
-            description="This is a call to sandbox.open_pr",
-            base="dev_4_4",
-            head="%s:%s" % (self.user, self.name))
-
-    def tearDown(self):
         try:
-            self.sandbox.push_branch(":%s"% self.name, remote=self.user)
-        finally:
-            super(TestMerge, self).tearDown()
+            p = Popen(["git", "submodule", "update", "--init"])
+            self.assertEquals(0, p.wait())
+        except:
+            os.chdir(self.path)
+            raise
             
     def test(self):
 
@@ -65,7 +55,9 @@ class TestMerge(SandboxTest):
 
         main(["merge","dev_4_4" ,"--push"])
         # This will clean the pushed branch
-        self.sandbox.push_branch(":merge/dev_4_4/latest", remote=self.user)
+        remote = "git@github.com:%s/" % (self.user) + "%s.git"
+        self.sandbox.rpush(":merge/dev_4_4/latest", remote=remote)
+            
 
 if __name__ == '__main__':
     unittest.main()
