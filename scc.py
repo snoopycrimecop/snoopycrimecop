@@ -831,8 +831,9 @@ class GitRepository(object):
         for submodule_repo in self.submodules:
             try:
                 submodule_repo.rcleanup()
-            finally:
-                self.cd(self.path)
+            except:
+                self.dbg("Failed to clean repository %s" % self.path)
+            self.cd(self.path)
 
     def cleanup(self):
         """Remove remote branches created for merging."""
