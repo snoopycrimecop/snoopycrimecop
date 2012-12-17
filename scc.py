@@ -713,7 +713,10 @@ class GitRepository(object):
 
         # Read repository from origin URL
         basename = os.path.basename(originurl)
-        repo = os.path.splitext(basename)[0]
+        if ".git" in basename:
+            repo = basename.rsplit(".git")[0]
+        else:
+            repo = basename.rsplit()[0]
         return [user , repo]
 
     def merge(self, comment=False, commit_id = "merge"):
