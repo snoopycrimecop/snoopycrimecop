@@ -979,7 +979,7 @@ class Merge(Command):
         try:
             self.merge(args, main_repo)
         finally:
-            dbg("Cleaning remote branches created for merging")
+            self.log.debug("Cleaning remote branches created for merging")
             main_repo.rcleanup()
 
         if args.push:
