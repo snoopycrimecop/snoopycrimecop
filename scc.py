@@ -841,6 +841,18 @@ class GitRepository(object):
             except Exception:
                 self.log.error("Failed to remove", key, exc_info=1)
 
+    def rpush(self, branch_name, remote, force=False):
+        """Recursively push a branch to remotes across submodules"""
+
+        full_remote = remote % (self.origin.repo_name)
+        self.push_branch(branch_name, remote=full_remote, force=force)
+        self.dbg("Pushed %s to %s" % (branch_name, full_remote))
+
+        for submodule_repo in self.submodules:
+            try:
+                submodule_repo.rpush(branch_name, remote, force=force)
+            finally:
+                self.cd(self.path)
 
 #
 # What follows are the commands which are available from the command-line.
@@ -987,19 +999,12 @@ class Merge(Command):
 
         if args.push:
             branch_name = "merge/%s/latest" % (args.base)
+            branch_name = "HEAD:refs/heads/%s" % (branch_name)
 
             user = self.gh.get_login()
-            remote = "git@github.com:%s/%s.git" % (user, main_repo.origin.repo_name)
-            main_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote, force=True)
-            print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
+            remote = "git@github.com:%s/" % (user) + "%s.git"
 
-            for submodule_repo in main_repo.submodules:
-                try:
-                    remote = "git@github.com:%s/%s.git" % (user, submodule_repo.origin.repo_name)
-                    submodule_repo.push_branch("HEAD:refs/heads/%s" % (branch_name), remote=remote, force=True)
-                    print >> sys.stderr, "# Pushed %s to %s" % (branch_name, remote)
-                finally:
-                    main_repo.cd(main_repo.path)
+            main_repo.rpush(branch_name, remote, force=True)
 
     def merge(self, args, main_repo):
         self.log.info("Merging PR based on: %s", args.base)
