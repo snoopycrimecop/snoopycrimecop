@@ -312,12 +312,15 @@ class LoggerWrapper(threading.Thread):
 class PullRequest(object):
     def __init__(self, repo, pull):
         """Register the Pull Request and its corresponding Issue"""
+        self.log = logging.getLogger("scc.pr")
+        self.dbg = self.log.debug
+
         self.pull = pull
         self.issue = repo.get_issue(self.get_number())
-        dbg("login = %s", self.get_login())
-        dbg("labels = %s", self.get_labels())
-        dbg("base = %s", self.get_base())
-        dbg("len(comments) = %s", len(self.get_comments()))
+        self.dbg("login = %s", self.get_login())
+        self.dbg("labels = %s", self.get_labels())
+        self.dbg("base = %s", self.get_base())
+        self.dbg("len(comments) = %s", len(self.get_comments()))
 
     def __contains__(self, key):
         return key in self.get_labels()
