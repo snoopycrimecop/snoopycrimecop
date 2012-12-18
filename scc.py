@@ -1036,7 +1036,14 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
 
-        commit_id = " ".join(sys.argv[1:])
+        # Exclude push and token arguments from the commit message
+        argv = sys.argv[1:]
+        for x in ("--push", "--token"):
+            if x in argv:
+                index = argv.index(x)
+                del argv[index:index+2]
+        commit_id = " ".join(argv)
+
         main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id)
 
 
