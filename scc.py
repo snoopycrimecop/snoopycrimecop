@@ -66,17 +66,29 @@ if "SCC_DEBUG_LEVEL" in os.environ:
 # Public global functions
 #
 
-def hash_object(file):
+def hash_object(filename):
     """
-    Returns the sha1 for this file using
-    git hash-object
+    Returns the sha1 for this file using the
+    same method as `git hash-object`
     """
-    p = subprocess.Popen(["git", "hash-object", file],
-            stdout=subprocess.PIPE)
-    out = p.communicate()[0].strip()
-    if p.returncode:
-        raise Exception("rc=%s" % p.returncode)
-    return out
+    try:
+        from hashlib import sha1 as sha_new
+    except ImportError:
+        from sha import new as sha_new
+    digest = sha_new()
+    size = os.path.getsize(filename)
+    digest.update("blob %u\0" % size)
+    file = open(filename, 'rb')
+    length = 1024*1024
+    try:
+        while True:
+            block = file.read(length)
+            if not block:
+                break
+            digest.update(block)
+    finally:
+        file.close()
+    return digest.hexdigest()
 
 
 def git_config(name, user=False, local=False, value=None):
