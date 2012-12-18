@@ -1035,19 +1035,8 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
 
-        def commit_id(filters):
-            """
-            Return commit identifier generated from base branch, include and
-            exclude labels.
-            """
-            commit_id = "merge"+"_into_"+filters["base"]
-            if filters["include"]:
-                commit_id += "+" + "+".join(filters["include"])
-            if filters["exclude"]:
-                commit_id += "-" + "-".join(filters["exclude"])
-            return commit_id
-
-        main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id(filters))
+        commit_id = " ".join(sys.argv[1:])
+        main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id)
 
 
 class Rebase(Command):
