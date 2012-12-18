@@ -61,6 +61,13 @@ if "SCC_DEBUG_LEVEL" in os.environ:
     except:
         log_level = 10 # Assume poorly formatted means "debug"
 
+# Read Jenkins environment variables
+jenkins_envvar = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
+IS_JENKINS_JOB = all([key in os.environ for key in jenkins_envvar])
+if IS_JENKINS_JOB:
+    JOB_NAME = os.environ.get("JOB_NAME")
+    BUILD_NUMBER = os.environ.get("BUILD_NUMBER")
+    BUILD_URL = os.environ.get("BUILD_URL")
 
 #
 # Public global functions
@@ -743,10 +750,10 @@ class GitRepository(object):
 
                 msg = "Conflicting PR."
                 job_dict = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
-                if all([key in os.environ for key in job_dict]):
+                if IS_JENKINS_JOB:
                     job_values = [os.environ.get(key) for key in job_dict]
                     msg += " Removed from build [%s#%s](%s). See the [console output](%s) for more details." % \
-                        (job_values[0], job_values[1], job_values[2], job_values[2] +"/consoleText")
+                        (JOB_NAME, BUILD_NUMBER, BUILD_URL, BUILD_URL + "/consoleText")
                 self.dbg(msg)
 
                 if comment and get_token():
@@ -800,12 +807,18 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             try:
-                merge_msg += submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
 
+        if IS_JENKINS_JOB:
+            merge_msg_footer = "\nGenerating by %s#%s" % (JOB_NAME, BUILD_NUMBER)
+        else:
+            merge_msg_footer = ""
+
         self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s\n\n%s" % (commit_id, merge_msg))
+                "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer))
         return merge_msg
 
     def unique_logins(self):
