@@ -66,6 +66,19 @@ if "SCC_DEBUG_LEVEL" in os.environ:
 # Public global functions
 #
 
+def hash_object(file):
+    """
+    Returns the sha1 for this file using
+    git hash-object
+    """
+    p = subprocess.Popen(["git", "hash-object", file],
+            stdout=subprocess.PIPE)
+    out = p.communicate()[0].strip()
+    if p.returncode:
+        raise Exception("rc=%s" % p.returncode)
+    return out
+
+
 def git_config(name, user=False, local=False, value=None):
     dbg = logging.getLogger("scc.config").debug
     try:
@@ -875,6 +888,9 @@ class Command(object):
         logging.basicConfig(level=self.log_level, format=log_format)
         logging.getLogger('github').setLevel(logging.INFO)
 
+        self.log = logging.getLogger('scc.%s'%self.NAME)
+        self.dbg = self.log.debug
+
 
 class CleanSandbox(Command):
     """Cleans snoopys-sandbox repo after testing
@@ -1154,6 +1170,49 @@ class Token(Command):
                 user=args.user, local=args.local)
             if token:
                 print token
+
+
+class Version(Command):
+    """Find which version of scc is being used"""
+
+    NAME = "version"
+
+    def __init__(self, sub_parsers):
+        super(Version, self).__init__(sub_parsers)
+        # No token args
+
+    def __call__(self, args):
+        super(Version, self).__call__(args)
+        # No login
+        self.configure_logging(args)
+
+        self.blob = hash_object(__file__)
+        self.dbg("hash_object: %s", self.blob)
+
+        gh = get_github(get_token(), dont_ask=True)
+        self.repo = gh.gh_repo("snoopycrimecop", "snoopycrimecop")
+        heads = [tag.name for tag in self.repo.get_tags()]
+        heads.sort(self.sort)
+        heads.append("master")
+        found = self.search(heads)
+        if not found:
+            print "unknown"
+
+    def sort(self, a, b):
+        a = a.split(".")
+        b = b.split(".")
+        return cmp(b, a)
+
+    def search(self, heads):
+        self.dbg("Searching: %s" % heads)
+        for head in heads:
+            self.dbg("Checking %s", head)
+            tree = self.repo.get_git_tree(head)
+            for elt in tree.tree:
+                if self.blob == elt.sha:
+                    self.dbg("Found blob: %s" % elt.path)
+                    print head
+                    return head
 
 
 def main(args=None):
