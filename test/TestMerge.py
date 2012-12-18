@@ -53,10 +53,10 @@ class TestMerge(SandboxTest):
 
     def testPush(self):
 
-        main(["merge","dev_4_4" ,"--push"])
+        main(["merge","dev_4_4" ,"--push", "test"])
         # This will clean the pushed branch
         remote = "git@github.com:%s/" % (self.user) + "%s.git"
-        self.sandbox.rpush(":merge/dev_4_4/latest", remote=remote)
+        self.sandbox.rpush(":test", remote=remote)
             
 
 if __name__ == '__main__':
