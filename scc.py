@@ -1000,8 +1000,8 @@ class Merge(Command):
             help='PR labels to include in the merge')
         self.parser.add_argument('--exclude', nargs="*",
             help='PR labels to exclude from the merge')
-        self.parser.add_argument('--push', action='store_true',
-            help='Push merged repositories to github')
+        self.parser.add_argument('--push', type=str,
+            help='Name of the branch to use to recursively push the merged branch to Github')
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
@@ -1016,14 +1016,15 @@ class Merge(Command):
             self.log.debug("Cleaning remote branches created for merging")
             main_repo.rcleanup()
 
-        if args.push:
-            branch_name = "merge/%s/latest" % (args.base)
-            branch_name = "HEAD:refs/heads/%s" % (branch_name)
+        if args.push is not None:
+            branch_name = "HEAD:refs/heads/%s" % (args.push)
 
             user = self.gh.get_login()
             remote = "git@github.com:%s/" % (user) + "%s.git"
 
             main_repo.rpush(branch_name, remote, force=True)
+            gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
+            self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def merge(self, args, main_repo):
         self.log.info("Merging PR based on: %s", args.base)
