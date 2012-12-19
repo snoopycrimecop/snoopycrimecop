@@ -928,7 +928,7 @@ class Command(object):
         self.log_level += args.quiet * 10
         self.log_level -= args.verbose * 10
 
-        log_format = """%(asctime)s %(levelname)-5.5s [%(name)12.12s] %(message)s"""
+        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-5.5s %(message)s"""
         logging.basicConfig(level=self.log_level, format=log_format)
         logging.getLogger('github').setLevel(logging.INFO)
 
