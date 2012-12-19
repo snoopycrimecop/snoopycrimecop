@@ -400,9 +400,11 @@ class GitHubRepository(object):
 
     def __init__(self, gh, user_name, repo_name):
         self.log = logging.getLogger("scc.repo")
+        self.dbg = self.log.debug
         self.gh = gh
         self.user_name = user_name
         self.repo_name = repo_name
+        self.candidate_pulls = []
 
         try:
             self.repo = gh.get_user(user_name).get_repo(repo_name)
@@ -445,6 +447,69 @@ class GitHubRepository(object):
     def open_pr(self, title, description, base, head):
         return self.repo.create_pull(title, description, base, head)
 
+    def merge_info(self):
+        """List the candidate Pull Request to be merged"""
+
+        msg = "Candidate PRs:\n"
+        for pullrequest in self.candidate_pulls:
+            msg += str(pullrequest) + "\n"
+
+        return msg
+
+    def find_candidates(self, filters):
+        """Find candidate Pull Requests for merging."""
+        self.dbg("## PRs found:")
+        directories_log = None
+
+        # Loop over pull requests opened aainst base
+        pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
+
+        def check_filter(filter_list, labels):
+            if not filter_list:
+                return None
+            intersection = set([filt.lower() for filt in filter_list]) & set(labels)
+            if any(intersection):
+                return list(intersection)
+            else:
+                return None
+
+        for pull in pulls:
+            pullrequest = PullRequest(self, pull)
+            labels = [x.lower() for x in pullrequest.get_labels()]
+
+            found = self.is_whitelisted(pullrequest.get_user())
+
+            if not found:
+                # Test included PRs
+                whitelist = check_filter(filters["include"], labels)
+                if not whitelist is None:
+                    self.dbg("# ... Include %s", " ".join(whitelist))
+                    found = True
+
+            if not found:
+                continue
+
+            # Exclude PRs if exclude labels are input
+            blacklist = check_filter(filters["exclude"], labels)
+            if not blacklist is None:
+                self.dbg("# ... Exclude %s", " ".join(blacklist))
+                continue
+
+            if found:
+                self.dbg(pullrequest)
+                self.candidate_pulls.append(pullrequest)
+                directories = pullrequest.test_directories()
+                if directories:
+                    if directories_log == None:
+                        directories_log = open('directories.txt', 'w')
+                    for directory in directories:
+                        directories_log.write(directory)
+                        directories_log.write("\n")
+        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
+
+        # Cleanup
+        if directories_log:
+            directories_log.close()
 
 class GitRepository(object):
 
@@ -471,7 +536,6 @@ class GitRepository(object):
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
         self.origin = gh.gh_repo(repo_name, user_name)
-        self.candidate_pulls = []
         self.submodules = []
 
     def register_submodules(self, reset=False):
@@ -530,61 +594,6 @@ class GitRepository(object):
         if rc:
             raise Exception("rc=%s" % rc)
         return p
-
-    def find_candidates(self, filters):
-        """Find candidate Pull Requests for merging."""
-        self.dbg("## PRs found:")
-        directories_log = None
-
-        # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.origin.get_pulls() if (pull.base.ref == filters["base"])]
-
-        def check_filter(filter_list, labels):
-            if not filter_list:
-                return None
-            intersection = set([filt.lower() for filt in filter_list]) & set(labels)
-            if any(intersection):
-                return list(intersection)
-            else:
-                return None
-
-        for pull in pulls:
-            pullrequest = PullRequest(self.origin, pull)
-            labels = [x.lower() for x in pullrequest.get_labels()]
-
-            found = self.origin.is_whitelisted(pullrequest.get_user())
-
-            if not found:
-                # Test included PRs
-                whitelist = check_filter(filters["include"], labels)
-                if not whitelist is None:
-                    self.dbg("# ... Include %s", " ".join(whitelist))
-                    found = True
-
-            if not found:
-                continue
-
-            # Exclude PRs if exclude labels are input
-            blacklist = check_filter(filters["exclude"], labels)
-            if not blacklist is None:
-                self.dbg("# ... Exclude %s", " ".join(blacklist))
-                continue
-
-            if found:
-                self.dbg(pullrequest)
-                self.candidate_pulls.append(pullrequest)
-                directories = pullrequest.test_directories()
-                if directories:
-                    if directories_log == None:
-                        directories_log = open('directories.txt', 'w')
-                    for directory in directories:
-                        directories_log.write(directory)
-                        directories_log.write("\n")
-        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
-
-        # Cleanup
-        if directories_log:
-            directories_log.close()
 
     #
     # General git commands
@@ -700,14 +709,6 @@ class GitRepository(object):
     # Higher level git commands
     #
 
-    def info(self):
-        """List the candidate Pull Request to be merged"""
-        for pullrequest in self.candidate_pulls:
-            print "# %s" % " ".join(pullrequest.get_labels())
-            print "%s %s by %s for \t\t[???]" % \
-                (pullrequest.pr.issue_url, pullrequest.get_title(), pullrequest.get_login())
-            print
-
     def get_remote_info(self, remote_name):
         """
         Return user and repository name of the specified remote.
@@ -803,12 +804,12 @@ class GitRepository(object):
 
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
+        self.origin.find_candidates(filters)
         if info:
-            self.info()
+            merge_msg += self.origin.merge_info()
         else:
             self.cd(self.path)
             merge_msg += self.fast_forward(filters["base"])  + "\n"
-            self.find_candidates(filters)
             merge_msg += self.merge(comment, commit_id = commit_id)
 
         for submodule_repo in self.submodules:
@@ -830,7 +831,7 @@ class GitRepository(object):
     def unique_logins(self):
         """Return a set of unique logins."""
         unique_logins = set()
-        for pull in self.candidate_pulls:
+        for pull in self.origin.candidate_pulls:
             unique_logins.add(pull.get_head_login())
         return unique_logins
 
