@@ -538,6 +538,16 @@ class GitRepository(object):
 
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.origin.get_pulls() if (pull.base.ref == filters["base"])]
+
+        def check_filter(filter_list, labels):
+            if not filter_list:
+                return None
+            intersection = set([filt.lower() for filt in filter_list]) & set(labels)
+            if any(intersection):
+                return list(intersection)
+            else:
+                return None
+
         for pull in pulls:
             pullrequest = PullRequest(self.origin, pull)
             labels = [x.lower() for x in pullrequest.get_labels()]
@@ -545,21 +555,20 @@ class GitRepository(object):
             found = self.origin.is_whitelisted(pullrequest.get_user())
 
             if not found:
-                if filters["include"]:
-                    whitelist = [filt for filt in filters["include"] if filt.lower() in labels]
-                    if whitelist:
-                        self.dbg("# ... Include %s", whitelist)
-                        found = True
+                # Test included PRs
+                whitelist = check_filter(filters["include"], labels)
+                if not whitelist is None:
+                    self.dbg("# ... Include %s", " ".join(whitelist))
+                    found = True
 
             if not found:
                 continue
 
             # Exclude PRs if exclude labels are input
-            if filters["exclude"]:
-                blacklist = [filt for filt in filters["exclude"] if filt.lower() in labels]
-                if blacklist:
-                    self.dbg("# ... Exclude %s", blacklist)
-                    continue
+            blacklist = check_filter(filters["exclude"], labels)
+            if not blacklist is None:
+                self.dbg("# ... Exclude %s", " ".join(blacklist))
+                continue
 
             if found:
                 self.dbg(pullrequest)
