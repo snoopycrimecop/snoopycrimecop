@@ -1036,15 +1036,18 @@ class Merge(Command):
         filters["include"] = args.include
         filters["exclude"] = args.exclude
 
-        # Exclude push and token arguments from the commit message
-        argv = sys.argv[1:]
-        for x in ("--push", "--token"):
-            if x in argv:
-                index = argv.index(x)
-                del argv[index:index+2]
-        commit_id = " ".join(argv)
+        # Create commit message using command arguments
+        commit_args = ["merge"]
+        commit_args.append(args.base)
+        if args.include:
+            commit_args.append("--include")
+            commit_args.extend(args.include)
+        if args.exclude:
+            commit_args.append("--exclude")
+            commit_args.extend(args.exclude)
 
-        main_repo.rmerge(filters, args.info, args.comment, commit_id = commit_id)
+        main_repo.rmerge(filters, args.info, args.comment,
+            commit_id = " ".join(commit_args))
 
 
 class Rebase(Command):
