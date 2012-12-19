@@ -61,6 +61,13 @@ if "SCC_DEBUG_LEVEL" in os.environ:
     except:
         SCC_DEBUG_LEVEL = 10 # Assume poorly formatted means "debug"
 
+# Read Jenkins environment variables
+jenkins_envvar = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
+IS_JENKINS_JOB = all([key in os.environ for key in jenkins_envvar])
+if IS_JENKINS_JOB:
+    JOB_NAME = os.environ.get("JOB_NAME")
+    BUILD_NUMBER = os.environ.get("BUILD_NUMBER")
+    BUILD_URL = os.environ.get("BUILD_URL")
 
 #
 # Public global functions
@@ -116,7 +123,6 @@ def get_github(login_or_token=None, password=None, **kwargs):
     a Github login and password or anonymously.
     """
     return GHManager(login_or_token, password, **kwargs)
-
 
 #
 # Management classes. These allow for proper mocking in tests.
@@ -408,6 +414,9 @@ class GitHubRepository(object):
             self.log.error("Failed to find %s/%s", user_name, repo_name)
             raise
 
+    def __repr__(self):
+        return "Repository: %s/%s" % (self.user_name, self.repo_name)
+
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
@@ -458,12 +467,27 @@ class GitRepository(object):
             self.reset()
         self.get_status()
 
-        self.reset = reset
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
         self.origin = gh.gh_repo(repo_name, user_name)
         self.candidate_pulls = []
+        self.submodules = []
+
+    def register_submodules(self, reset=False):
+        if len(self.submodules) == 0:
+            submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
+                    "echo $path", stdout=subprocess.PIPE).communicate()[0]
+
+            lines = submodule_paths.split("\n")
+            while "".join(lines):
+                directory = lines.pop(0).strip()
+                try:
+                    submodule_repo = self.gh.git_repo(directory, reset)
+                    self.submodules.append(submodule_repo)
+                    submodule_repo.register_submodules(reset)
+                finally:
+                    self.cd(self.path)
 
     def cd(self, directory):
         if not os.path.abspath(os.getcwd()) == os.path.abspath(directory):
@@ -614,10 +638,13 @@ class GitRepository(object):
         self.dbg("Adding remote %s for %s...", name, url)
         self.call("git", "remote", "add", name, url)
 
-    def push_branch(self, name, remote="origin"):
+    def push_branch(self, name, remote="origin", force=False):
         self.cd(self.path)
         self.dbg("Pushing branch %s to %s..." % (name, remote))
-        self.call("git", "push", remote, name)
+        if force:
+            self.call("git", "push", "-f", remote, name)
+        else:
+            self.call("git", "push", remote, name)
 
     def delete_local_branch(self, name, force=False):
         self.cd(self.path)
@@ -641,6 +668,7 @@ class GitRepository(object):
         self.dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
         self.info(p.rstrip("/n"))
+        return  p.rstrip("/n").split("\n")[0]
 
     def rebase(self, newbase, upstream, sha1):
         self.call_info("git", "rebase", "--onto", \
@@ -692,8 +720,10 @@ class GitRepository(object):
 
         # Read repository from origin URL
         basename = os.path.basename(originurl)
-        repo = os.path.splitext(basename)[0]
-        self.info("Repository: %s/%s", user, repo)
+        if ".git" in basename:
+            repo = basename.rsplit(".git")[0]
+        else:
+            repo = basename.rsplit()[0]
         return [user , repo]
 
     def merge(self, comment=False, commit_id = "merge"):
@@ -720,27 +750,32 @@ class GitRepository(object):
 
                 msg = "Conflicting PR."
                 job_dict = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
-                if all([key in os.environ for key in job_dict]):
+                if IS_JENKINS_JOB:
                     job_values = [os.environ.get(key) for key in job_dict]
                     msg += " Removed from build [%s#%s](%s). See the [console output](%s) for more details." % \
-                        (job_values[0], job_values[1], job_values[2], job_values[2] +"/consoleText")
+                        (JOB_NAME, BUILD_NUMBER, BUILD_URL, BUILD_URL + "/consoleText")
                 self.dbg(msg)
 
                 if comment and get_token():
                     self.dbg("Adding comment to issue #%g." % pullrequest.get_number())
                     pullrequest.issue.create_comment(msg)
 
+        merge_msg = ""
         if merged_pulls:
-            self.info("Merged PRs:")
+            merge_msg += "Merged PRs:\n"
             for merged_pull in merged_pulls:
-                self.info(merged_pull)
+                merge_msg += str(merged_pull) + "\n"
 
         if conflicting_pulls:
-            self.info("Conflicting PRs (not included):")
+            merge_msg += "Conflicting PRs (not included):\n"
             for conflicting_pull in conflicting_pulls:
-                self.info(conflicting_pull)
+                merge_msg += str(conflicting_pull) + "\n"
+
+        for line in merge_msg.split("\n"):
+            self.info(line)
 
         self.call("git", "submodule", "update")
+        return merge_msg
 
     def find_branching_point(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
@@ -757,36 +792,34 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def submodules(self, filters, info=False, comment=False, commit_id = "merge"):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge"):
         """Recursively merge PRs for each submodule."""
 
-        submodule_paths = self.call("git", "submodule", "--quiet", "foreach", \
-                "echo $path", \
-                stdout=subprocess.PIPE).communicate()[0]
+        merge_msg = ""
+        merge_msg += str(self.origin) + "\n"
+        if info:
+            self.info()
+        else:
+            self.cd(self.path)
+            merge_msg += self.fast_forward(filters["base"])  + "\n"
+            self.find_candidates(filters)
+            merge_msg += self.merge(comment, commit_id = commit_id)
 
-        cwd = os.path.abspath(os.getcwd())
-        lines = submodule_paths.split("\n")
-        while "".join(lines):
-            directory = lines.pop(0).strip()
+        for submodule_repo in self.submodules:
             try:
-                submodule_repo = None
-                submodule_repo = self.gh.git_repo(directory, self.reset)
-                if info:
-                    submodule_repo.info()
-                else:
-                    submodule_repo.fast_forward(filters["base"])
-                    submodule_repo.find_candidates(filters)
-                    submodule_repo.merge(comment)
-                submodule_repo.submodules(info)
+                submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                merge_msg += "\n" + submodule_msg
             finally:
-                try:
-                    if submodule_repo:
-                        submodule_repo.cleanup()
-                finally:
-                    self.cd(cwd)
+                self.cd(self.path)
+
+        if IS_JENKINS_JOB:
+            merge_msg_footer = "\nGenerated by %s#%s (%s)" % (JOB_NAME, BUILD_NUMBER, BUILD_URL)
+        else:
+            merge_msg_footer = ""
 
         self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s: Update all modules w/o hooks" % commit_id)
+                "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer))
+        return merge_msg
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -807,14 +840,38 @@ class GitRepository(object):
             remotes[key] = url
         return remotes
 
+    def rcleanup(self):
+        """Recursively remove remote branches created for merging."""
+
+        self.cleanup()
+        for submodule_repo in self.submodules:
+            try:
+                submodule_repo.rcleanup()
+            except:
+                self.dbg("Failed to clean repository %s" % self.path)
+            self.cd(self.path)
+
     def cleanup(self):
         """Remove remote branches created for merging."""
+        self.cd(self.path)
         for key in self.remotes().keys():
             try:
                 self.call("git", "remote", "rm", key)
             except Exception:
                 self.log.error("Failed to remove", key, exc_info=1)
 
+    def rpush(self, branch_name, remote, force=False):
+        """Recursively push a branch to remotes across submodules"""
+
+        full_remote = remote % (self.origin.repo_name)
+        self.push_branch(branch_name, remote=full_remote, force=force)
+        self.dbg("Pushed %s to %s" % (branch_name, full_remote))
+
+        for submodule_repo in self.submodules:
+            try:
+                submodule_repo.rpush(branch_name, remote, force=force)
+            finally:
+                self.cd(self.path)
 
 #
 # What follows are the commands which are available from the command-line.
@@ -943,19 +1000,31 @@ class Merge(Command):
             help='PR labels to include in the merge')
         self.parser.add_argument('--exclude', nargs="*",
             help='PR labels to exclude from the merge')
-        self.parser.add_argument('--buildnumber', type=int, default=None,
-            help='The build number to use to push to team.git')
+        self.parser.add_argument('--push', type=str,
+            help='Name of the branch to use to recursively push the merged branch to Github')
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
         self.login(args)
 
         main_repo = self.gh.git_repo(self.cwd, args.reset)
+        main_repo.register_submodules(args.reset)
 
         try:
             self.merge(args, main_repo)
         finally:
-            main_repo.cleanup()
+            self.log.debug("Cleaning remote branches created for merging")
+            main_repo.rcleanup()
+
+        if args.push is not None:
+            branch_name = "HEAD:refs/heads/%s" % (args.push)
+
+            user = self.gh.get_login()
+            remote = "git@github.com:%s/" % (user) + "%s.git"
+
+            main_repo.rpush(branch_name, remote, force=True)
+            gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
+            self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def merge(self, args, main_repo):
         self.log.info("Merging PR based on: %s", args.base)
@@ -966,28 +1035,19 @@ class Merge(Command):
         filters["base"] = args.base
         filters["include"] = args.include
         filters["exclude"] = args.exclude
-        main_repo.find_candidates(filters)
 
-        def commit_id(filters):
-            """
-            Return commit identifier generated from base branch, include and
-            exclude labels.
-            """
-            commit_id = "merge"+"_into_"+filters["base"]
-            if filters["include"]:
-                commit_id += "+" + "+".join(filters["include"])
-            if filters["exclude"]:
-                commit_id += "-" + "-".join(filters["exclude"])
-            return commit_id
+        # Create commit message using command arguments
+        commit_args = ["merge"]
+        commit_args.append(args.base)
+        if args.include:
+            commit_args.append("--include")
+            commit_args.extend(args.include)
+        if args.exclude:
+            commit_args.append("--exclude")
+            commit_args.extend(args.exclude)
 
-        if not args.info:
-            main_repo.merge(args.comment, commit_id = commit_id(filters))
-
-        main_repo.submodules(filters, args.info, args.comment, commit_id = commit_id(filters))  # Recursive
-
-        if args.buildnumber:
-            newbranch = "HEAD:%s/%g" % (args.base, args.build_number)
-            call("git", "push", "team", newbranch)
+        main_repo.rmerge(filters, args.info, args.comment,
+            commit_id = " ".join(commit_args))
 
 
 class Rebase(Command):
