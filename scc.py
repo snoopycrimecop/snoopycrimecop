@@ -824,7 +824,8 @@ class GitRepository(object):
         else:
             merge_msg_footer = ""
 
-        self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
+        if not info:
+            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
                 "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer))
         return merge_msg
 
@@ -1020,8 +1021,9 @@ class Merge(Command):
         try:
             self.merge(args, main_repo)
         finally:
-            self.log.debug("Cleaning remote branches created for merging")
-            main_repo.rcleanup()
+            if not args.info:
+                self.log.debug("Cleaning remote branches created for merging")
+                main_repo.rcleanup()
 
         if args.push is not None:
             branch_name = "HEAD:refs/heads/%s" % (args.push)
