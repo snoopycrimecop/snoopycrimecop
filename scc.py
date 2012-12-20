@@ -713,7 +713,7 @@ class GitRepository(object):
                 stderr = subprocess.PIPE).communicate()[0]
         except:
             self.dbg("git config --get remote failure", exc_info=1)
-            raise Stop("Failed to find remote: %s" % remote_name)
+            raise Stop("Failed to find remote: %s. Check the --remote= argument." % remote_name)
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
