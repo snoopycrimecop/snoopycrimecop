@@ -7,4 +7,4 @@ before_install:
   - "pip install -r requirements.txt --use-mirrors"
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors argparse; fi
 install: python scc.py -h
-script: nosetests test
+script: python scc.py -h
