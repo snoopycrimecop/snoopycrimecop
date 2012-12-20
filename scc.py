@@ -459,7 +459,6 @@ class GitHubRepository(object):
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
-        directories_log = None
 
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
@@ -498,18 +497,8 @@ class GitHubRepository(object):
             if found:
                 self.dbg(pullrequest)
                 self.candidate_pulls.append(pullrequest)
-                directories = pullrequest.test_directories()
-                if directories:
-                    if directories_log == None:
-                        directories_log = open('directories.txt', 'w')
-                    for directory in directories:
-                        directories_log.write(directory)
-                        directories_log.write("\n")
-        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
 
-        # Cleanup
-        if directories_log:
-            directories_log.close()
+        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
 
 class GitRepository(object):
 
@@ -594,6 +583,24 @@ class GitRepository(object):
         if rc:
             raise Exception("rc=%s" % rc)
         return p
+
+    def write_directories(self):
+        """Write directories in candidate PRs comments to a txt file"""
+
+        self.cd(self.path)
+        directories_log = None
+
+        for pr in self.origin.candidate_pulls:
+            directories = pr.test_directories()
+            if directories:
+                if directories_log == None:
+                    directories_log = open('directories.txt', 'w')
+                for directory in directories:
+                    directories_log.write(directory)
+                    directories_log.write("\n")
+        # Cleanup
+        if directories_log:
+            directories_log.close()
 
     #
     # General git commands
@@ -746,7 +753,7 @@ class GitRepository(object):
         conflicting_pulls = []
         merged_pulls = []
 
-        for pullrequest in self.candidate_pulls:
+        for pullrequest in self.origin.candidate_pulls:
             premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
@@ -809,6 +816,7 @@ class GitRepository(object):
             merge_msg += self.origin.merge_info()
         else:
             self.cd(self.path)
+            self.write_directories()
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id)
 
