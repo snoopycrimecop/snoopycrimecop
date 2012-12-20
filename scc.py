@@ -707,9 +707,13 @@ class GitRepository(object):
         *github/user/repository.git
         """
         self.cd(self.path)
-        originurl = self.call("git", "config", "--get", \
-            "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
-            stderr = subprocess.PIPE).communicate()[0]
+        try:
+            originurl = self.call("git", "config", "--get", \
+                "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
+                stderr = subprocess.PIPE).communicate()[0]
+        except:
+            self.dbg("git config --get remote failure", exc_info=1)
+            raise Stop("Failed to find remote: %s" % remote_name)
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
@@ -874,6 +878,17 @@ class GitRepository(object):
 # What follows are the commands which are available from the command-line.
 # Alphabetically listed please.
 #
+
+class Stop(Exception):
+    """
+    Exception which specifies that the current execution has finished.
+    This is useful when an appropriate user error message has been
+    printed and it's not necessary to print a full stacktrace.
+    """
+
+    def __init__(self, rc, *args, **kwargs):
+        self.rc = rc
+        super(Stop, self).__init__(*args, **kwargs)
 
 class Command(object):
     """
@@ -1061,7 +1076,10 @@ class Rebase(Command):
         3) Create a branch named "rebase/develop/ORIG_NAME".
         4) If push is set, also push to GH, and switch branches.
         5) If pr is set, push to GH, open a PR, and switch branches.
-        6) If keep is set, omit the deleting of the newbranch."""
+        6) If keep is set, omit the deleting of the newbranch.
+
+        If --remote is not set, 'origin' will be used.
+    """
 
     NAME = "rebase"
 
@@ -1241,4 +1259,8 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Stop, stop:
+        print stop,
+        sys.exit(stop.rc)
