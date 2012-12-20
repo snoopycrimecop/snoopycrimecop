@@ -667,7 +667,7 @@ class GitRepository(object):
         """Execute merge --ff-only against the current base"""
         self.dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
-        self.info(p.rstrip("/n"))
+        self.dbg(p.rstrip("/n"))
         return  p.rstrip("/n").split("\n")[0]
 
     def rebase(self, newbase, upstream, sha1):
@@ -770,9 +770,6 @@ class GitRepository(object):
             merge_msg += "Conflicting PRs (not included):\n"
             for conflicting_pull in conflicting_pulls:
                 merge_msg += str(conflicting_pull) + "\n"
-
-        for line in merge_msg.split("\n"):
-            self.info(line)
 
         self.call("git", "submodule", "update")
         return merge_msg
@@ -928,7 +925,7 @@ class Command(object):
         self.log_level += args.quiet * 10
         self.log_level -= args.verbose * 10
 
-        log_format = """%(asctime)s %(levelname)-5.5s [%(name)12.12s] %(message)s"""
+        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-5.5s %(message)s"""
         logging.basicConfig(level=self.log_level, format=log_format)
         logging.getLogger('github').setLevel(logging.INFO)
 
@@ -1030,6 +1027,7 @@ class Merge(Command):
         self.log.info("Merging PR based on: %s", args.base)
         self.log.info("Excluding PR labelled as: %s", args.exclude)
         self.log.info("Including PR labelled as: %s", args.include)
+        self.log.info("")
 
         filters = {}
         filters["base"] = args.base
@@ -1046,8 +1044,11 @@ class Merge(Command):
             commit_args.append("--exclude")
             commit_args.extend(args.exclude)
 
-        main_repo.rmerge(filters, args.info, args.comment,
+        merge_msg = main_repo.rmerge(filters, args.info, args.comment,
             commit_id = " ".join(commit_args))
+
+        for line in merge_msg.split("\n"):
+            self.log.info(line)
 
 
 class Rebase(Command):
