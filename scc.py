@@ -160,7 +160,7 @@ class GHManager(object):
                 if self.dont_ask:
                     raise
                 import getpass
-                msg = "Enter password for user %s:" % self.login_or_token
+                msg = "Enter password for http://github.com/%s:" % self.login_or_token
                 password = getpass.getpass(msg)
                 if password is not None:
                     self.create_instance(self.login_or_token, password)
