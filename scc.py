@@ -488,14 +488,35 @@ class GitHubRepository(object):
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
 
-        def check_filter(filter_list, labels):
-            if not filter_list:
+        def intersect(a, b):
+            if not a or not b:
                 return None
-            intersection = set([filt.lower() for filt in filter_list]) & set(labels)
+
+            intersection = set(a) & set(b)
             if any(intersection):
                 return list(intersection)
             else:
                 return None
+
+        def run_filter(filters, ftype, labels, user, pr):
+
+            action = ftype[0].upper() + ftype[1:]
+            labels = intersect(filters[ftype]["label"], labels)
+            if labels:
+                self.dbg("# ... %s labels: %s", action, " ".join(labels))
+                return True
+
+            user = intersect(filters[ftype]["user"], [user])
+            if user:
+                self.dbg("# ... %s user: %s", action, " ".join(user))
+                return True
+
+            pr = intersect(filters[ftype]["pr"], [pr])
+            if pr:
+                self.dbg("# ... %s PR: %s", action, " ".join(pr))
+                return True
+
+            return False
 
         for pull in pulls:
             pullrequest = PullRequest(self, pull)
@@ -503,25 +524,19 @@ class GitHubRepository(object):
 
             found = self.is_whitelisted(pullrequest.get_user())
 
-            if not found:
-                # Test included PRs
-                whitelist = check_filter(filters["include"], labels)
-                if not whitelist is None:
-                    self.dbg("# ... Include %s", " ".join(whitelist))
-                    found = True
+            user = pullrequest.get_user().login
+            number = str(pullrequest.get_number())
+            if not self.is_whitelisted(pullrequest.get_user()):
+                # Allow filter PR inclusion using include filter
+                if not run_filter(filters, "include", labels, user, number):
+                    continue
 
-            if not found:
+            # Exclude PRs specified by filters
+            if run_filter(filters, "exclude", labels, user, number):
                 continue
 
-            # Exclude PRs if exclude labels are input
-            blacklist = check_filter(filters["exclude"], labels)
-            if not blacklist is None:
-                self.dbg("# ... Exclude %s", " ".join(blacklist))
-                continue
-
-            if found:
-                self.dbg(pullrequest)
-                self.candidate_pulls.append(pullrequest)
+            self.dbg(pullrequest)
+            self.candidate_pulls.append(pullrequest)
 
         self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
 
