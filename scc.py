@@ -202,6 +202,14 @@ class GHManager(object):
         """
         self.github = github.Github(*args, **kwargs)
 
+    def get_user(self, key):
+        """overloading for mox"""
+        return self.__getattr__(self, key)
+
+    def get_organization(self, key):
+        """overloading for mox"""
+        return self.__getattr__(self, key)
+
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
@@ -481,42 +489,42 @@ class GitHubRepository(object):
 
         return msg
 
+    def intersect(self, a, b):
+        if not a or not b:
+            return None
+
+        intersection = set(a) & set(b)
+        if any(intersection):
+            return list(intersection)
+        else:
+            return None
+
+    def run_filter(self, filters, ftype, labels, user, pr):
+
+        action = ftype[0].upper() + ftype[1:]
+        labels = self.intersect(filters[ftype]["label"], labels)
+        if labels:
+            self.dbg("# ... %s labels: %s", action, " ".join(labels))
+            return True
+
+        user = self.intersect(filters[ftype]["user"], [user])
+        if user:
+            self.dbg("# ... %s user: %s", action, " ".join(user))
+            return True
+
+        pr = self.intersect(filters[ftype]["pr"], [pr])
+        if pr:
+            self.dbg("# ... %s PR: %s", action, " ".join(pr))
+            return True
+
+        return False
+
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
 
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
-
-        def intersect(a, b):
-            if not a or not b:
-                return None
-
-            intersection = set(a) & set(b)
-            if any(intersection):
-                return list(intersection)
-            else:
-                return None
-
-        def run_filter(filters, ftype, labels, user, pr):
-
-            action = ftype[0].upper() + ftype[1:]
-            labels = intersect(filters[ftype]["label"], labels)
-            if labels:
-                self.dbg("# ... %s labels: %s", action, " ".join(labels))
-                return True
-
-            user = intersect(filters[ftype]["user"], [user])
-            if user:
-                self.dbg("# ... %s user: %s", action, " ".join(user))
-                return True
-
-            pr = intersect(filters[ftype]["pr"], [pr])
-            if pr:
-                self.dbg("# ... %s PR: %s", action, " ".join(pr))
-                return True
-
-            return False
 
         for pull in pulls:
             pullrequest = PullRequest(self, pull)
@@ -528,11 +536,11 @@ class GitHubRepository(object):
             number = str(pullrequest.get_number())
             if not self.is_whitelisted(pullrequest.get_user()):
                 # Allow filter PR inclusion using include filter
-                if not run_filter(filters, "include", labels, user, number):
+                if not self.run_filter(filters, "include", labels, user, number):
                     continue
 
             # Exclude PRs specified by filters
-            if run_filter(filters, "exclude", labels, user, number):
+            if self.run_filter(filters, "exclude", labels, user, number):
                 continue
 
             self.dbg(pullrequest)
@@ -1412,6 +1420,12 @@ class Version(Command):
             if self.matches(pr.head.sha, msg):
                 return pr.head.sha
 
+def parsers():
+    scc_parser = argparse.ArgumentParser(
+        description='Snoopy Crime Cop Script',
+        formatter_class=HelpFormatter)
+    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+    return scc_parser, sub_parsers
 
 def main(args=None):
     """
@@ -1421,10 +1435,8 @@ def main(args=None):
     """
 
     if args is None: args = sys.argv[1:]
-    scc_parser = argparse.ArgumentParser(
-        description='Snoopy Crime Cop Script',
-        formatter_class=HelpFormatter)
-    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+
+    scc_parser, sub_parsers = parsers()
 
     for name, MyCommand in sorted(globals().items()):
         if not isinstance(MyCommand, type): continue
