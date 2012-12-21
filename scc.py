@@ -1066,6 +1066,10 @@ class Merge(Command):
         super(Merge, self).__init__(sub_parsers)
         self.add_token_args()
 
+        filter_desc = " Filter keys can be specified using label:my_label, \
+            pr:24 or  user:username. If no key is specified, the filter is \
+            considered as a label filter."
+
         self.parser.add_argument('--reset', action='store_true',
             help='Reset the current branch to its HEAD')
         self.parser.add_argument('--info', action='store_true',
@@ -1074,9 +1078,9 @@ class Merge(Command):
             help='Add comment to conflicting PR')
         self.parser.add_argument('base', type=str)
         self.parser.add_argument('--include', nargs="*",
-            help='PR labels to include in the merge')
+            help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument('--exclude', nargs="*",
-            help='PR labels to exclude from the merge')
+            help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
 
