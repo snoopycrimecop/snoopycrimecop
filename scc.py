@@ -681,9 +681,10 @@ class GitRepository(object):
         (revlist, stderr) = p.communicate('')
 
         if stderr or p.returncode:
-            print "Error output was:\n%s" % stderr
-            print "Output was:\n%s" % revlist
-            return False
+            msg = "Error output was:\n%s" % stderr
+            if revlist.strip():
+                msg += "Output was:\n%s" % revlist
+            raise Exception(msg)
 
         return revlist.splitlines()
 
