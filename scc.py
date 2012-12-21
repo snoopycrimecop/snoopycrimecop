@@ -867,6 +867,9 @@ class GitRepository(object):
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id)
 
+        for filt in ["include", "exclude"]:
+            filters[filt]["pr"] = None
+
         for submodule_repo in self.submodules:
             try:
                 submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
