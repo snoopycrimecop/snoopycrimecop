@@ -1090,7 +1090,11 @@ class Merge(Command):
             self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def merge(self, args, main_repo):
-        self.log.info("Merging PR based on: %s", args.base)
+        if args.info:
+            action = "Finding"
+        else:
+            action = "Merging"
+        self.log.info("%s PR based on: %s", action, args.base)
         self.log.info("Excluding PR labelled as: %s", args.exclude)
         self.log.info("Including PR labelled as: %s", args.include)
         self.log.info("")
