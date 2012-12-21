@@ -1090,19 +1090,8 @@ class Merge(Command):
             self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def merge(self, args, main_repo):
-        if args.info:
-            action = "Finding"
-        else:
-            action = "Merging"
-        self.log.info("%s PR based on: %s", action, args.base)
-        self.log.info("Excluding PR labelled as: %s", args.exclude)
-        self.log.info("Including PR labelled as: %s", args.include)
-        self.log.info("")
 
-        filters = {}
-        filters["base"] = args.base
-        filters["include"] = args.include
-        filters["exclude"] = args.exclude
+        self._parse_filters(args)
 
         # Create commit message using command arguments
         commit_args = ["merge"]
@@ -1114,12 +1103,55 @@ class Merge(Command):
             commit_args.append("--exclude")
             commit_args.extend(args.exclude)
 
-        merge_msg = main_repo.rmerge(filters, args.info, args.comment,
+        merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
             commit_id = " ".join(commit_args))
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
 
+    def _parse_filters(self, args):
+        """ Read filters from arguments and fill filters dictionary"""
+
+        self.filters = {}
+        self.filters["base"] = args.base
+        if args.info:
+            action = "Finding"
+        else:
+            action = "Merging"
+        self.log.info("%s PR based on: %s", action, args.base)
+
+        descr = {"label": " labelled as", "pr": "", "user": " opened by"}
+        keys = descr.keys()
+        default_key = "label"
+
+        for ftype in ["include" , "exclude"]:
+            self.filters[ftype] = dict.fromkeys(keys)
+
+            if not getattr(args, ftype):
+                continue
+
+            for filt in getattr(args, ftype):
+                found = False
+                for key in keys:
+                    if filt.find(key + ":") == 0:
+                        value = filt.lstrip(key + ":")
+                        if self.filters[ftype][key]:
+                            self.filters[ftype][key].append(value)
+                        else:
+                            self.filters[ftype][key] = [value]
+                        found = True
+                        continue
+
+                if not found:
+                    if self.filters[ftype][key]:
+                        self.filters[ftype][default_key].append(filt)
+                    else:
+                        self.filters[ftype][default_key] = [filt]
+
+            action = ftype[0].upper() + ftype[1:-1] + "ing"
+            for key in keys:
+                if self.filters[ftype][key]:
+                    self.log.info("%s PR%s: %s", action, descr[key], " ".join(self.filters[ftype][key]))
 
 class Rebase(Command):
     """Rebase Pull Requests opened against a specific base branch.
