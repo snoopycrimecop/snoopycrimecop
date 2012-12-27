@@ -1304,7 +1304,7 @@ class Version(Command):
         self.dbg("hash_object: %s", self.blob)
 
         gh = get_github(get_token(), dont_ask=True)
-        self.repo = gh.gh_repo("snoopycrimecop", "snoopycrimecop")
+        self.repo = gh.gh_repo("snoopycrimecop", "openmicroscopy")
 
         found = self.search_heads()
         if not found:
