@@ -1155,7 +1155,7 @@ class Merge(Command):
                 found = False
                 for key in keys:
                     if filt.find(key + ":") == 0:
-                        value = filt.lstrip(key + ":")
+                        value = filt.replace(key + ":",'',1)
                         if self.filters[ftype][key]:
                             self.filters[ftype][key].append(value)
                         else:
