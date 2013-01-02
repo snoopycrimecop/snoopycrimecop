@@ -450,11 +450,21 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
-    def is_whitelisted(self, user):
-        if self.org:
-            status = self.org.has_in_public_members(user)
-        else:
+    def is_whitelisted(self, user, default="org"):
+        if default == "org":
+            if self.org:
+                status = self.org.has_in_public_members(user)
+            else:
+                status = False
+        elif default == "mine":
+            status = user.login == self.gh.get_login()
+        elif default == "all":
+            status = True
+        elif default == "none":
             status = False
+        else:
+            raise Exception("Unknown whitelisting mode: %s", default)
+
         return status
 
     def push(self, name):
@@ -521,11 +531,9 @@ class GitHubRepository(object):
             pullrequest = PullRequest(self, pull)
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            found = self.is_whitelisted(pullrequest.get_user())
-
             user = pullrequest.get_user().login
             number = str(pullrequest.get_number())
-            if not self.is_whitelisted(pullrequest.get_user()):
+            if not self.is_whitelisted(pullrequest.get_user(), filters["default"]):
                 # Allow filter PR inclusion using include filter
                 if not self.run_filter(filters["include"], labels, user, number, action="Include"):
                     continue
@@ -1079,9 +1087,12 @@ class Merge(Command):
         self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
         self.parser.add_argument('base', type=str)
-        self.parser.add_argument('--include', nargs="*",
+        self.parser.add_argument('--default', type=str,
+            choices=["none", "mine", "org" , "all"], default="org",
+            help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
+        self.parser.add_argument('--include', '-I', nargs="*",
             help='Filters to include PRs in the merge.' + filter_desc)
-        self.parser.add_argument('--exclude', nargs="*",
+        self.parser.add_argument('--exclude', '-E', nargs="*",
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
@@ -1135,6 +1146,7 @@ class Merge(Command):
 
         self.filters = {}
         self.filters["base"] = args.base
+        self.filters["default"] = args.default
         if args.info:
             action = "Finding"
         else:
