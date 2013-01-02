@@ -41,8 +41,17 @@ class UnitTestMerge(MockTest):
         self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
 
     def testFiltering(self):
-        self.fail("TBD")
-
+        test_filter = {
+            "label": ["test_label"],
+            "user": ["test_user"],
+            "pr": ["1"],
+            }
+        self.assertFalse(self.gh_repo.run_filter(test_filter, [], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label", "test_label_2"], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, [], "test_user", "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, [], None, "1"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], "test_user", "1"))
 
 class TestMerge(SandboxTest):
 
