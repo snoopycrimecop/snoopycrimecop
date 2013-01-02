@@ -202,14 +202,6 @@ class GHManager(object):
         """
         self.github = github.Github(*args, **kwargs)
 
-    def get_user(self, key):
-        """overloading for mox"""
-        return self.__getattr__(self, key)
-
-    def get_organization(self, key):
-        """overloading for mox"""
-        return self.__getattr__(self, key)
-
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
