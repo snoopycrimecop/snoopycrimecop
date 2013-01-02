@@ -499,20 +499,19 @@ class GitHubRepository(object):
         else:
             return None
 
-    def run_filter(self, filters, ftype, labels, user, pr):
+    def run_filter(self, filters, labels, user, pr, action="Include"):
 
-        action = ftype[0].upper() + ftype[1:]
-        labels = self.intersect(filters[ftype]["label"], labels)
+        labels = self.intersect(filters["label"], labels)
         if labels:
             self.dbg("# ... %s labels: %s", action, " ".join(labels))
             return True
 
-        user = self.intersect(filters[ftype]["user"], [user])
+        user = self.intersect(filters["user"], [user])
         if user:
             self.dbg("# ... %s user: %s", action, " ".join(user))
             return True
 
-        pr = self.intersect(filters[ftype]["pr"], [pr])
+        pr = self.intersect(filters["pr"], [pr])
         if pr:
             self.dbg("# ... %s PR: %s", action, " ".join(pr))
             return True
@@ -536,11 +535,11 @@ class GitHubRepository(object):
             number = str(pullrequest.get_number())
             if not self.is_whitelisted(pullrequest.get_user()):
                 # Allow filter PR inclusion using include filter
-                if not self.run_filter(filters, "include", labels, user, number):
+                if not self.run_filter(filters["include"], labels, user, number, action="Include"):
                     continue
 
             # Exclude PRs specified by filters
-            if self.run_filter(filters, "exclude", labels, user, number):
+            if self.run_filter(filters["exclude"], labels, user, number,  action="Exclude"):
                 continue
 
             self.dbg(pullrequest)
