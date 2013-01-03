@@ -195,6 +195,12 @@ class GHManager(object):
     def get_login(self):
         return self.github.get_user().login
 
+    def get_user(self, *args):
+        return self.github.get_user(*args)
+
+    def get_organization(self, *args):
+        return self.github.get_organization(*args)
+
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
