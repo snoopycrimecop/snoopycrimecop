@@ -1093,7 +1093,7 @@ class Merge(Command):
         self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
         self.parser.add_argument('base', type=str)
-        self.parser.add_argument('--default', type=str,
+        self.parser.add_argument('--default', '-D', type=str,
             choices=["none", "mine", "org" , "all"], default="org",
             help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
         self.parser.add_argument('--include', '-I', nargs="*",
@@ -1153,11 +1153,22 @@ class Merge(Command):
         self.filters = {}
         self.filters["base"] = args.base
         self.filters["default"] = args.default
+        if args.default == "org":
+            default_user = "any public member of the organization"
+        elif args.default == "mine":
+            default_user = "%s" % self.gh.get_login()
+        elif args.default == "all":
+            default_user = "any user"
+        elif args.default == "none":
+            default_user = "no user"
+        else:
+            raise Exception("Unknown default mode: %s", args.default)
+
         if args.info:
             action = "Finding"
         else:
             action = "Merging"
-        self.log.info("%s PR based on: %s", action, args.base)
+        self.log.info("%s PR based on %s opened by %s", action, args.base, default_user)
 
         descr = {"label": " labelled as", "pr": "", "user": " opened by"}
         keys = descr.keys()
