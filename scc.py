@@ -1134,11 +1134,13 @@ class Merge(Command):
         # Create commit message using command arguments
         commit_args = ["merge"]
         commit_args.append(args.base)
+        commit_args.append("-D")
+        commit_args.append(args.default)
         if args.include:
-            commit_args.append("--include")
+            commit_args.append("-I")
             commit_args.extend(args.include)
         if args.exclude:
-            commit_args.append("--exclude")
+            commit_args.append("-E")
             commit_args.extend(args.exclude)
 
         merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
