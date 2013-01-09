@@ -1096,9 +1096,9 @@ class Merge(Command):
         self.parser.add_argument('--default', '-D', type=str,
             choices=["none", "mine", "org" , "all"], default="org",
             help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
-        self.parser.add_argument('--include', '-I', nargs="*",
+        self.parser.add_argument('--include', '-I', type=str, action='append',
             help='Filters to include PRs in the merge.' + filter_desc)
-        self.parser.add_argument('--exclude', '-E', nargs="*",
+        self.parser.add_argument('--exclude', '-E', type=str, action='append',
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
