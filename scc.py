@@ -1137,11 +1137,13 @@ class Merge(Command):
         commit_args.append("-D")
         commit_args.append(args.default)
         if args.include:
-            commit_args.append("-I")
-            commit_args.extend(args.include)
+            for filt in args.include:
+                commit_args.append("-I")
+                commit_args.append(filt)
         if args.exclude:
-            commit_args.append("-E")
-            commit_args.extend(args.exclude)
+            for filt in args.exclude:
+                commit_args.append("-E")
+                commit_args.append(filt)
 
         merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
             commit_id = " ".join(commit_args))
