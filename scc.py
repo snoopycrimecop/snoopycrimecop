@@ -195,6 +195,12 @@ class GHManager(object):
     def get_login(self):
         return self.github.get_user().login
 
+    def get_user(self, *args):
+        return self.github.get_user(*args)
+
+    def get_organization(self, *args):
+        return self.github.get_organization(*args)
+
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -450,11 +456,21 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
-    def is_whitelisted(self, user):
-        if self.org:
-            status = self.org.has_in_public_members(user)
-        else:
+    def is_whitelisted(self, user, default="org"):
+        if default == "org":
+            if self.org:
+                status = self.org.has_in_public_members(user)
+            else:
+                status = False
+        elif default == "mine":
+            status = user.login == self.gh.get_login()
+        elif default == "all":
+            status = True
+        elif default == "none":
             status = False
+        else:
+            raise Exception("Unknown whitelisting mode: %s", default)
+
         return status
 
     def push(self, name):
@@ -481,6 +497,35 @@ class GitHubRepository(object):
 
         return msg
 
+    def intersect(self, a, b):
+        if not a or not b:
+            return None
+
+        intersection = set(a) & set(b)
+        if any(intersection):
+            return list(intersection)
+        else:
+            return None
+
+    def run_filter(self, filters, labels, user, pr, action="Include"):
+
+        labels = self.intersect(filters["label"], labels)
+        if labels:
+            self.dbg("# ... %s labels: %s", action, " ".join(labels))
+            return True
+
+        user = self.intersect(filters["user"], [user])
+        if user:
+            self.dbg("# ... %s user: %s", action, " ".join(user))
+            return True
+
+        pr = self.intersect(filters["pr"], [pr])
+        if pr:
+            self.dbg("# ... %s PR: %s", action, " ".join(pr))
+            return True
+
+        return False
+
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
@@ -488,40 +533,23 @@ class GitHubRepository(object):
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
 
-        def check_filter(filter_list, labels):
-            if not filter_list:
-                return None
-            intersection = set([filt.lower() for filt in filter_list]) & set(labels)
-            if any(intersection):
-                return list(intersection)
-            else:
-                return None
-
         for pull in pulls:
             pullrequest = PullRequest(self, pull)
             labels = [x.lower() for x in pullrequest.get_labels()]
 
-            found = self.is_whitelisted(pullrequest.get_user())
+            user = pullrequest.get_user().login
+            number = str(pullrequest.get_number())
+            if not self.is_whitelisted(pullrequest.get_user(), filters["default"]):
+                # Allow filter PR inclusion using include filter
+                if not self.run_filter(filters["include"], labels, user, number, action="Include"):
+                    continue
 
-            if not found:
-                # Test included PRs
-                whitelist = check_filter(filters["include"], labels)
-                if not whitelist is None:
-                    self.dbg("# ... Include %s", " ".join(whitelist))
-                    found = True
-
-            if not found:
+            # Exclude PRs specified by filters
+            if self.run_filter(filters["exclude"], labels, user, number,  action="Exclude"):
                 continue
 
-            # Exclude PRs if exclude labels are input
-            blacklist = check_filter(filters["exclude"], labels)
-            if not blacklist is None:
-                self.dbg("# ... Exclude %s", " ".join(blacklist))
-                continue
-
-            if found:
-                self.dbg(pullrequest)
-                self.candidate_pulls.append(pullrequest)
+            self.dbg(pullrequest)
+            self.candidate_pulls.append(pullrequest)
 
         self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
 
@@ -852,6 +880,9 @@ class GitRepository(object):
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id)
 
+        for filt in ["include", "exclude"]:
+            filters[filt]["pr"] = None
+
         for submodule_repo in self.submodules:
             try:
                 submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
@@ -1051,6 +1082,10 @@ class Merge(Command):
         super(Merge, self).__init__(sub_parsers)
         self.add_token_args()
 
+        filter_desc = " Filter keys can be specified using label:my_label, \
+            pr:24 or  user:username. If no key is specified, the filter is \
+            considered as a label filter."
+
         self.parser.add_argument('--reset', action='store_true',
             help='Reset the current branch to its HEAD')
         self.parser.add_argument('--info', action='store_true',
@@ -1058,10 +1093,13 @@ class Merge(Command):
         self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
         self.parser.add_argument('base', type=str)
-        self.parser.add_argument('--include', nargs="*",
-            help='PR labels to include in the merge')
-        self.parser.add_argument('--exclude', nargs="*",
-            help='PR labels to exclude from the merge')
+        self.parser.add_argument('--default', '-D', type=str,
+            choices=["none", "mine", "org" , "all"], default="org",
+            help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
+        self.parser.add_argument('--include', '-I', type=str, action='append',
+            help='Filters to include PRs in the merge.' + filter_desc)
+        self.parser.add_argument('--exclude', '-E', type=str, action='append',
+            help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
 
@@ -1090,32 +1128,84 @@ class Merge(Command):
             self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def merge(self, args, main_repo):
-        self.log.info("Merging PR based on: %s", args.base)
-        self.log.info("Excluding PR labelled as: %s", args.exclude)
-        self.log.info("Including PR labelled as: %s", args.include)
-        self.log.info("")
 
-        filters = {}
-        filters["base"] = args.base
-        filters["include"] = args.include
-        filters["exclude"] = args.exclude
+        self._parse_filters(args)
 
         # Create commit message using command arguments
         commit_args = ["merge"]
         commit_args.append(args.base)
+        commit_args.append("-D")
+        commit_args.append(args.default)
         if args.include:
-            commit_args.append("--include")
-            commit_args.extend(args.include)
+            for filt in args.include:
+                commit_args.append("-I")
+                commit_args.append(filt)
         if args.exclude:
-            commit_args.append("--exclude")
-            commit_args.extend(args.exclude)
+            for filt in args.exclude:
+                commit_args.append("-E")
+                commit_args.append(filt)
 
-        merge_msg = main_repo.rmerge(filters, args.info, args.comment,
+        merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
             commit_id = " ".join(commit_args))
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
 
+    def _parse_filters(self, args):
+        """ Read filters from arguments and fill filters dictionary"""
+
+        self.filters = {}
+        self.filters["base"] = args.base
+        self.filters["default"] = args.default
+        if args.default == "org":
+            default_user = "any public member of the organization"
+        elif args.default == "mine":
+            default_user = "%s" % self.gh.get_login()
+        elif args.default == "all":
+            default_user = "any user"
+        elif args.default == "none":
+            default_user = "no user"
+        else:
+            raise Exception("Unknown default mode: %s", args.default)
+
+        if args.info:
+            action = "Finding"
+        else:
+            action = "Merging"
+        self.log.info("%s PR based on %s opened by %s", action, args.base, default_user)
+
+        descr = {"label": " labelled as", "pr": "", "user": " opened by"}
+        keys = descr.keys()
+        default_key = "label"
+
+        for ftype in ["include" , "exclude"]:
+            self.filters[ftype] = dict.fromkeys(keys)
+
+            if not getattr(args, ftype):
+                continue
+
+            for filt in getattr(args, ftype):
+                found = False
+                for key in keys:
+                    if filt.find(key + ":") == 0:
+                        value = filt.replace(key + ":",'',1)
+                        if self.filters[ftype][key]:
+                            self.filters[ftype][key].append(value)
+                        else:
+                            self.filters[ftype][key] = [value]
+                        found = True
+                        continue
+
+                if not found:
+                    if self.filters[ftype][key]:
+                        self.filters[ftype][default_key].append(filt)
+                    else:
+                        self.filters[ftype][default_key] = [filt]
+
+            action = ftype[0].upper() + ftype[1:-1] + "ing"
+            for key in keys:
+                if self.filters[ftype][key]:
+                    self.log.info("%s PR%s: %s", action, descr[key], " ".join(self.filters[ftype][key]))
 
 class Rebase(Command):
     """Rebase Pull Requests opened against a specific base branch.
@@ -1354,6 +1444,12 @@ class Version(Command):
             if self.matches(pr.head.sha, msg):
                 return pr.head.sha
 
+def parsers():
+    scc_parser = argparse.ArgumentParser(
+        description='Snoopy Crime Cop Script',
+        formatter_class=HelpFormatter)
+    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+    return scc_parser, sub_parsers
 
 def main(args=None):
     """
@@ -1363,10 +1459,8 @@ def main(args=None):
     """
 
     if args is None: args = sys.argv[1:]
-    scc_parser = argparse.ArgumentParser(
-        description='Snoopy Crime Cop Script',
-        formatter_class=HelpFormatter)
-    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+
+    scc_parser, sub_parsers = parsers()
 
     for name, MyCommand in sorted(globals().items()):
         if not isinstance(MyCommand, type): continue

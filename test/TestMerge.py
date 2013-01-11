@@ -20,15 +20,38 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import uuid
-import shutil
 import unittest
-import tempfile
+
+from subprocess import Popen
 
 from scc import *
-from Sandbox import *
-from subprocess import *
+from Sandbox import SandboxTest
+from Mock import MockTest
 
+
+class UnitTestMerge(MockTest):
+
+    def setUp(self):
+        MockTest.setUp(self)
+
+        self.scc_parser, self.sub_parser = parsers()
+        self.merge = Merge(self.sub_parser)
+
+    def testIntersect(self):
+        self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
+
+    def testFiltering(self):
+        test_filter = {
+            "label": ["test_label"],
+            "user": ["test_user"],
+            "pr": ["1"],
+            }
+        self.assertFalse(self.gh_repo.run_filter(test_filter, [], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label", "test_label_2"], None, "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, [], "test_user", "0"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, [], None, "1"))
+        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], "test_user", "1"))
 
 class TestMerge(SandboxTest):
 
@@ -60,4 +83,6 @@ class TestMerge(SandboxTest):
             
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig()
     unittest.main()
