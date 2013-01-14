@@ -406,7 +406,11 @@ class PullRequest(object):
 
     def get_head_login(self):
         """Return the login of the branch where the changes are implemented."""
-        return self.pull.head.user.login
+        if self.pull.head.user:
+            return self.pull.head.user.login
+        # Likely an organization. E.g. head.user was missing for
+        # https://github.com/openmicroscopy/ome-documentation/pull/204
+        return self.pull.head.repo.owner.login
 
     def get_sha(self):
         """Return the SHA1 of the head of the Pull Request."""
