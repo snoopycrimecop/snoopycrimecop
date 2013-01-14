@@ -24,8 +24,20 @@ import unittest
 
 from scc import git_config
 from scc import get_token_or_user
+from scc import get_github
 from Sandbox import SandboxTest
 
+
+class TestGithub(SandboxTest):
+
+    def testFailingConnection(self):
+        os.chdir(self.path)
+        self.assertRaises(SystemExit,  get_github, "openmicroscopy",
+            dont_ask=True)
+        self.assertRaises(SystemExit,  get_github, "openmicroscopy",
+            password ="bad_password")
+        self.assertRaises(SystemExit,  get_github, "openmicroscopy",
+            password ="bad_password", dont_ask=True)
 
 class TestEmptyConfig(SandboxTest):
 
