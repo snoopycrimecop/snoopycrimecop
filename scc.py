@@ -167,6 +167,7 @@ class GHManager(object):
         self.dont_ask = dont_ask
         try:
             self.authorize(password)
+            self.get_login()
         except github.GithubException, ge:
             if ge.status == 401:
                 msg = ge.data.get("message", "")
