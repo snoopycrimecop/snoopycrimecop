@@ -1004,6 +1004,15 @@ class Command(object):
         self.parser.add_argument("--no-ask", action='store_true',
             help="Don't ask for a password if token usage fails")
 
+    def add_new_commit_args(self):
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
+        self.parser.add_argument('--message', '-m',
+            help='Message to use for the commit. Overwrites auto-generated value')
+        self.parser.add_argument('--push', type=str,
+            help='Name of the branch to use to recursively push the merged branch to Github')
+        self.parser.add_argument('base', type=str)
+
     def __call__(self, args):
         self.configure_logging(args)
         self.cwd = os.path.abspath(os.getcwd())
@@ -1030,6 +1039,15 @@ class Command(object):
         self.log = logging.getLogger('scc.%s'%self.NAME)
         self.dbg = self.log.debug
 
+    def push(self, args, main_repo):
+        branch_name = "HEAD:refs/heads/%s" % (args.push)
+
+        user = self.gh.get_login()
+        remote = "git@github.com:%s/" % (user) + "%s.git"
+
+        main_repo.rpush(branch_name, remote, force=True)
+        gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
+        self.log.info("Merged branch pushed to %s" % gh_branch)
 
 class CleanSandbox(Command):
     """Cleans snoopys-sandbox repo after testing
@@ -1091,15 +1109,10 @@ class Merge(Command):
             pr:24 or  user:username. If no key is specified, the filter is \
             considered as a label filter."
 
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
-        self.parser.add_argument('--message', '-m',
-            help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
         self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
-        self.parser.add_argument('base', type=str)
         self.parser.add_argument('--default', '-D', type=str,
             choices=["none", "mine", "org" , "all"], default="org",
             help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
@@ -1107,8 +1120,7 @@ class Merge(Command):
             help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument('--exclude', '-E', type=str, action='append',
             help='Filters to exclude PRs from the merge.' + filter_desc)
-        self.parser.add_argument('--push', type=str,
-            help='Name of the branch to use to recursively push the merged branch to Github')
+        self.add_new_commit_args()
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
@@ -1125,14 +1137,7 @@ class Merge(Command):
                 main_repo.rcleanup()
 
         if args.push is not None:
-            branch_name = "HEAD:refs/heads/%s" % (args.push)
-
-            user = self.gh.get_login()
-            remote = "git@github.com:%s/" % (user) + "%s.git"
-
-            main_repo.rpush(branch_name, remote, force=True)
-            gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
-            self.log.info("Merged branch pushed to %s" % gh_branch)
+            self.push(args, main_repo)
 
     def merge(self, args, main_repo):
 
@@ -1381,6 +1386,62 @@ class Token(Command):
                 user=args.user, local=args.local)
             if token:
                 print token
+
+
+class UpdateSubmodules(Command):
+    """
+    Similar to the 'merge' command, but only updates submodule pointers.
+
+    """
+
+    NAME = "update-submodules"
+
+    def __init__(self, sub_parsers):
+        super(UpdateSubmodules, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument('--remote', default="origin",
+            help='Name of the remote to use as the origin')
+        self.parser.add_argument('--no-fetch', action='store_true',
+            help="Fetch the latest target branch for all repos")
+        self.add_new_commit_args()
+
+    def __call__(self, args):
+        super(UpdateSubmodules, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, args.reset)
+        main_repo.register_submodules(args.reset)
+
+        try:
+            if args.message is None:
+                args.message = "Update submodules"
+            updated = self.submodules(args, main_repo)
+        finally:
+            main_repo.rcleanup()
+
+        if updated and args.push is not None:
+            self.push(args, main_repo)
+
+    def submodules(self, args, main_repo):
+        for submodule in main_repo.submodules:
+            submodule.cd(submodule.path)
+            if not args.no_fetch:
+                submodule.call("git", "fetch", args.remote)
+            submodule.checkout_branch("%s/%s" % (args.remote, args.base))
+
+        main_repo.cd(main_repo.path)
+        cmd = ["git", "commit", "--dry-run", "-a", "-n", "-m", args.message]
+        try:
+            main_repo.call(*cmd)
+        except:
+            import traceback; traceback.print_exc()
+            self.log.info("Nothing to commit.")
+            return False
+
+        cmd.pop(2)  # Remove "dry-run"
+        main_repo.call(*cmd)
+        return True
 
 
 class Version(Command):
