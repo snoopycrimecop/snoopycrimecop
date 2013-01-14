@@ -28,10 +28,9 @@ from scc import get_github
 from Sandbox import SandboxTest
 
 
-class TestGithub(SandboxTest):
+class TestGithub(unittest.TestCase):
 
     def testFailingConnection(self):
-        os.chdir(self.path)
         self.assertRaises(SystemExit,  get_github, "openmicroscopy",
             dont_ask=True)
         self.assertRaises(SystemExit,  get_github, "openmicroscopy",
