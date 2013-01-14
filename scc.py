@@ -870,7 +870,7 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge"):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None):
         """Recursively merge PRs for each submodule."""
 
         merge_msg = ""
@@ -900,8 +900,9 @@ class GitRepository(object):
             merge_msg_footer = ""
 
         if not info:
-            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer))
+            if top_message is None:
+                top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
+            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", top_message)
         return merge_msg
 
     def unique_logins(self):
@@ -1092,6 +1093,8 @@ class Merge(Command):
 
         self.parser.add_argument('--reset', action='store_true',
             help='Reset the current branch to its HEAD')
+        self.parser.add_argument('--message', '-m',
+            help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
         self.parser.add_argument('--comment', action='store_true',
@@ -1150,7 +1153,7 @@ class Merge(Command):
                 commit_args.append(filt)
 
         merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
-            commit_id = " ".join(commit_args))
+            commit_id = " ".join(commit_args), top_message=args.message)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
