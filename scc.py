@@ -168,11 +168,22 @@ class GHManager(object):
         try:
             self.authorize(password)
         except github.GithubException, ge:
-            if ge.status == 401:
-                msg = ge.data.get("message", "")
-                if "Bad credentials" == msg:
-                    print msg
-                    sys.exit(ge.status)
+            if self.exc_is_bad_credentials(ge):
+                print msg
+                sys.exit(ge.status)
+
+    def exc_check_code_and_message(self, ge, status, message):
+        if ge.status == status:
+            msg = ge.data.get("message", "")
+            if message == msg:
+                return True
+        return False
+
+    def exc_is_bad_credentials(self, ge):
+        return self.exc_check_code_and_message(ge, 401, "Bad credentials")
+
+    def exc_is_not_found(self, ge):
+        return self.exc_check_code_and_message(ge, 404, "Not Found")
 
     def authorize(self, password):
         if password is not None:
@@ -790,7 +801,7 @@ class GitRepository(object):
             self.dbg("git config --get remote failure", exc_info=1)
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
-            raise Stop("Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+            raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
@@ -1066,6 +1077,95 @@ Removes all branches from your fork of snoopys-sandbox
                 gh_repo.push(":%s" % b.name)
             else:
                 raise Exception("Not possible!")
+
+
+class Label(Command):
+    """
+    Query/add/remove labels from Github issues.
+    """
+
+    NAME = "label"
+
+    def __init__(self, sub_parsers):
+        super(Label, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument('issue', nargs="*", type=int,
+                help="The number of the issue to check")
+
+        # Actions
+        group = self.parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('--add', action='append',
+            help='List labels attached to the issue')
+        group.add_argument('--available', action='store_true',
+            help='List all available labels for this repo')
+        group.add_argument('--list', action='store_true',
+            help='List labels attached to the issue')
+
+    def __call__(self, args):
+        super(Label, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+            self.labels(args, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def labels(self, args, main_repo):
+        if args.add:
+            self.add(args, main_repo)
+        elif args.available:
+            self.available(args, main_repo)
+        elif args.list:
+            self.list(args, main_repo)
+
+    def get_issue(self, args, main_repo, issue):
+        # Copied from Rebase command.
+        # TODO: this could be refactored
+        if args.issue and len(args.issue) > 1:
+            if print_issue_num:
+                print "# %s" % issue
+        return main_repo.origin.get_issue(issue)
+
+    def add(self, args, main_repo):
+        for label in args.add:
+
+            try:
+                label = main_repo.origin.get_label(label)
+            except github.GithubException, ge:
+                if self.gh.exc_is_not_found(ge):
+                    try:
+                        main_repo.origin.create_label(label, "663399")
+                        label = main_repo.origin.get_label(label)
+                    except github.GithubException, ge:
+                        if self.gh.exc_is_not_found(ge):
+                            raise Stop(10, "Can't create label: %s" % label)
+                        raise
+                else:
+                    raise
+
+            for issue in args.issue:
+                issue = self.get_issue(args, main_repo, issue)
+                try:
+                    issue.add_to_labels(label)
+                except github.GithubException, ge:
+                    if self.gh.exc_is_not_found(ge):
+                        raise Stop(10, "Can't add label: %s" % label.name)
+                    raise
+
+    def available(self, args, main_repo):
+        if args.issue:
+            print >>sys.stderr, "# Ignoring issues: %s" % args.issue
+        for label in main_repo.origin.get_labels():
+            print label.name
+
+    def list(self, args, main_repo):
+        for issue in args.issue:
+            issue = self.get_issue(args, main_repo, issue)
+            labels = issue.get_labels()
+            for label in labels:
+                print label.name
 
 
 class Merge(Command):
