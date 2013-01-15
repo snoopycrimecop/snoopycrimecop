@@ -168,11 +168,22 @@ class GHManager(object):
         try:
             self.authorize(password)
         except github.GithubException, ge:
-            if ge.status == 401:
-                msg = ge.data.get("message", "")
-                if "Bad credentials" == msg:
-                    print msg
-                    sys.exit(ge.status)
+            if self.exc_is_bad_credentials(ge):
+                print msg
+                sys.exit(ge.status)
+
+    def exc_check_code_and_message(self, ge, status, message):
+        if ge.status == status:
+            msg = ge.data.get("message", "")
+            if message == msg:
+                return True
+        return False
+
+    def exc_is_bad_credentials(self, ge):
+        return self.exc_check_code_and_message(ge, 401, "Bad credentials")
+
+    def exc_is_not_found(self, ge):
+        return self.exc_check_code_and_message(ge, 404, "Not Found")
 
     def authorize(self, password):
         if password is not None:
@@ -790,7 +801,7 @@ class GitRepository(object):
             self.dbg("git config --get remote failure", exc_info=1)
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
-            raise Stop("Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+            raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
@@ -1119,10 +1130,29 @@ class Label(Command):
 
     def add(self, args, main_repo):
         for label in args.add:
-            label = main_repo.origin.get_label(label)
+
+            try:
+                label = main_repo.origin.get_label(label)
+            except github.GithubException, ge:
+                if self.gh.exc_is_not_found(ge):
+                    try:
+                        main_repo.origin.create_label(label, "663399")
+                        label = main_repo.origin.get_label(label)
+                    except github.GithubException, ge:
+                        if self.gh.exc_is_not_found(ge):
+                            raise Stop(10, "Can't create label: %s" % label)
+                        raise
+                else:
+                    raise
+
             for issue in args.issue:
                 issue = self.get_issue(args, main_repo, issue)
-                issue.add_to_labels(label)
+                try:
+                    issue.add_to_labels(label)
+                except github.GithubException, ge:
+                    if self.gh.exc_is_not_found(ge):
+                        raise Stop(10, "Can't add label: %s" % label.name)
+                    raise
 
     def available(self, args, main_repo):
         if args.issue:
