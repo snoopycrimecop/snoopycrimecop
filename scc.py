@@ -32,6 +32,7 @@ Environment variables:
 
 """
 
+import re
 import os
 import sys
 import time
@@ -1039,6 +1040,76 @@ class Command(object):
 
         self.log = logging.getLogger('scc.%s'%self.NAME)
         self.dbg = self.log.debug
+
+
+class CheckMilestone(Command):
+    """Check all merged PRs for a set milestone
+
+Find all GitHub-merged PRs between head and tag, i.e.
+git log --first-parent TAG...HEAD
+
+Usage:
+    check-milestone 0.2.0 0.2.1 --set=0.2.1
+    """
+
+    NAME = "check-milestone"
+
+    def __init__(self, sub_parsers):
+        super(CheckMilestone, self).__init__(sub_parsers)
+        self.add_token_args()
+        self.parser.add_argument('tag', help="Start tag for searching")
+        self.parser.add_argument('head', help="Branch to use check")
+        self.parser.add_argument('--set', help="Milestone to use if unset",
+                                 dest="milestone_name")
+
+        # 5c5a373 Merge pull request #31 from joshmoore/sha-blob
+        self.pattern = re.compile("^\w+\sMerge\spull\srequest\s.(\d+)\s.*$")
+
+    def __call__(self, args):
+        super(CheckMilestone, self).__call__(args)
+        self.login(args)
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+
+            if args.milestone_name:
+                milestone = None
+                milestones = main_repo.origin.get_milestones()
+                for m in milestones:
+                    if m.title == args.milestone_name:
+                        milestone = m
+                        break
+
+
+                if not milestone:
+                    raise Stop("Unknown milestone: %s" % args.milestone_name)
+
+            p = main_repo.call("git", "log", "--oneline", "--first-parent",
+                               "%s...%s" % (args.tag, args.head),
+                               stdout=subprocess.PIPE)
+            o, e = p.communicate()
+            for line in o.split("\n"):
+                if line:
+                    m = self.pattern.match(line)
+                    if not m:
+                        self.log.info("Unknown merge: %s", line)
+                        continue
+                    pr = int(m.group(1))
+                    pr = main_repo.origin.get_issue(pr)
+                    if pr.milestone:
+                        self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
+                    else:
+                        if args.milestone_name:
+                            try:
+                                pr.edit(milestone=milestone)
+                                print "Set milestone for PR %s to %s" % (pr.number, milestone.title)
+                            except github.GithubException, ge:
+                                if self.gh.exc_is_not_found(ge):
+                                    raise Stop(10, "Can't edit milestone")
+                                raise
+                        else:
+                            print "No milestone for PR %s ('%s')" % (pr.number, line)
+        finally:
+            main_repo.cleanup()
 
 
 class CleanSandbox(Command):
