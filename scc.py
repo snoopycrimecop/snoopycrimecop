@@ -1099,10 +1099,15 @@ Usage:
                         self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
                     else:
                         if args.milestone_name:
-                            pr.edit(milestone=milestone)
-                            print "Set milestone for PR %s to %s" % (pr.number, milestone.title)
+                            try:
+                                pr.edit(milestone=milestone)
+                                print "Set milestone for PR %s to %s" % (pr.number, milestone.title)
+                            except github.GithubException, ge:
+                                if self.gh.exc_is_not_found(ge):
+                                    raise Stop(10, "Can't edit milestone")
+                                raise
                         else:
-                            print "No milestone: %s" % line
+                            print "No milestone for PR %s ('%s')" % (pr.number, line)
         finally:
             main_repo.cleanup()
 
