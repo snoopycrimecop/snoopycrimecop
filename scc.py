@@ -171,7 +171,7 @@ class GHManager(object):
             self.get_login()
         except github.GithubException, ge:
             if self.exc_is_bad_credentials(ge):
-                print msg
+                print "Bad credentials"
                 sys.exit(ge.status)
 
     def exc_check_code_and_message(self, ge, status, message):
