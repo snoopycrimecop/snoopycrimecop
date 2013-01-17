@@ -36,22 +36,49 @@ class UnitTestMerge(MockTest):
 
         self.scc_parser, self.sub_parser = parsers()
         self.merge = Merge(self.sub_parser)
-
-    def testIntersect(self):
-        self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
-
-    def testFiltering(self):
-        test_filter = {
+        self.test_filter = {
             "label": ["test_label"],
             "user": ["test_user"],
             "pr": ["1"],
             }
-        self.assertFalse(self.gh_repo.run_filter(test_filter, [], None, "0"))
-        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], None, "0"))
-        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label", "test_label_2"], None, "0"))
-        self.assertTrue(self.gh_repo.run_filter(test_filter, [], "test_user", "0"))
-        self.assertTrue(self.gh_repo.run_filter(test_filter, [], None, "1"))
-        self.assertTrue(self.gh_repo.run_filter(test_filter, ["test_label"], "test_user", "1"))
+
+    def testIntersect(self):
+        self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
+
+    def testSelfFilter(self):
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, self.test_filter))
+
+    def testWrongFilter(self):
+        pr_attributes = {"label": [], "user": [None], "pr": ["0"]}
+        self.assertFalse(self.gh_repo.run_filter(self.test_filter, pr_attributes))
+
+    def testLabelFilter(self):
+        label_filter = {"label": ["test_label"], "user": [None], "pr": ["0"]}
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, label_filter))
+
+    def testLabelsFilter(self):
+        labels_filter = {
+            "label": ["test_label","test_label_2"],
+            "user": [None],
+            "pr": ["0"]
+            }
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, labels_filter))
+
+    def testUserFilter(self):
+        user_filter = {"label": [], "user": ["test_user"], "pr": ["0"]}
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, user_filter))
+
+    def testUsersFilter(self):
+        users_filter = {"label": [], "user": ["test_user","test_user_2"], "pr": ["0"]}
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, users_filter))
+
+    def testPRFilter(self):
+        pr_filter = {"label": [], "user": [None], "pr": ["1"]}
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, pr_filter))
+
+    def testPRsFilter(self):
+        prs_filter = {"label": [], "user": [None], "pr": ["1","2"]}
+        self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
 
 class TestMerge(SandboxTest):
 
