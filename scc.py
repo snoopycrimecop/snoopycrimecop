@@ -1112,6 +1112,53 @@ Usage:
             main_repo.cleanup()
 
 
+class AlreadyMerged(Command):
+    """Detect branches local & remote which are already merged"""
+
+    NAME = "already-merged"
+
+    def __init__(self, sub_parsers):
+        super(AlreadyMerged, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument("target",
+                help="Head to check against. E.g. master or origin/master")
+        self.parser.add_argument("ref", nargs="*",
+                default=["refs/heads", "refs/remotes"],
+                help="List of ref patterns to be checked. E.g. refs/remotes/origin")
+
+    def __call__(self, args):
+        super(AlreadyMerged, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+            self.already_merged(args, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def already_merged(self, args, main_repo):
+        fmt = "%(committerdate:iso8601) %(refname:short)   --- %(subject)"
+        cmd = ["git", "for-each-ref", "--sort=committerdate"]
+        cmd.append("--format=%s" % fmt)
+        cmd += args.ref
+        proc = main_repo.call(*cmd, stdout=subprocess.PIPE)
+        out, err = proc.communicate()
+        for line in out.split("\n"):
+            if line:
+                self.go(main_repo, line.rstrip(), args.target)
+
+    def go(self, main_repo, input, target):
+        parts = input.split(" ")
+        branch = parts[3]
+        tip, err = main_repo.call("git", "rev-parse", branch,
+            stdout=subprocess.PIPE).communicate()
+        mrg, err = main_repo.call("git", "merge-base", branch, target,
+            stdout=subprocess.PIPE).communicate()
+        if tip == mrg:
+            print input
+
+
 class CleanSandbox(Command):
     """Cleans snoopys-sandbox repo after testing
 
