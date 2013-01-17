@@ -168,6 +168,7 @@ class GHManager(object):
         self.dont_ask = dont_ask
         try:
             self.authorize(password)
+            self.get_login()
         except github.GithubException, ge:
             if self.exc_is_bad_credentials(ge):
                 print msg
