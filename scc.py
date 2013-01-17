@@ -41,18 +41,20 @@ import logging
 import threading
 import difflib
 
-
 try:
     import argparse
 except ImportError:
-    print >>sys.stderr, \
-            "# argparse missing. Install via 'pip install argparse'"
+    sys.exit("Module argparse missing. Install via 'pip install argparse'")
 
 try:
     import github  # PyGithub
 except ImportError, ie:
-    print >>sys.stderr, \
-            "# github missing. Install via 'pip install pygithub'"
+    sys.exit("Module github missing. Make sure  via 'pip install PyGithub'")
+
+try:
+    github.GithubException(0, "test")
+except AttributeError:
+    sys.exit("Conflicting github module. Uninstall PyGithub3")
 
 
 SCC_DEBUG_LEVEL = logging.INFO
