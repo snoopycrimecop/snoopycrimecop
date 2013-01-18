@@ -41,21 +41,27 @@ import logging
 import threading
 import difflib
 
+argparse_loaded = True
 try:
     import argparse
 except ImportError:
-    sys.exit("Module argparse missing. Install via 'pip install argparse'")
+    print >> sys.stderr, \
+        "Module argparse missing. Install via 'pip install argparse'"
+    argparse_loaded = False
 
+github_loaded = True
 try:
     import github  # PyGithub
+    try:
+        github.GithubException(0, "test")
+    except AttributeError:
+        print >> sys.stderr, \
+            "Conflicting github module. Uninstall PyGithub3"
+        github_loaded = False
 except ImportError, ie:
-    sys.exit("Module github missing. Make sure  via 'pip install PyGithub'")
-
-try:
-    github.GithubException(0, "test")
-except AttributeError:
-    sys.exit("Conflicting github module. Uninstall PyGithub3")
-
+    print >> sys.stderr, \
+        "Module github missing. Install via 'pip install PyGithub'"
+    github_loaded = False
 
 SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
@@ -1683,6 +1689,8 @@ def main(args=None):
     each Command class found in globals().
     """
 
+    if not argparse_loaded or not github_loaded:
+        raise Stop(0, "Missing required module")
     if args is None: args = sys.argv[1:]
 
     scc_parser, sub_parsers = parsers()
