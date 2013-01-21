@@ -1067,7 +1067,7 @@ Usage:
 
 
                 if not milestone:
-                    raise Stop("Unknown milestone: %s" % args.milestone_name)
+                    raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
 
             p = main_repo.call("git", "log", "--oneline", "--first-parent",
                                "%s...%s" % (args.tag, args.head),
@@ -1692,7 +1692,7 @@ def main(args=None):
     """
 
     if not argparse_loaded or not github_loaded:
-        raise Stop(0, "Missing required module")
+        raise Stop(2, "Missing required module")
     if args is None: args = sys.argv[1:]
 
     scc_parser, sub_parsers = parsers()
