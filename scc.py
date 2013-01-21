@@ -260,29 +260,6 @@ class GHManager(object):
 # Utility classes
 #
 
-class HelpFormatter(argparse.RawTextHelpFormatter):
-    """
-    argparse.HelpFormatter subclass which cleans up our usage, preventing very long
-    lines in subcommands.
-
-    Borrowed from omero/cli.py
-    """
-
-    def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
-        argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
-        self._action_max_length = 20
-
-    def _split_lines(self, text, width):
-        return [text.splitlines()[0]]
-
-    class _Section(argparse.RawTextHelpFormatter._Section):
-
-        def __init__(self, formatter, parent, heading=None):
-            #if heading:
-            #    heading = "\n%s\n%s" % ("=" * 40, heading)
-            argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
-
-
 class LoggerWrapper(threading.Thread):
     """
     Read text message from a pipe and redirect them
@@ -1090,7 +1067,7 @@ Usage:
 
 
                 if not milestone:
-                    raise Stop("Unknown milestone: %s" % args.milestone_name)
+                    raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
 
             p = main_repo.call("git", "log", "--oneline", "--first-parent",
                                "%s...%s" % (args.tag, args.head),
@@ -1676,10 +1653,35 @@ class Version(Command):
                 return pr.head.sha
 
 def parsers():
+
+    class HelpFormatter(argparse.RawTextHelpFormatter):
+        """
+        argparse.HelpFormatter subclass which cleans up our usage, preventing very long
+        lines in subcommands.
+
+        Borrowed from omero/cli.py
+        Defined inside of parsers() in case argparse is not installed.
+        """
+
+        def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
+            argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
+            self._action_max_length = 20
+
+        def _split_lines(self, text, width):
+            return [text.splitlines()[0]]
+
+        class _Section(argparse.RawTextHelpFormatter._Section):
+
+            def __init__(self, formatter, parent, heading=None):
+                #if heading:
+                #    heading = "\n%s\n%s" % ("=" * 40, heading)
+                argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
+
     scc_parser = argparse.ArgumentParser(
         description='Snoopy Crime Cop Script',
         formatter_class=HelpFormatter)
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+
     return scc_parser, sub_parsers
 
 def main(args=None):
@@ -1690,7 +1692,7 @@ def main(args=None):
     """
 
     if not argparse_loaded or not github_loaded:
-        raise Stop(0, "Missing required module")
+        raise Stop(2, "Missing required module")
     if args is None: args = sys.argv[1:]
 
     scc_parser, sub_parsers = parsers()
