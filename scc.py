@@ -1503,7 +1503,7 @@ class Rebase(Command):
                     "%s/%s" % (args.remote, pr.base.ref))
             try:
                 main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                    branching_sha1[0:6], pr_head)
+                    branching_sha1, pr_head)
             except:
                 raise Stop(20, "rebasing failed.\nFix conflicts and re-run with an additional --continue flag")
 
