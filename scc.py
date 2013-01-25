@@ -207,9 +207,12 @@ class GHManager(object):
                     raise
                 import getpass
                 msg = "Enter password for http://github.com/%s:" % self.login_or_token
-                password = getpass.getpass(msg)
-                if password is not None:
-                    self.create_instance(self.login_or_token, password)
+                try:
+                    password = getpass.getpass(msg)
+                    if password is not None:
+                        self.create_instance(self.login_or_token, password)
+                except KeyboardInterrupt:
+                    raise Stop("Interrupted by the user")
         else:
             self.create_instance()
 
