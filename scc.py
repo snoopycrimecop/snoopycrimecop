@@ -786,7 +786,9 @@ class GitRepository(object):
         try:
             originurl = self.call("git", "config", "--get", \
                 "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
-                stderr = subprocess.PIPE).communicate()[0]
+                stderr = subprocess.PIPE).communicate()[0].rstrip("\n")
+            if originurl[-1] == "/":
+                originurl = originurl[:-1]
         except:
             self.dbg("git config --get remote failure", exc_info=1)
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
