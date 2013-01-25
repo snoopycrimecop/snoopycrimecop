@@ -559,7 +559,7 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path, reset=False):
+    def __init__(self, gh, path):
         """
         Register the git repository path, return the current status and
         register the Github origin remote.
@@ -574,8 +574,6 @@ class GitRepository(object):
         self.gh = gh
         self.path =  os.path.abspath(path)
 
-        if reset:
-            self.reset()
         self.get_status()
 
 
@@ -584,7 +582,7 @@ class GitRepository(object):
         self.origin = gh.gh_repo(repo_name, user_name)
         self.submodules = []
 
-    def register_submodules(self, reset=False):
+    def register_submodules(self):
         if len(self.submodules) == 0:
             submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
                     "echo $path", stdout=subprocess.PIPE).communicate()[0]
@@ -593,9 +591,9 @@ class GitRepository(object):
             while "".join(lines):
                 directory = lines.pop(0).strip()
                 try:
-                    submodule_repo = self.gh.git_repo(directory, reset)
+                    submodule_repo = self.gh.git_repo(directory)
                     self.submodules.append(submodule_repo)
-                    submodule_repo.register_submodules(reset)
+                    submodule_repo.register_submodules()
                 finally:
                     self.cd(self.path)
 
@@ -744,6 +742,7 @@ class GitRepository(object):
         self.cd(self.path)
         self.dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
+        self.call("git", "submodule", "update", "--recursive")
 
     def fast_forward(self, base, remote = "origin"):
         """Execute merge --ff-only against the current base"""
@@ -1126,8 +1125,11 @@ class Merge(Command):
         super(Merge, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, args.reset)
-        main_repo.register_submodules(args.reset)
+        main_repo = self.gh.git_repo(self.cwd)
+        main_repo.register_submodules()
+        if args.reset:
+            main_repo.reset()
+            main_repo.get_status()
 
         try:
             self.merge(args, main_repo)
@@ -1410,8 +1412,11 @@ class UpdateSubmodules(Command):
         super(UpdateSubmodules, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, args.reset)
-        main_repo.register_submodules(args.reset)
+        main_repo = self.gh.git_repo(self.cwd)
+        main_repo.register_submodules()
+        if args.reset():
+            main_repo.reset()
+            main_repo.get_status()
 
         try:
             if args.message is None:
