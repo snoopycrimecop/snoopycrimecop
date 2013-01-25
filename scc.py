@@ -769,6 +769,17 @@ class GitRepository(object):
 
         return revlist.splitlines()
 
+    def has_local_changes(self):
+        """Check for local changes in the Git repository"""
+        self.cd(self.path)
+        try:
+            r = self.call("git", "diff-index", "--quiet", "HEAD")
+            self.dbg("%s has no local changes" ,self)
+            return False
+        except Exception, e:
+            self.dbg("%s has local changes" ,self)
+            return True
+
     #
     # Higher level git commands
     #
@@ -901,7 +912,8 @@ class GitRepository(object):
         if not info:
             if top_message is None:
                 top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
-            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", top_message)
+            if self.has_local_changes():
+                self.call("git", "commit", "-a", "-n", "-m", top_message)
         return merge_msg
 
     def unique_logins(self):
