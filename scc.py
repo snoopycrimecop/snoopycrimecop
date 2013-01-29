@@ -1452,6 +1452,9 @@ class Rebase(Command):
         self.parser.add_argument('--remote', default="origin",
             help='Name of the remote to use as the origin')
 
+        self.parser.add_argument('--continue', action="store_true", dest="_continue",
+                                 help="Continue from a failed rebase")
+
         self.parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
         self.parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
@@ -1485,10 +1488,14 @@ class Rebase(Command):
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
 
-        branching_sha1 = main_repo.find_branching_point(pr_head,
-                "%s/%s" % (args.remote, pr.base.ref))
-        main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                branching_sha1[0:6], pr_head)
+        if not args._continue:
+            branching_sha1 = main_repo.find_branching_point(pr_head,
+                    "%s/%s" % (args.remote, pr.base.ref))
+            try:
+                main_repo.rebase("%s/%s" % (args.remote, args.newbase),
+                    branching_sha1, pr_head)
+            except:
+                raise Stop(20, "rebasing failed.\nFix conflicts and re-run with an additional --continue flag")
 
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
         main_repo.new_branch(new_branch)
