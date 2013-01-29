@@ -1187,6 +1187,88 @@ Removes all branches from your fork of snoopys-sandbox
             else:
                 raise Exception("Not possible!")
 
+class Deploy(Command):
+    """
+    Deploy an update to a website using the "symlink swapping" strategy.
+    See https://gist.github.com/3807742.
+    """
+
+    NAME = "deploy"
+
+    def __init__(self, sub_parsers):
+        super(Deploy, self).__init__(sub_parsers)
+
+        self.parser.add_argument('--init', action='store_true',
+            help='Prepare a folder with content for "symlink swapping"')
+        self.parser.add_argument('folder', type=str, help="The folder to be deployed/updated")
+
+    def __call__(self, args):
+        super(Deploy, self).__call__(args)
+
+        self.folder = args.folder
+        self.live_folder = self.folder + ".live"
+        self.new_folder = self.folder + ".new"
+        self.tmp_folder = self.folder + ".tmp"
+
+        if args.init:
+            self.doc_init()
+        else:
+            self.doc_deploy()
+
+    def doc_init(self):
+        """
+        Set up the symlink swapping structure to use the deployment script.
+        """
+
+        if not os.path.exists(self.folder):
+             raise Stop(5, "The following path does not exist: %s. Copy some contents to this folder and run scc deploy --init again." % self.folder)
+
+        if os.path.exists(self.live_folder):
+            raise Stop(5, "The following path already exists: %s. Run the scc deploy command without the --init argument." % self.live_folder)
+
+        import shutil
+        self.dbg("Copying %s to %s", self.folder, self.live_folder)
+        shutil.copytree(self.folder, self.live_folder)
+        self.dbg("Removing %s folder", self.folder)
+        shutil.rmtree(self.folder)
+        self.dbg("Creating a symbolic link pointing to %s named %s", self.live_folder, self.folder)
+        os.symlink(self.live_folder, self.folder)
+
+    def doc_deploy(self):
+        """
+        Deploy a new content using symlink swapping.
+
+        Two symlinks get replaced during the lifetime of the script. Both
+        operations are atomic.
+        """
+
+        if not os.path.exists(self.live_folder):
+            raise Stop(5, "The following path does not exist: %s. Pass --init to the scc deploy command to initialize the symlink swapping." % self.live_folder)
+
+        if not os.path.islink(self.folder):
+            raise Stop(5, "The following path is not a symlink: %s. Pass --init to the scc deploy command to initialize the symlink swapping." % self.folder)
+
+        if not os.path.exists(self.tmp_folder):
+            raise Stop(5, "The following path does not exist: %s. Copy the new content to be deployed to this folder and run scc deploy again." % self.tmp_folder)
+
+        if os.path.exists(self.new_folder):
+            raise Stop(5, "The following path already exists: %s. Please delete this folder and run scc deploy again." % self.new_folder)
+
+        import shutil
+        self.dbg("Replacing symbolic link %s to point to %s", self.folder, self.tmp_folder)
+        os.symlink(self.tmp_folder, self.new_folder)
+        os.rename(self.new_folder, self.folder)
+        self.dbg("Removing %s folder", self.live_folder)
+        shutil.rmtree(self.live_folder)
+
+        self.dbg("Copying %s to %s", self.tmp_folder, self.live_folder)
+        shutil.copytree(self.tmp_folder, self.live_folder)
+        self.dbg("Replacing symbolic link %s to point to %s", self.folder, self.live_folder)
+        os.symlink(self.live_folder, self.new_folder)
+        os.rename(self.new_folder, self.folder)
+
+        self.dbg("Removing %s folder", self.tmp_folder)
+        shutil.rmtree(self.tmp_folder)
 
 class Label(Command):
     """
