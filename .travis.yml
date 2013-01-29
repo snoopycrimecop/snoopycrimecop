@@ -8,4 +8,4 @@ before_install:
   - "pip install -r dev_requirements.txt --use-mirrors"
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors argparse; fi
 install: python scc.py -h
-script: PYTHONPATH=. python test/TestMerge.py UnitTestMerge; PYTHONPATH=. python test/TestConfig.py TestGithub
+script: PYTHONPATH=. python test/TestMerge.py UnitTestMerge; PYTHONPATH=. python test/TestConfig.py TestGithub; PYTHONPATH=. python test/TestDeploy.py
