@@ -1207,7 +1207,6 @@ class Deploy(Command):
 
         self.folder = args.folder
         self.live_folder = self.folder + ".live"
-        self.new_folder = self.folder + ".new"
         self.tmp_folder = self.folder + ".tmp"
 
         if args.init:
@@ -1226,13 +1225,9 @@ class Deploy(Command):
         if os.path.exists(self.live_folder):
             raise Stop(5, "The following path already exists: %s. Run the scc deploy command without the --init argument." % self.live_folder)
 
-        import shutil
-        self.dbg("Copying %s to %s", self.folder, self.live_folder)
-        shutil.copytree(self.folder, self.live_folder)
-        self.dbg("Removing %s folder", self.folder)
-        shutil.rmtree(self.folder)
-        self.dbg("Creating a symbolic link pointing to %s named %s", self.live_folder, self.folder)
-        os.symlink(self.live_folder, self.folder)
+        self.copytree(self.folder, self.live_folder)
+        self.rmtree(self.folder)
+        self.symlink(self.live_folder, self.folder)
 
     def doc_deploy(self):
         """
@@ -1251,24 +1246,42 @@ class Deploy(Command):
         if not os.path.exists(self.tmp_folder):
             raise Stop(5, "The following path does not exist: %s. Copy the new content to be deployed to this folder and run scc deploy again." % self.tmp_folder)
 
-        if os.path.exists(self.new_folder):
-            raise Stop(5, "The following path already exists: %s. Please delete this folder and run scc deploy again." % self.new_folder)
+        self.symlink(self.tmp_folder, self.folder)
+        self.rmtree(self.live_folder)
 
+        self.copytree(self.tmp_folder, self.live_folder)
+        self.symlink(self.live_folder, self.folder)
+
+        self.rmtree(self.tmp_folder)
+
+    def copytree(self, src, dst):
         import shutil
-        self.dbg("Replacing symbolic link %s to point to %s", self.folder, self.tmp_folder)
-        os.symlink(self.tmp_folder, self.new_folder)
-        os.rename(self.new_folder, self.folder)
-        self.dbg("Removing %s folder", self.live_folder)
-        shutil.rmtree(self.live_folder)
+        self.dbg("Copying %s/* to %s/*", src, dst)
+        try:
+            shutil.copytree(src, dst)
+        except shutil.Error, e:
+            for src, dst, error in e.args[0]:
+                if os.path.islink(src):
+                    print >> sys.stderr, "Could not copy symbolic link %s" % src
+                else:
+                    print >> sys.stderr, "Could not copy %s" % src
 
-        self.dbg("Copying %s to %s", self.tmp_folder, self.live_folder)
-        shutil.copytree(self.tmp_folder, self.live_folder)
-        self.dbg("Replacing symbolic link %s to point to %s", self.folder, self.live_folder)
-        os.symlink(self.live_folder, self.new_folder)
-        os.rename(self.new_folder, self.folder)
+    def rmtree(self, src):
+        import shutil
+        self.dbg("Removing %s folder", src)
+        shutil.rmtree(src)
 
-        self.dbg("Removing %s folder", self.tmp_folder)
-        shutil.rmtree(self.tmp_folder)
+    def symlink(self, src, link):
+
+        if os.path.islink(link):
+            import tempfile
+            self.dbg("Replacing symbolic link %s to point to %s", link, src)
+            new = link + ".new"
+            os.symlink(src, new)
+            os.rename(new, link)
+        else:
+            self.dbg("Creating a symbolic link named %s pointing to %s", link, src)
+            os.symlink(src, link)
 
 class Label(Command):
     """
