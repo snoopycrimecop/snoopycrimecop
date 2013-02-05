@@ -1106,7 +1106,7 @@ Usage:
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
 
             if args.milestone_name:
@@ -1169,7 +1169,7 @@ class AlreadyMerged(Command):
         super(AlreadyMerged, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.already_merged(args, main_repo)
         finally:
@@ -1262,7 +1262,7 @@ class Label(Command):
         super(Label, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.labels(args, main_repo)
         finally:
