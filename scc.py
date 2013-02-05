@@ -1285,7 +1285,7 @@ class Rebase(Command):
         super(Rebase, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.rebase(args, main_repo)
         finally:
