@@ -1015,15 +1015,6 @@ class Command(object):
         self.parser.add_argument("--no-ask", action='store_true',
             help="Don't ask for a password if token usage fails")
 
-    def add_new_commit_args(self):
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
-        self.parser.add_argument('--message', '-m',
-            help='Message to use for the commit. Overwrites auto-generated value')
-        self.parser.add_argument('--push', type=str,
-            help='Name of the branch to use to recursively push the merged branch to Github')
-        self.parser.add_argument('base', type=str)
-
     def __call__(self, args):
         self.configure_logging(args)
         self.cwd = os.path.abspath(os.getcwd())
@@ -1049,6 +1040,32 @@ class Command(object):
 
         self.log = logging.getLogger('scc.%s'%self.NAME)
         self.dbg = self.log.debug
+
+class GitRepoCommand(Command):
+    """
+    Abstract class for commands acting on a git repository
+    """
+
+    NAME = "abstract"
+
+    def __init__(self, sub_parsers):
+        super(GitRepoCommand, self).__init__(sub_parsers)
+
+    def init_main_repo(self, args):
+        self.main_repo = self.gh.git_repo(self.cwd)
+        self.main_repo.register_submodules()
+        if args.reset:
+            self.main_repo.reset()
+            self.main_repo.get_status()
+
+    def add_new_commit_args(self):
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
+        self.parser.add_argument('--message', '-m',
+            help='Message to use for the commit. Overwrites auto-generated value')
+        self.parser.add_argument('--push', type=str,
+            help='Name of the branch to use to recursively push the merged branch to Github')
+        self.parser.add_argument('base', type=str)
 
     def push(self, args, main_repo):
         branch_name = "HEAD:refs/heads/%s" % (args.push)
@@ -1098,7 +1115,7 @@ Removes all branches from your fork of snoopys-sandbox
                 raise Exception("Not possible!")
 
 
-class Merge(Command):
+class Merge(GitRepoCommand):
     """
     Merge Pull Requests opened against a specific base branch.
 
@@ -1137,21 +1154,17 @@ class Merge(Command):
         super(Merge, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd)
-        main_repo.register_submodules()
-        if args.reset:
-            main_repo.reset()
-            main_repo.get_status()
+        self.init_main_repo(args)
 
         try:
-            self.merge(args, main_repo)
+            self.merge(args, self.main_repo)
         finally:
             if not args.info:
                 self.log.debug("Cleaning remote branches created for merging")
-                main_repo.rcleanup()
+                self.main_repo.rcleanup()
 
         if args.push is not None:
-            self.push(args, main_repo)
+            self.push(args, self.main_repo)
 
     def merge(self, args, main_repo):
 
@@ -1402,7 +1415,7 @@ class Token(Command):
                 print token
 
 
-class UpdateSubmodules(Command):
+class UpdateSubmodules(GitRepoCommand):
     """
     Similar to the 'merge' command, but only updates submodule pointers.
 
@@ -1424,42 +1437,36 @@ class UpdateSubmodules(Command):
         super(UpdateSubmodules, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd)
-        main_repo.register_submodules()
-        if args.reset():
-            main_repo.reset()
-            main_repo.get_status()
+        self.init_main_repo(args)
 
         try:
             if args.message is None:
                 args.message = "Update submodules"
-            updated = self.submodules(args, main_repo)
+            updated = self.submodules(args, self.main_repo)
         finally:
-            main_repo.rcleanup()
+            self.main_repo.rcleanup()
 
-        if updated and args.push is not None:
-            self.push(args, main_repo)
+        if args.push is not None:
+            self.push(args, self.main_repo)
 
     def submodules(self, args, main_repo):
         for submodule in main_repo.submodules:
             submodule.cd(submodule.path)
             if not args.no_fetch:
                 submodule.call("git", "fetch", args.remote)
-            submodule.checkout_branch("%s/%s" % (args.remote, args.base))
+            #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
 
-        main_repo.cd(main_repo.path)
-        cmd = ["git", "commit", "--dry-run", "-a", "-n", "-m", args.message]
-        try:
-            main_repo.call(*cmd)
-        except:
-            import traceback; traceback.print_exc()
-            self.log.info("Nothing to commit.")
-            return False
+        # Create commit message using command arguments
+        self.filters = {}
+        self.filters["base"] = args.base
+        self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
-        cmd.pop(2)  # Remove "dry-run"
-        main_repo.call(*cmd)
-        return True
+        merge_msg = main_repo.rmerge(self.filters, top_message=args.message)
 
+        for line in merge_msg.split("\n"):
+            self.log.info(line)
 
 class Version(Command):
     """Find which version of scc is being used"""
