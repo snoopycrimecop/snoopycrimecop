@@ -32,6 +32,7 @@ Environment variables:
 
 """
 
+import re
 import os
 import sys
 import time
@@ -40,19 +41,27 @@ import logging
 import threading
 import difflib
 
-
+argparse_loaded = True
 try:
     import argparse
 except ImportError:
-    print >>sys.stderr, \
-            "# argparse missing. Install via 'pip install argparse'"
+    print >> sys.stderr, \
+        "Module argparse missing. Install via 'pip install argparse'"
+    argparse_loaded = False
 
+github_loaded = True
 try:
     import github  # PyGithub
+    try:
+        github.GithubException(0, "test")
+    except AttributeError:
+        print >> sys.stderr, \
+            "Conflicting github module. Uninstall PyGithub3"
+        github_loaded = False
 except ImportError, ie:
-    print >>sys.stderr, \
-            "# github missing. Install via 'pip install pygithub'"
-
+    print >> sys.stderr, \
+        "Module github missing. Install via 'pip install PyGithub'"
+    github_loaded = False
 
 SCC_DEBUG_LEVEL = logging.INFO
 if "SCC_DEBUG_LEVEL" in os.environ:
@@ -167,12 +176,24 @@ class GHManager(object):
         self.dont_ask = dont_ask
         try:
             self.authorize(password)
+            self.get_login()
         except github.GithubException, ge:
-            if ge.status == 401:
-                msg = ge.data.get("message", "")
-                if "Bad credentials" == msg:
-                    print msg
-                    sys.exit(ge.status)
+            if self.exc_is_bad_credentials(ge):
+                print "Bad credentials"
+                sys.exit(ge.status)
+
+    def exc_check_code_and_message(self, ge, status, message):
+        if ge.status == status:
+            msg = ge.data.get("message", "")
+            if message == msg:
+                return True
+        return False
+
+    def exc_is_bad_credentials(self, ge):
+        return self.exc_check_code_and_message(ge, 401, "Bad credentials")
+
+    def exc_is_not_found(self, ge):
+        return self.exc_check_code_and_message(ge, 404, "Not Found")
 
     def authorize(self, password):
         if password is not None:
@@ -186,9 +207,12 @@ class GHManager(object):
                     raise
                 import getpass
                 msg = "Enter password for http://github.com/%s:" % self.login_or_token
-                password = getpass.getpass(msg)
-                if password is not None:
-                    self.create_instance(self.login_or_token, password)
+                try:
+                    password = getpass.getpass(msg)
+                    if password is not None:
+                        self.create_instance(self.login_or_token, password)
+                except KeyboardInterrupt:
+                    raise Stop("Interrupted by the user")
         else:
             self.create_instance()
 
@@ -238,29 +262,6 @@ class GHManager(object):
 #
 # Utility classes
 #
-
-class HelpFormatter(argparse.RawTextHelpFormatter):
-    """
-    argparse.HelpFormatter subclass which cleans up our usage, preventing very long
-    lines in subcommands.
-
-    Borrowed from omero/cli.py
-    """
-
-    def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
-        argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
-        self._action_max_length = 20
-
-    def _split_lines(self, text, width):
-        return [text.splitlines()[0]]
-
-    class _Section(argparse.RawTextHelpFormatter._Section):
-
-        def __init__(self, formatter, parent, heading=None):
-            #if heading:
-            #    heading = "\n%s\n%s" % ("=" * 40, heading)
-            argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
-
 
 class LoggerWrapper(threading.Thread):
     """
@@ -795,12 +796,14 @@ class GitRepository(object):
         try:
             originurl = self.call("git", "config", "--get", \
                 "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
-                stderr = subprocess.PIPE).communicate()[0]
+                stderr = subprocess.PIPE).communicate()[0].rstrip("\n")
+            if originurl[-1] == "/":
+                originurl = originurl[:-1]
         except:
             self.dbg("git config --get remote failure", exc_info=1)
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
-            raise Stop("Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+            raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
@@ -1077,6 +1080,123 @@ class GitRepoCommand(Command):
         gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
         self.log.info("Merged branch pushed to %s" % gh_branch)
 
+class CheckMilestone(Command):
+    """Check all merged PRs for a set milestone
+
+Find all GitHub-merged PRs between head and tag, i.e.
+git log --first-parent TAG...HEAD
+
+Usage:
+    check-milestone 0.2.0 0.2.1 --set=0.2.1
+    """
+
+    NAME = "check-milestone"
+
+    def __init__(self, sub_parsers):
+        super(CheckMilestone, self).__init__(sub_parsers)
+        self.add_token_args()
+        self.parser.add_argument('tag', help="Start tag for searching")
+        self.parser.add_argument('head', help="Branch to use check")
+        self.parser.add_argument('--set', help="Milestone to use if unset",
+                                 dest="milestone_name")
+
+        # 5c5a373 Merge pull request #31 from joshmoore/sha-blob
+        self.pattern = re.compile("^\w+\sMerge\spull\srequest\s.(\d+)\s.*$")
+
+    def __call__(self, args):
+        super(CheckMilestone, self).__call__(args)
+        self.login(args)
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+
+            if args.milestone_name:
+                milestone = None
+                milestones = main_repo.origin.get_milestones()
+                for m in milestones:
+                    if m.title == args.milestone_name:
+                        milestone = m
+                        break
+
+
+                if not milestone:
+                    raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
+
+            p = main_repo.call("git", "log", "--oneline", "--first-parent",
+                               "%s...%s" % (args.tag, args.head),
+                               stdout=subprocess.PIPE)
+            o, e = p.communicate()
+            for line in o.split("\n"):
+                if line:
+                    m = self.pattern.match(line)
+                    if not m:
+                        self.log.info("Unknown merge: %s", line)
+                        continue
+                    pr = int(m.group(1))
+                    pr = main_repo.origin.get_issue(pr)
+                    if pr.milestone:
+                        self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
+                    else:
+                        if args.milestone_name:
+                            try:
+                                pr.edit(milestone=milestone)
+                                print "Set milestone for PR %s to %s" % (pr.number, milestone.title)
+                            except github.GithubException, ge:
+                                if self.gh.exc_is_not_found(ge):
+                                    raise Stop(10, "Can't edit milestone")
+                                raise
+                        else:
+                            print "No milestone for PR %s ('%s')" % (pr.number, line)
+        finally:
+            main_repo.cleanup()
+
+
+class AlreadyMerged(Command):
+    """Detect branches local & remote which are already merged"""
+
+    NAME = "already-merged"
+
+    def __init__(self, sub_parsers):
+        super(AlreadyMerged, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument("target",
+                help="Head to check against. E.g. master or origin/master")
+        self.parser.add_argument("ref", nargs="*",
+                default=["refs/heads", "refs/remotes"],
+                help="List of ref patterns to be checked. E.g. refs/remotes/origin")
+
+    def __call__(self, args):
+        super(AlreadyMerged, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+            self.already_merged(args, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def already_merged(self, args, main_repo):
+        fmt = "%(committerdate:iso8601) %(refname:short)   --- %(subject)"
+        cmd = ["git", "for-each-ref", "--sort=committerdate"]
+        cmd.append("--format=%s" % fmt)
+        cmd += args.ref
+        proc = main_repo.call(*cmd, stdout=subprocess.PIPE)
+        out, err = proc.communicate()
+        for line in out.split("\n"):
+            if line:
+                self.go(main_repo, line.rstrip(), args.target)
+
+    def go(self, main_repo, input, target):
+        parts = input.split(" ")
+        branch = parts[3]
+        tip, err = main_repo.call("git", "rev-parse", branch,
+            stdout=subprocess.PIPE).communicate()
+        mrg, err = main_repo.call("git", "merge-base", branch, target,
+            stdout=subprocess.PIPE).communicate()
+        if tip == mrg:
+            print input
+
+
 class CleanSandbox(Command):
     """Cleans snoopys-sandbox repo after testing
 
@@ -1113,6 +1233,95 @@ Removes all branches from your fork of snoopys-sandbox
                 gh_repo.push(":%s" % b.name)
             else:
                 raise Exception("Not possible!")
+
+
+class Label(Command):
+    """
+    Query/add/remove labels from Github issues.
+    """
+
+    NAME = "label"
+
+    def __init__(self, sub_parsers):
+        super(Label, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument('issue', nargs="*", type=int,
+                help="The number of the issue to check")
+
+        # Actions
+        group = self.parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('--add', action='append',
+            help='List labels attached to the issue')
+        group.add_argument('--available', action='store_true',
+            help='List all available labels for this repo')
+        group.add_argument('--list', action='store_true',
+            help='List labels attached to the issue')
+
+    def __call__(self, args):
+        super(Label, self).__call__(args)
+        self.login(args)
+
+        main_repo = self.gh.git_repo(self.cwd, False)
+        try:
+            self.labels(args, main_repo)
+        finally:
+            main_repo.cleanup()
+
+    def labels(self, args, main_repo):
+        if args.add:
+            self.add(args, main_repo)
+        elif args.available:
+            self.available(args, main_repo)
+        elif args.list:
+            self.list(args, main_repo)
+
+    def get_issue(self, args, main_repo, issue):
+        # Copied from Rebase command.
+        # TODO: this could be refactored
+        if args.issue and len(args.issue) > 1:
+            if print_issue_num:
+                print "# %s" % issue
+        return main_repo.origin.get_issue(issue)
+
+    def add(self, args, main_repo):
+        for label in args.add:
+
+            try:
+                label = main_repo.origin.get_label(label)
+            except github.GithubException, ge:
+                if self.gh.exc_is_not_found(ge):
+                    try:
+                        main_repo.origin.create_label(label, "663399")
+                        label = main_repo.origin.get_label(label)
+                    except github.GithubException, ge:
+                        if self.gh.exc_is_not_found(ge):
+                            raise Stop(10, "Can't create label: %s" % label)
+                        raise
+                else:
+                    raise
+
+            for issue in args.issue:
+                issue = self.get_issue(args, main_repo, issue)
+                try:
+                    issue.add_to_labels(label)
+                except github.GithubException, ge:
+                    if self.gh.exc_is_not_found(ge):
+                        raise Stop(10, "Can't add label: %s" % label.name)
+                    raise
+
+    def available(self, args, main_repo):
+        if args.issue:
+            print >>sys.stderr, "# Ignoring issues: %s" % args.issue
+        for label in main_repo.origin.get_labels():
+            print label.name
+
+    def list(self, args, main_repo):
+        for issue in args.issue:
+            issue = self.get_issue(args, main_repo, issue)
+            labels = issue.get_labels()
+            for label in labels:
+                print label.name
 
 
 class Merge(GitRepoCommand):
@@ -1278,6 +1487,9 @@ class Rebase(Command):
         self.parser.add_argument('--remote', default="origin",
             help='Name of the remote to use as the origin')
 
+        self.parser.add_argument('--continue', action="store_true", dest="_continue",
+                                 help="Continue from a failed rebase")
+
         self.parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
         self.parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
 
@@ -1311,10 +1523,14 @@ class Rebase(Command):
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
 
-        branching_sha1 = main_repo.find_branching_point(pr_head,
-                "%s/%s" % (args.remote, pr.base.ref))
-        main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                branching_sha1[0:6], pr_head)
+        if not args._continue:
+            branching_sha1 = main_repo.find_branching_point(pr_head,
+                    "%s/%s" % (args.remote, pr.base.ref))
+            try:
+                main_repo.rebase("%s/%s" % (args.remote, args.newbase),
+                    branching_sha1, pr_head)
+            except:
+                raise Stop(20, "rebasing failed.\nFix conflicts and re-run with an additional --continue flag")
 
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
         main_repo.new_branch(new_branch)
@@ -1537,10 +1753,35 @@ class Version(Command):
                 return pr.head.sha
 
 def parsers():
+
+    class HelpFormatter(argparse.RawTextHelpFormatter):
+        """
+        argparse.HelpFormatter subclass which cleans up our usage, preventing very long
+        lines in subcommands.
+
+        Borrowed from omero/cli.py
+        Defined inside of parsers() in case argparse is not installed.
+        """
+
+        def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
+            argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
+            self._action_max_length = 20
+
+        def _split_lines(self, text, width):
+            return [text.splitlines()[0]]
+
+        class _Section(argparse.RawTextHelpFormatter._Section):
+
+            def __init__(self, formatter, parent, heading=None):
+                #if heading:
+                #    heading = "\n%s\n%s" % ("=" * 40, heading)
+                argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
+
     scc_parser = argparse.ArgumentParser(
         description='Snoopy Crime Cop Script',
         formatter_class=HelpFormatter)
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
+
     return scc_parser, sub_parsers
 
 def main(args=None):
@@ -1550,6 +1791,8 @@ def main(args=None):
     each Command class found in globals().
     """
 
+    if not argparse_loaded or not github_loaded:
+        raise Stop(2, "Missing required module")
     if args is None: args = sys.argv[1:]
 
     scc_parser, sub_parsers = parsers()
