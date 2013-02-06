@@ -1064,10 +1064,16 @@ Usage:
 
             if args.milestone_name:
                 milestone = None
-                milestones = main_repo.origin.get_milestones()
-                for m in milestones:
-                    if m.title == args.milestone_name:
-                        milestone = m
+
+                for state in ("open", "closed"):
+
+                    milestones = main_repo.origin.get_milestones(state=state)
+                    for m in milestones:
+                        if m.title == args.milestone_name:
+                            milestone = m
+                            break
+
+                    if milestone:
                         break
 
 
