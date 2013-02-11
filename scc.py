@@ -902,7 +902,7 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             try:
-                submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -912,12 +912,14 @@ class GitRepository(object):
         else:
             merge_msg_footer = ""
 
+        updated = False
         if not info:
             if top_message is None:
                 top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", top_message)
-        return merge_msg
+                updated = True
+        return updated, merge_msg
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -1366,13 +1368,13 @@ class Merge(GitRepoCommand):
         self.init_main_repo(args)
 
         try:
-            self.merge(args, self.main_repo)
+            updated = self.merge(args, self.main_repo)
         finally:
             if not args.info:
                 self.log.debug("Cleaning remote branches created for merging")
                 self.main_repo.rcleanup()
 
-        if args.push is not None:
+        if updated and args.push is not None:
             self.push(args, self.main_repo)
 
     def merge(self, args, main_repo):
@@ -1393,11 +1395,13 @@ class Merge(GitRepoCommand):
                 commit_args.append("-E")
                 commit_args.append(filt)
 
-        merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
-            commit_id = " ".join(commit_args), top_message=args.message)
+        updated, merge_msg = main_repo.rmerge(self.filters, args.info, 
+            args.comment, commit_id = " ".join(commit_args), 
+            top_message=args.message)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
+        return updated
 
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
@@ -1658,11 +1662,12 @@ class UpdateSubmodules(GitRepoCommand):
         try:
             if args.message is None:
                 args.message = "Update submodules"
+            self.log.info("Updating submodules")
             updated = self.submodules(args, self.main_repo)
         finally:
             self.main_repo.rcleanup()
 
-        if args.push is not None:
+        if updated and args.push is not None:
             self.push(args, self.main_repo)
 
     def submodules(self, args, main_repo):
@@ -1679,10 +1684,11 @@ class UpdateSubmodules(GitRepoCommand):
         self.filters["include"] = {"label": None, "user": None, "pr": None}
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
-        merge_msg = main_repo.rmerge(self.filters, top_message=args.message)
-
+        updated, merge_msg = main_repo.rmerge(self.filters,
+            top_message=args.message)
         for line in merge_msg.split("\n"):
             self.log.info(line)
+        return updated
 
 class Version(Command):
     """Find which version of scc is being used"""
