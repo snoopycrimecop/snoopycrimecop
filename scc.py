@@ -560,7 +560,7 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path, reset=False):
+    def __init__(self, gh, path):
         """
         Register the git repository path, return the current status and
         register the Github origin remote.
@@ -575,8 +575,6 @@ class GitRepository(object):
         self.gh = gh
         self.path =  os.path.abspath(path)
 
-        if reset:
-            self.reset()
         self.get_status()
 
 
@@ -585,7 +583,7 @@ class GitRepository(object):
         self.origin = gh.gh_repo(repo_name, user_name)
         self.submodules = []
 
-    def register_submodules(self, reset=False):
+    def register_submodules(self):
         if len(self.submodules) == 0:
             submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
                     "echo $path", stdout=subprocess.PIPE).communicate()[0]
@@ -594,9 +592,9 @@ class GitRepository(object):
             while "".join(lines):
                 directory = lines.pop(0).strip()
                 try:
-                    submodule_repo = self.gh.git_repo(directory, reset)
+                    submodule_repo = self.gh.git_repo(directory)
                     self.submodules.append(submodule_repo)
-                    submodule_repo.register_submodules(reset)
+                    submodule_repo.register_submodules()
                 finally:
                     self.cd(self.path)
 
@@ -745,6 +743,7 @@ class GitRepository(object):
         self.cd(self.path)
         self.dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
+        self.call("git", "submodule", "update", "--recursive")
 
     def fast_forward(self, base, remote = "origin"):
         """Execute merge --ff-only against the current base"""
@@ -770,6 +769,17 @@ class GitRepository(object):
             raise Exception(msg)
 
         return revlist.splitlines()
+
+    def has_local_changes(self):
+        """Check for local changes in the Git repository"""
+        self.cd(self.path)
+        try:
+            r = self.call("git", "diff-index", "--quiet", "HEAD")
+            self.dbg("%s has no local changes" ,self)
+            return False
+        except Exception, e:
+            self.dbg("%s has local changes" ,self)
+            return True
 
     #
     # Higher level git commands
@@ -873,7 +883,7 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge"):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None):
         """Recursively merge PRs for each submodule."""
 
         merge_msg = ""
@@ -892,7 +902,7 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             try:
-                submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -902,10 +912,14 @@ class GitRepository(object):
         else:
             merge_msg_footer = ""
 
+        updated = False
         if not info:
-            self.call("git", "commit", "--allow-empty", "-a", "-n", "-m", \
-                "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer))
-        return merge_msg
+            if top_message is None:
+                top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
+            if self.has_local_changes():
+                self.call("git", "commit", "-a", "-n", "-m", top_message)
+                updated = True
+        return updated, merge_msg
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -1032,6 +1046,41 @@ class Command(object):
         self.log = logging.getLogger('scc.%s'%self.NAME)
         self.dbg = self.log.debug
 
+class GitRepoCommand(Command):
+    """
+    Abstract class for commands acting on a git repository
+    """
+
+    NAME = "abstract"
+
+    def __init__(self, sub_parsers):
+        super(GitRepoCommand, self).__init__(sub_parsers)
+
+    def init_main_repo(self, args):
+        self.main_repo = self.gh.git_repo(self.cwd)
+        self.main_repo.register_submodules()
+        if args.reset:
+            self.main_repo.reset()
+            self.main_repo.get_status()
+
+    def add_new_commit_args(self):
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
+        self.parser.add_argument('--message', '-m',
+            help='Message to use for the commit. Overwrites auto-generated value')
+        self.parser.add_argument('--push', type=str,
+            help='Name of the branch to use to recursively push the merged branch to Github')
+        self.parser.add_argument('base', type=str)
+
+    def push(self, args, main_repo):
+        branch_name = "HEAD:refs/heads/%s" % (args.push)
+
+        user = self.gh.get_login()
+        remote = "git@github.com:%s/" % (user) + "%s.git"
+
+        main_repo.rpush(branch_name, remote, force=True)
+        gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
+        self.log.info("Merged branch pushed to %s" % gh_branch)
 
 class CheckMilestone(Command):
     """Check all merged PRs for a set milestone
@@ -1059,7 +1108,7 @@ Usage:
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
 
             if args.milestone_name:
@@ -1128,7 +1177,7 @@ class AlreadyMerged(Command):
         super(AlreadyMerged, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.already_merged(args, main_repo)
         finally:
@@ -1221,7 +1270,7 @@ class Label(Command):
         super(Label, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.labels(args, main_repo)
         finally:
@@ -1283,7 +1332,7 @@ class Label(Command):
                 print label.name
 
 
-class Merge(Command):
+class Merge(GitRepoCommand):
     """
     Merge Pull Requests opened against a specific base branch.
 
@@ -1305,13 +1354,10 @@ class Merge(Command):
             pr:24 or  user:username. If no key is specified, the filter is \
             considered as a label filter."
 
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
         self.parser.add_argument('--comment', action='store_true',
             help='Add comment to conflicting PR')
-        self.parser.add_argument('base', type=str)
         self.parser.add_argument('--default', '-D', type=str,
             choices=["none", "mine", "org" , "all"], default="org",
             help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
@@ -1319,32 +1365,23 @@ class Merge(Command):
             help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument('--exclude', '-E', type=str, action='append',
             help='Filters to exclude PRs from the merge.' + filter_desc)
-        self.parser.add_argument('--push', type=str,
-            help='Name of the branch to use to recursively push the merged branch to Github')
+        self.add_new_commit_args()
 
     def __call__(self, args):
         super(Merge, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, args.reset)
-        main_repo.register_submodules(args.reset)
+        self.init_main_repo(args)
 
         try:
-            self.merge(args, main_repo)
+            updated = self.merge(args, self.main_repo)
         finally:
             if not args.info:
                 self.log.debug("Cleaning remote branches created for merging")
-                main_repo.rcleanup()
+                self.main_repo.rcleanup()
 
-        if args.push is not None:
-            branch_name = "HEAD:refs/heads/%s" % (args.push)
-
-            user = self.gh.get_login()
-            remote = "git@github.com:%s/" % (user) + "%s.git"
-
-            main_repo.rpush(branch_name, remote, force=True)
-            gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
-            self.log.info("Merged branch pushed to %s" % gh_branch)
+        if updated and args.push is not None:
+            self.push(args, self.main_repo)
 
     def merge(self, args, main_repo):
 
@@ -1364,11 +1401,13 @@ class Merge(Command):
                 commit_args.append("-E")
                 commit_args.append(filt)
 
-        merge_msg = main_repo.rmerge(self.filters, args.info, args.comment,
-            commit_id = " ".join(commit_args))
+        updated, merge_msg = main_repo.rmerge(self.filters, args.info, 
+            args.comment, commit_id = " ".join(commit_args), 
+            top_message=args.message)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
+        return updated
 
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
@@ -1468,7 +1507,7 @@ class Rebase(Command):
         super(Rebase, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd, False)
+        main_repo = self.gh.git_repo(self.cwd)
         try:
             self.rebase(args, main_repo)
         finally:
@@ -1601,6 +1640,61 @@ class Token(Command):
             if token:
                 print token
 
+
+class UpdateSubmodules(GitRepoCommand):
+    """
+    Similar to the 'merge' command, but only updates submodule pointers.
+
+    """
+
+    NAME = "update-submodules"
+
+    def __init__(self, sub_parsers):
+        super(UpdateSubmodules, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        self.parser.add_argument('--remote', default="origin",
+            help='Name of the remote to use as the origin')
+        self.parser.add_argument('--no-fetch', action='store_true',
+            help="Fetch the latest target branch for all repos")
+        self.add_new_commit_args()
+
+    def __call__(self, args):
+        super(UpdateSubmodules, self).__call__(args)
+        self.login(args)
+
+        self.init_main_repo(args)
+
+        try:
+            if args.message is None:
+                args.message = "Update submodules"
+            self.log.info("Updating submodules")
+            updated = self.submodules(args, self.main_repo)
+        finally:
+            self.main_repo.rcleanup()
+
+        if updated and args.push is not None:
+            self.push(args, self.main_repo)
+
+    def submodules(self, args, main_repo):
+        for submodule in main_repo.submodules:
+            submodule.cd(submodule.path)
+            if not args.no_fetch:
+                submodule.call("git", "fetch", args.remote)
+            #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
+
+        # Create commit message using command arguments
+        self.filters = {}
+        self.filters["base"] = args.base
+        self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+
+        updated, merge_msg = main_repo.rmerge(self.filters,
+            top_message=args.message)
+        for line in merge_msg.split("\n"):
+            self.log.info(line)
+        return updated
 
 class Version(Command):
     """Find which version of scc is being used"""
