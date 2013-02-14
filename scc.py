@@ -512,22 +512,13 @@ class GitHubRepository(object):
         else:
             return None
 
-    def run_filter(self, filters, labels, user, pr, action="Include"):
+    def run_filter(self, filters, pr_attributes, action="Include"):
 
-        labels = self.intersect(filters["label"], labels)
-        if labels:
-            self.dbg("# ... %s labels: %s", action, " ".join(labels))
-            return True
-
-        user = self.intersect(filters["user"], [user])
-        if user:
-            self.dbg("# ... %s user: %s", action, " ".join(user))
-            return True
-
-        pr = self.intersect(filters["pr"], [pr])
-        if pr:
-            self.dbg("# ... %s PR: %s", action, " ".join(pr))
-            return True
+        for key, value in pr_attributes.iteritems():
+            intersect_set = self.intersect(filters[key], value)
+            if intersect_set:
+                self.dbg("# ... %s %s: %s", action, key, " ".join(value))
+                return True
 
         return False
 
@@ -540,17 +531,18 @@ class GitHubRepository(object):
 
         for pull in pulls:
             pullrequest = PullRequest(self, pull)
-            labels = [x.lower() for x in pullrequest.get_labels()]
+            pr_attributes = {}
+            pr_attributes["label"] = [x.lower() for x in pullrequest.get_labels()]
+            pr_attributes["user"] = [pullrequest.get_user().login]
+            pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            user = pullrequest.get_user().login
-            number = str(pullrequest.get_number())
             if not self.is_whitelisted(pullrequest.get_user(), filters["default"]):
                 # Allow filter PR inclusion using include filter
-                if not self.run_filter(filters["include"], labels, user, number, action="Include"):
+                if not self.run_filter(filters["include"], pr_attributes, action="Include"):
                     continue
 
             # Exclude PRs specified by filters
-            if self.run_filter(filters["exclude"], labels, user, number,  action="Exclude"):
+            if self.run_filter(filters["exclude"], pr_attributes,  action="Exclude"):
                 continue
 
             self.dbg(pullrequest)
