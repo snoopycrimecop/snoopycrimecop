@@ -41,6 +41,9 @@ class UnitTestMerge(MockTest):
             "user": ["test_user"],
             "pr": ["1"],
             }
+        self.default_exclude = ['exclude']
+        self.default_include = ['include']
+        self.default_default = 'org'
 
     def testIntersect(self):
         self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
@@ -79,6 +82,32 @@ class UnitTestMerge(MockTest):
     def testPRsFilter(self):
         prs_filter = {"label": [], "user": [None], "pr": ["1","2"]}
         self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
+
+    # Default arguments
+    def testDefaults(self):
+        ns = self.scc_parser.parse_args(["merge", "master"])
+        self.assertEqual(ns.exclude, self.default_exclude)
+        self.assertEqual(ns.include, self.default_include)
+
+    def testInclude(self):
+        ns = self.scc_parser.parse_args(["merge", "master", "-Itest"])
+        self.assertEqual(ns.exclude, self.default_exclude)
+        self.assertEqual(ns.include, ['test'])
+
+    def testMultipleInclude(self):
+        ns = self.scc_parser.parse_args(["merge" ,"master", "-Itest", "-Itest2"])
+        self.assertEqual(ns.exclude, self.default_exclude)
+        self.assertEqual(ns.include, ['test' ,'test2'])
+
+    def testExclude(self):
+        ns = self.scc_parser.parse_args(["merge", "master", "-Etest"])
+        self.assertEqual(ns.exclude, ['test'])
+        self.assertEqual(ns.include, self.default_include)
+
+    def testMultipleExclude(self):
+        ns = self.scc_parser.parse_args(["merge" ,"master", "-Etest", "-Etest2"])
+        self.assertEqual(ns.include, self.default_include)
+        self.assertEqual(ns.exclude, ['test' ,'test2'])
 
 class TestMerge(SandboxTest):
 
