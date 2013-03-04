@@ -1399,8 +1399,8 @@ class Merge(GitRepoCommand):
                 commit_args.append("-E")
                 commit_args.append(filt)
 
-        updated, merge_msg = main_repo.rmerge(self.filters, args.info, 
-            args.comment, commit_id = " ".join(commit_args), 
+        updated, merge_msg = main_repo.rmerge(self.filters, args.info,
+            args.comment, commit_id = " ".join(commit_args),
             top_message=args.message)
 
         for line in merge_msg.split("\n"):
@@ -1798,7 +1798,8 @@ def main(args=None):
     """
     Reusable entry point. Arguments are parsed
     via the argparse-subcommands configured via
-    each Command class found in globals().
+    each Command class found in globals(). Stop
+    exceptions are propagated to callers.
     """
 
     if not argparse_loaded or not github_loaded:
@@ -1817,9 +1818,17 @@ def main(args=None):
     ns.func(ns)
 
 
-if __name__ == "__main__":
+def entry_point():
+    """
+    External entry point which calls main() and
+    if Stop is raised, calls sys.exit()
+    """
     try:
         main()
     except Stop, stop:
         print stop,
         sys.exit(stop.rc)
+
+
+if __name__ == "__main__":
+    entry_point()
