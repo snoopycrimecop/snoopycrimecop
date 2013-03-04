@@ -1346,6 +1346,10 @@ class Merge(GitRepoCommand):
             pr:24 or  user:username. If no key is specified, the filter is \
             considered as a label filter."
 
+        class DefaultList(list):
+            def __copy__(self):
+                return []
+
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
         self.parser.add_argument('--comment', action='store_true',
@@ -1354,8 +1358,10 @@ class Merge(GitRepoCommand):
             choices=["none", "mine", "org" , "all"], default="org",
             help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
         self.parser.add_argument('--include', '-I', type=str, action='append',
+            default = DefaultList(["include"]),
             help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument('--exclude', '-E', type=str, action='append',
+            default = DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.add_new_commit_args()
 
