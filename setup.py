@@ -23,30 +23,7 @@
 SCC distribution script
 """
 
-LONG_DESCRIPTION = """Tools for working with git(hub)
-
-`scc` (for "Snoopy Crime Cop") provides a module and a command-line
-wrapper for various activities related to git and github, including
-rebasing pull requests (PRs).
-
-INSTALLATION REQUIREMENTS
-
-argparse
-PyGithub
-A local copy of git
-
-INSTALLATION HOW TO:
-
-pip install argparse  # Python 2.6 and earlier
-pip install PyGithub
-
-or download source and run:
-
-python setup.py install
-
-Then from the command-line execute: $ scc
-
-"""
+LONG_DESCRIPTION = open("README.rst", "r").read()
 
 CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Environment :: Console",
@@ -71,7 +48,7 @@ setup(name='scc',
       py_modules = ['scc'],
       install_requires=['PyGithub', 'argparse'],
       entry_points={ 'console_scripts': ['scc = scc:entry_point'] },
-      package_data = {'': ['LICENSE.txt', 'README.md']},
+      package_data = {'': ['LICENSE.txt', 'README.rst']},
       zip_safe = True,
 
       # Using global variables
