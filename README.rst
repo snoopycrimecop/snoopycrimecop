@@ -45,7 +45,7 @@ Or for the latest development version:
 License
 -------
 
-snoopycrimecop is released under the LGPL.
+snoopycrimecop is released under the GPL.
 
 Copyright
 ---------
