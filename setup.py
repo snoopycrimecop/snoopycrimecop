@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012 Glencoe Software, Inc. All Rights Reserved.
-# Use is subject to license terms supplied in LICENSE.txt
+# Copyright (C) 2012 University of Dundee & Open Microscopy Environment
+# All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
