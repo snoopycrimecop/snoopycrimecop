@@ -23,6 +23,12 @@
 SCC distribution script
 """
 
+from setuptools import setup
+from scc_version import get_git_version
+
+
+VERSION = get_git_version()
+
 LONG_DESCRIPTION = open("README.rst", "r").read()
 
 CLASSIFIERS = ["Development Status :: 4 - Beta",
@@ -33,10 +39,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Programming Language :: Python",
                "Topic :: Software Development :: Version Control"]
 
-from scc import __version__
-from setuptools import setup
 setup(name='scc',
-      version=__version__,
 
       # Simple strings
       author='The Open Microscopy Team',
@@ -44,16 +47,17 @@ setup(name='scc',
       description='OME tools for managing the git(hub) workflow',
       license='GPLv2',
       url='https://github.com/openmicroscopy/snoopycrimecop',
-      download_url = 'https://github.com/openmicroscopy/snoopycrimecop/tarball/%s' % __version__,
 
       # More complex variables
       py_modules = ['scc'],
-      install_requires=['PyGithub', 'argparse'],
-      entry_points={ 'console_scripts': ['scc = scc:entry_point'] },
-      package_data = {'': ['LICENSE.txt', 'README.rst']},
-      zip_safe = True,
+      install_requires = ['PyGithub', 'argparse'],
+      entry_points = { 'console_scripts': ['scc = scc:entry_point'] },
+      data_files = [('.', ['LICENSE.txt', 'RELEASE-VERSION', 'README.rst',
+                           'requirements.txt', 'scc_version.py'])],
+      zip_safe = False,  # For reading RELEASE-VERSION
 
       # Using global variables
       long_description=LONG_DESCRIPTION,
       classifiers=CLASSIFIERS,
+      version=VERSION,
       )
