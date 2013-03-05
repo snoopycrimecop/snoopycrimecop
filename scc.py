@@ -1708,59 +1708,13 @@ class Version(Command):
         # No login
         self.configure_logging(args)
 
-        self.blob = hash_object(__file__)
-        self.dbg("hash_object: %s", self.blob)
+        from scc_version import get_git_version
+        try:
+            version = get_git_version()
+        except:
+            version = "unknown"
+        print version
 
-        gh = get_github(get_token(), dont_ask=True)
-        self.repo = gh.gh_repo("snoopycrimecop", "openmicroscopy")
-
-        found = self.search_heads()
-        if not found:
-            found = self.search_prs()
-
-        if not found:
-            print "unknown"
-        else:
-            print found
-
-    def sort(self, a, b):
-        a = a.split(".")
-        b = b.split(".")
-        return cmp(b, a)
-
-    def matches(self, head, msg=None):
-        if msg is None:
-            self.dbg("Checking %s", head)
-        else:
-            self.dbg("Checking %s (%s)", msg, head)
-
-        tree = self.repo.get_git_tree(head)
-        for elt in tree.tree:
-            if self.blob == elt.sha:
-                self.dbg("Found blob: %s" % elt.path)
-                return head
-
-    def search_heads(self):
-
-        heads = [tag.name for tag in self.repo.get_tags()]
-
-        # Remove versions known not to support Version
-        for x in ("0.1.0", "0.2.0"):
-            heads.remove(x)
-
-        heads.sort(self.sort)
-        heads.append("master")
-
-        self.dbg("Searching: %s" % heads)
-        for head in heads:
-            if self.matches(head):
-                return head
-
-    def search_prs(self):
-        for pr in self.repo.get_pulls():
-            msg = "%s %s" % (pr.number, pr.title)
-            if self.matches(pr.head.sha, msg):
-                return pr.head.sha
 
 def parsers():
 
