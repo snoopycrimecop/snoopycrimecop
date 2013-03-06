@@ -1708,8 +1708,10 @@ class Version(Command):
         # No login
         self.configure_logging(args)
 
-        from scc_version import get_git_version
         try:
+            # If this file has been downloaded in isolation,
+            # then scc_version will not be present.
+            from scc_version import get_git_version
             version = get_git_version()
         except:
             version = "unknown"
