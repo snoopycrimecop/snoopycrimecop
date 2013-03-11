@@ -1022,6 +1022,21 @@ class Command(object):
         self.parser.add_argument("-q", "--quiet", action="count", default=0,
             help="Decrease the logging level by multiples of 10")
 
+        self.pr_pattern = re.compile("^(\w+)\sMerge\spull\srequest\s.(\d+)\s(.*)$")
+
+    def parse_pr(self, line):
+        m = self.pr_pattern.match(line)
+        if not m:
+            raise Exception("Unknown merge commit: %s" % line)
+        sha1 = m.group(1)
+        num = int(m.group(2))
+        rest = m.group(3)
+        return sha1, num, rest
+
+    def add_remote_arg(self):
+        self.parser.add_argument('--remote', default="origin",
+            help='Name of the remote to use as the origin')
+
     def add_token_args(self):
         self.parser.add_argument("--token",
             help="Token to use rather than from config files")
@@ -1110,9 +1125,6 @@ Usage:
         self.parser.add_argument('--set', help="Milestone to use if unset",
                                  dest="milestone_name")
 
-        # 5c5a373 Merge pull request #31 from joshmoore/sha-blob
-        self.pattern = re.compile("^\w+\sMerge\spull\srequest\s.(\d+)\s.*$")
-
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
@@ -1142,13 +1154,13 @@ Usage:
                                stdout=subprocess.PIPE)
             o, e = p.communicate()
             for line in o.split("\n"):
-                if line:
-                    m = self.pattern.match(line)
-                    if not m:
+                if line.split():
+                    try:
+                        sha1, num, rest = self.parse_pr(line)
+                    except:
                         self.log.info("Unknown merge: %s", line)
                         continue
-                    pr = int(m.group(1))
-                    pr = main_repo.origin.get_issue(pr)
+                    pr = main_repo.origin.get_issue(num)
                     if pr.milestone:
                         self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
                     else:
@@ -1603,8 +1615,7 @@ class Rebase(Command):
             self.parser.add_argument('--no-%s'%name, action='store_false',
                 dest=name, default=True, help=help)
 
-        self.parser.add_argument('--remote', default="origin",
-            help='Name of the remote to use as the origin')
+        self.add_remote_arg()
 
         self.parser.add_argument('--continue', action="store_true", dest="_continue",
                                  help="Continue from a failed rebase")
@@ -1753,7 +1764,6 @@ class Token(Command):
 class UpdateSubmodules(GitRepoCommand):
     """
     Similar to the 'merge' command, but only updates submodule pointers.
-
     """
 
     NAME = "update-submodules"
@@ -1762,8 +1772,7 @@ class UpdateSubmodules(GitRepoCommand):
         super(UpdateSubmodules, self).__init__(sub_parsers)
         self.add_token_args()
 
-        self.parser.add_argument('--remote', default="origin",
-            help='Name of the remote to use as the origin')
+        self.add_remote_arg()
         self.parser.add_argument('--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
         self.add_new_commit_args()
@@ -1804,6 +1813,7 @@ class UpdateSubmodules(GitRepoCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
 
 class Version(Command):
     """Find which version of scc is being used"""
