@@ -983,8 +983,7 @@ class GitRepository(object):
                 self.cd(self.path)
 
 #
-# What follows are the commands which are available from the command-line.
-# Alphabetically listed please.
+# Exceptions
 #
 
 class Stop(Exception):
@@ -997,6 +996,23 @@ class Stop(Exception):
     def __init__(self, rc, *args, **kwargs):
         self.rc = rc
         super(Stop, self).__init__(*args, **kwargs)
+
+
+class UnknownMerge(Exception):
+    """
+    Exception which specifies that the given commit
+    doesn't qualify as a Github-style merge.
+    """
+
+    def __init__(self, line):
+        self.line = line
+        super(UnknownMerge, self).__init__()
+
+
+#
+# What follows are the commands which are available from the command-line.
+# Alphabetically listed please.
+#
 
 class Command(object):
     """
@@ -1028,7 +1044,7 @@ class Command(object):
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
         if not m:
-            raise Exception("Unknown merge commit: %s" % line)
+            raise UnknownMerge(line=line)
         sha1 = m.group(1)
         num = int(m.group(2))
         rest = m.group(3)
@@ -1818,13 +1834,33 @@ command.
             print 'Size of files does not match! (%s <> %s)' % (len(alines), len(blines))
             print 'Edit files so that lines match'
 
+        fmt_gh = "git notes --ref=see_also/%s append -m 'See gh-%s on %s (%s)' %s"
+        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
         for i, a in enumerate(alines):
             b = blines[i]
-            aid, apr, arest = self.parse_pr(a)
-            bid, bpr, brest = self.parse_pr(b)
-            fmt = "git notes --ref=see_also/%s append -m 'See gh-%s on %s (%s)' %s"
-            print fmt % (self.args.b, bpr, self.args.b, bid, aid)
-            print fmt % (self.args.a, apr, self.args.a, aid, bid)
+            try:
+                aid, apr, arest = self.parse_pr(a)
+            except Exception, e:
+                aid = None
+                apr = None
+                arest = e.line
+
+            try:
+                bid, bpr, brest = self.parse_pr(b)
+            except Exception, e:
+                bid = None
+                bpr = None
+                brest = e.line
+
+            if aid and bid:
+                print fmt_gh % (self.args.b, bpr, self.args.b, bid, aid)
+                print fmt_gh % (self.args.a, apr, self.args.a, aid, bid)
+            elif aid:
+                print fmt_na % (self.args.b, brest, aid)
+            elif bid:
+                print fmt_na % (self.args.a, arest, bid)
+            else:
+                raise Exception("No IDs found for line %s!" % i)
 
     def list_prs(self, current, seealso):
         """
@@ -1863,7 +1899,9 @@ command.
                 raise Exception("can't split on ##: " + line)
             if "See gh-" in rest:
                 continue
-            if self.args.write:
+            elif "n/a" in rest:
+                continue
+            elif self.args.write:
                 print >>f, line
             else:
                 print line
