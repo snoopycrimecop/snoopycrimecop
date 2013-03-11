@@ -572,8 +572,9 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.origin = gh.gh_repo(repo_name, user_name)
         self.submodules = []
+        if gh:
+            self.origin = gh.gh_repo(repo_name, user_name)
 
     def register_submodules(self):
         if len(self.submodules) == 0:
@@ -946,11 +947,12 @@ class GitRepository(object):
     def cleanup(self):
         """Remove remote branches created for merging."""
         self.cd(self.path)
-        for key in self.remotes().keys():
-            try:
-                self.call("git", "remote", "rm", key)
-            except Exception:
-                self.log.error("Failed to remove", key, exc_info=1)
+        if self.gh:  # no gh implies no connection
+            for key in self.remotes().keys():
+                try:
+                    self.call("git", "remote", "rm", key)
+                except Exception:
+                    self.log.error("Failed to remove", key, exc_info=1)
 
     def rpush(self, branch_name, remote, force=False):
         """Recursively push a branch to remotes across submodules"""
