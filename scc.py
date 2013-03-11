@@ -622,15 +622,29 @@ class GitRepository(object):
         """
         return self.wrap_call(self.debugWrap, *command, **kwargs)
 
+    def call_no_wait(self, *command, **kwargs):
+        """
+        Call wrap_call with a debug LoggerWrapper
+        """
+        kwargs["no_wait"] = True
+        return self.wrap_call(self.debugWrap, *command, **kwargs)
+
     def wrap_call(self, logWrap, *command, **kwargs):
         for x in ("stdout", "stderr"):
             if x not in kwargs:
                 kwargs[x] = logWrap
+
+        try:
+            no_wait = kwargs.pop("no_wait")
+        except:
+            no_wait = False
+
         self.dbg("Calling '%s'" % " ".join(command))
         p = subprocess.Popen(command, **kwargs)
-        rc = p.wait()
-        if rc:
-            raise Exception("rc=%s" % rc)
+        if not no_wait:
+            rc = p.wait()
+            if rc:
+                raise Exception("rc=%s" % rc)
         return p
 
     def write_directories(self):
