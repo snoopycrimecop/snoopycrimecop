@@ -36,6 +36,7 @@ import re
 import os
 import sys
 import time
+import uuid
 import subprocess
 import logging
 import threading
@@ -1759,6 +1760,120 @@ class Token(Command):
                 user=args.user, local=args.local)
             if token:
                 print token
+
+
+class UnrebasedPRs(Command):
+    """Check that PRs in one branch have been merged to another.
+
+This makes use of git notes to detect links between PRs on two
+different branches. These have likely be migrated via the rebase
+command.
+
+    """
+
+    NAME = "unrebased-prs"
+
+    def __init__(self, sub_parsers):
+        super(UnrebasedPRs, self).__init__(sub_parsers)
+        self.add_token_args()
+        group = self.parser.add_mutually_exclusive_group()
+        group.add_argument('--parse', action='store_true',
+                           help="Parse generated files into git commands")
+        group.add_argument('--write', action='store_true',
+                           help="Write PRs to files.")
+
+        self.parser.add_argument('a', help="First branch to compare")
+        self.parser.add_argument('b', help="Second branch to compare")
+        self.add_remote_arg()
+
+    def fname(self, branch):
+        return "%s_prs.txt" % branch
+
+    def __call__(self, args):
+        super(UnrebasedPRs, self).__call__(args)
+        self.args = args
+        self.main_repo = GitRepository(path=self.cwd, gh=None)
+        try:
+            self.notes()
+        finally:
+            self.main_repo.cleanup()
+
+    def notes(self):
+        if self.args.parse:
+            self.parse()
+        else:
+            self.list_prs(self.args.a, self.args.b)
+            self.list_prs(self.args.b, self.args.a)
+
+    def parse(self):
+        aname = self.fname(self.args.a)
+        bname = self.fname(self.args.b)
+        if not os.path.exists(aname) or not os.path.exists(bname):
+            print 'Use --write to create files first'
+
+        alines = open(aname, "r").read().strip().split("\n")
+        blines = open(bname, "r").read().strip().split("\n")
+
+        if len(alines) != len(blines):
+            print 'Size of files does not match! (%s <> %s)' % (len(alines), len(blines))
+            print 'Edit files so that lines match'
+
+        for i, a in enumerate(alines):
+            b = blines[i]
+            aid, apr, arest = self.parse_pr(a)
+            bid, bpr, brest = self.parse_pr(b)
+            fmt = "git notes --ref=see_also/%s append -m 'See gh-%s on %s (%s)' %s"
+            print fmt % (self.args.b, bpr, self.args.b, bid, aid)
+            print fmt % (self.args.a, apr, self.args.a, aid, bid)
+
+    def list_prs(self, current, seealso):
+        """
+        Method for listing PRs while filtering out those which
+        have a seealso note
+        """
+        git_notes_ref = "refs/notes/see_also/" + seealso
+        merge_base = self.merge_base()
+        merge_range = "%s...%s/%s" % (merge_base, self.args.remote, current)
+        middle_marker = str(uuid.uuid4()).replace("-", "")
+        end_marker = str(uuid.uuid4()).replace("-", "")
+
+        popen = self.main_repo.call_no_wait("git", "log",
+                                  "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
+                                  "--notes=%s" % git_notes_ref,
+                                  "--first-parent", merge_range,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if self.args.write:
+            fname = self.fname(current)
+            if os.path.exists(fname):
+                raise Stop("File already exists: %s" % fname)
+            f = open(fname, "w")
+        else:
+            print "*"*100
+            print "PRs on %s without note for %s" % (current, seealso)
+            print "*"*100
+
+        out, err = popen.communicate()
+        for line in out.split(end_marker):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                line, rest = line.split(middle_marker)
+            except:
+                raise Exception("can't split on ##: " + line)
+            if "See gh-" in rest:
+                continue
+            if self.args.write:
+                print >>f, line
+            else:
+                print line
+
+    def merge_base(self):
+        a = "%s/%s" % (self.args.remote, self.args.a)
+        b = "%s/%s" % (self.args.remote, self.args.b)
+        mrg, err = self.main_repo.call("git", "merge-base", a, b,
+            stdout=subprocess.PIPE).communicate()
+        return mrg.strip()
 
 
 class UpdateSubmodules(GitRepoCommand):
