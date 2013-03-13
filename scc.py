@@ -1039,7 +1039,9 @@ class Command(object):
         self.parser.add_argument("-q", "--quiet", action="count", default=0,
             help="Decrease the logging level by multiples of 10")
 
-        self.pr_pattern = re.compile("^(\w+)\sMerge\spull\srequest\s.(\d+)\s(.*)$")
+        sha1_chars = "^([0-9a-f]+)\s"
+        self.pr_pattern = re.compile(sha1_chars + "Merge\spull\srequest\s.(\d+)\s(.*)$")
+        self.commit_pattern = re.compile(sha1_chars + "(.*)$")
 
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
@@ -1049,6 +1051,14 @@ class Command(object):
         num = int(m.group(2))
         rest = m.group(3)
         return sha1, num, rest
+
+    def parse_commit(self, line):
+        m = self.commit_pattern.match(line)
+        if not m:
+            raise UnknownMerge(line=line)
+        sha1 = m.group(1)
+        rest = m.group(2)
+        return sha1, rest
 
     def add_remote_arg(self):
         self.parser.add_argument('--remote', default="origin",
@@ -1841,16 +1851,22 @@ command.
             try:
                 aid, apr, arest = self.parse_pr(a)
             except Exception, e:
-                aid = None
-                apr = None
-                arest = e.line
+                try:
+                    aid, arest = self.parse_commit(a)
+                except:
+                    aid = None
+                    apr = None
+                    arest = e.line
 
             try:
                 bid, bpr, brest = self.parse_pr(b)
             except Exception, e:
-                bid = None
-                bpr = None
-                brest = e.line
+                try:
+                    bid, brest = self.parse_commit(b)
+                except:
+                    bid = None
+                    bpr = None
+                    brest = e.line
 
             if aid and bid:
                 print fmt_gh % (self.args.b, bpr, self.args.b, bid, aid)
