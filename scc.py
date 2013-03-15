@@ -262,6 +262,9 @@ class GHManager(object):
 #
 # Utility classes
 #
+class DefaultList(list):
+    def __copy__(self):
+        return []
 
 class LoggerWrapper(threading.Thread):
     """
@@ -1452,10 +1455,6 @@ class Merge(GitRepoCommand):
             pr:24 or  user:username. If no key is specified, the filter is \
             considered as a label filter."
 
-        class DefaultList(list):
-            def __copy__(self):
-                return []
-
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
         self.parser.add_argument('--comment', action='store_true',
@@ -1710,6 +1709,9 @@ class Token(Command):
             help="Set token to specified value")
         self.parser.add_argument("--create", action="store_true",
             help="""Create token by authorizing with github.""")
+        self.parser.add_argument('--scopes', '-s', type=str, action='append',
+            default = DefaultList(["public_repo"]),
+            help="Scopes to use for token creation")
 
     def __call__(self, args):
         super(Token, self).__call__(args)
@@ -1732,7 +1734,7 @@ class Token(Command):
                     raise Exception("No github.user configured")
                 gh = get_github(user)
                 user = gh.github.get_user()
-                auth = user.create_authorization(["public_repo"], "scc token")
+                auth = user.create_authorization(args.scopes, "scc token")
                 git_config("github.token", user=args.user,
                     local=args.local, value=auth.token)
             else:
