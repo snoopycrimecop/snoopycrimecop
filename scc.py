@@ -36,6 +36,7 @@ import re
 import os
 import sys
 import time
+import uuid
 import subprocess
 import logging
 import threading
@@ -572,8 +573,9 @@ class GitRepository(object):
 
         # Register the origin remote
         [user_name, repo_name] = self.get_remote_info("origin")
-        self.origin = gh.gh_repo(repo_name, user_name)
         self.submodules = []
+        if gh:
+            self.origin = gh.gh_repo(repo_name, user_name)
 
     def register_submodules(self):
         if len(self.submodules) == 0:
@@ -621,15 +623,29 @@ class GitRepository(object):
         """
         return self.wrap_call(self.debugWrap, *command, **kwargs)
 
+    def call_no_wait(self, *command, **kwargs):
+        """
+        Call wrap_call with a debug LoggerWrapper
+        """
+        kwargs["no_wait"] = True
+        return self.wrap_call(self.debugWrap, *command, **kwargs)
+
     def wrap_call(self, logWrap, *command, **kwargs):
         for x in ("stdout", "stderr"):
             if x not in kwargs:
                 kwargs[x] = logWrap
+
+        try:
+            no_wait = kwargs.pop("no_wait")
+        except:
+            no_wait = False
+
         self.dbg("Calling '%s'" % " ".join(command))
         p = subprocess.Popen(command, **kwargs)
-        rc = p.wait()
-        if rc:
-            raise Exception("rc=%s" % rc)
+        if not no_wait:
+            rc = p.wait()
+            if rc:
+                raise Exception("rc=%s" % rc)
         return p
 
     def write_directories(self):
@@ -946,11 +962,12 @@ class GitRepository(object):
     def cleanup(self):
         """Remove remote branches created for merging."""
         self.cd(self.path)
-        for key in self.remotes().keys():
-            try:
-                self.call("git", "remote", "rm", key)
-            except Exception:
-                self.log.error("Failed to remove", key, exc_info=1)
+        if self.gh:  # no gh implies no connection
+            for key in self.remotes().keys():
+                try:
+                    self.call("git", "remote", "rm", key)
+                except Exception:
+                    self.log.error("Failed to remove", key, exc_info=1)
 
     def rpush(self, branch_name, remote, force=False):
         """Recursively push a branch to remotes across submodules"""
@@ -966,8 +983,7 @@ class GitRepository(object):
                 self.cd(self.path)
 
 #
-# What follows are the commands which are available from the command-line.
-# Alphabetically listed please.
+# Exceptions
 #
 
 class Stop(Exception):
@@ -980,6 +996,23 @@ class Stop(Exception):
     def __init__(self, rc, *args, **kwargs):
         self.rc = rc
         super(Stop, self).__init__(*args, **kwargs)
+
+
+class UnknownMerge(Exception):
+    """
+    Exception which specifies that the given commit
+    doesn't qualify as a Github-style merge.
+    """
+
+    def __init__(self, line):
+        self.line = line
+        super(UnknownMerge, self).__init__()
+
+
+#
+# What follows are the commands which are available from the command-line.
+# Alphabetically listed please.
+#
 
 class Command(object):
     """
@@ -1005,6 +1038,31 @@ class Command(object):
             help="Increase the logging level by multiples of 10")
         self.parser.add_argument("-q", "--quiet", action="count", default=0,
             help="Decrease the logging level by multiples of 10")
+
+        sha1_chars = "^([0-9a-f]+)\s"
+        self.pr_pattern = re.compile(sha1_chars + "Merge\spull\srequest\s.(\d+)\s(.*)$")
+        self.commit_pattern = re.compile(sha1_chars + "(.*)$")
+
+    def parse_pr(self, line):
+        m = self.pr_pattern.match(line)
+        if not m:
+            raise UnknownMerge(line=line)
+        sha1 = m.group(1)
+        num = int(m.group(2))
+        rest = m.group(3)
+        return sha1, num, rest
+
+    def parse_commit(self, line):
+        m = self.commit_pattern.match(line)
+        if not m:
+            raise UnknownMerge(line=line)
+        sha1 = m.group(1)
+        rest = m.group(2)
+        return sha1, rest
+
+    def add_remote_arg(self):
+        self.parser.add_argument('--remote', default="origin",
+            help='Name of the remote to use as the origin')
 
     def add_token_args(self):
         self.parser.add_argument("--token",
@@ -1105,9 +1163,6 @@ Usage:
         self.parser.add_argument('--set', help="Milestone to use if unset",
                                  dest="milestone_name")
 
-        # 5c5a373 Merge pull request #31 from joshmoore/sha-blob
-        self.pattern = re.compile("^\w+\sMerge\spull\srequest\s.(\d+)\s.*$")
-
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
@@ -1137,13 +1192,13 @@ Usage:
                                stdout=subprocess.PIPE)
             o, e = p.communicate()
             for line in o.split("\n"):
-                if line:
-                    m = self.pattern.match(line)
-                    if not m:
+                if line.split():
+                    try:
+                        sha1, num, rest = self.parse_pr(line)
+                    except:
                         self.log.info("Unknown merge: %s", line)
                         continue
-                    pr = int(m.group(1))
-                    pr = main_repo.origin.get_issue(pr)
+                    pr = main_repo.origin.get_issue(num)
                     if pr.milestone:
                         self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
                     else:
@@ -1598,8 +1653,7 @@ class Rebase(Command):
             self.parser.add_argument('--no-%s'%name, action='store_false',
                 dest=name, default=True, help=help)
 
-        self.parser.add_argument('--remote', default="origin",
-            help='Name of the remote to use as the origin')
+        self.add_remote_arg()
 
         self.parser.add_argument('--continue', action="store_true", dest="_continue",
                                  help="Continue from a failed rebase")
@@ -1745,10 +1799,151 @@ class Token(Command):
                 print token
 
 
+class UnrebasedPRs(Command):
+    """Check that PRs in one branch have been merged to another.
+
+This makes use of git notes to detect links between PRs on two
+different branches. These have likely be migrated via the rebase
+command.
+
+    """
+
+    NAME = "unrebased-prs"
+
+    def __init__(self, sub_parsers):
+        super(UnrebasedPRs, self).__init__(sub_parsers)
+        self.add_token_args()
+        group = self.parser.add_mutually_exclusive_group()
+        group.add_argument('--parse', action='store_true',
+                           help="Parse generated files into git commands")
+        group.add_argument('--write', action='store_true',
+                           help="Write PRs to files.")
+
+        self.parser.add_argument('a', help="First branch to compare")
+        self.parser.add_argument('b', help="Second branch to compare")
+        self.add_remote_arg()
+
+    def fname(self, branch):
+        return "%s_prs.txt" % branch
+
+    def __call__(self, args):
+        super(UnrebasedPRs, self).__call__(args)
+        self.args = args
+        self.main_repo = GitRepository(path=self.cwd, gh=None)
+        try:
+            self.notes()
+        finally:
+            self.main_repo.cleanup()
+
+    def notes(self):
+        if self.args.parse:
+            self.parse()
+        else:
+            self.list_prs(self.args.a, self.args.b)
+            self.list_prs(self.args.b, self.args.a)
+
+    def parse(self):
+        aname = self.fname(self.args.a)
+        bname = self.fname(self.args.b)
+        if not os.path.exists(aname) or not os.path.exists(bname):
+            print 'Use --write to create files first'
+
+        alines = open(aname, "r").read().strip().split("\n")
+        blines = open(bname, "r").read().strip().split("\n")
+
+        if len(alines) != len(blines):
+            print 'Size of files does not match! (%s <> %s)' % (len(alines), len(blines))
+            print 'Edit files so that lines match'
+
+        fmt_gh = "git notes --ref=see_also/%s append -m 'See gh-%s on %s (%s)' %s"
+        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
+        for i, a in enumerate(alines):
+            b = blines[i]
+            try:
+                aid, apr, arest = self.parse_pr(a)
+            except Exception, e:
+                try:
+                    aid, arest = self.parse_commit(a)
+                except:
+                    aid = None
+                    apr = None
+                    arest = e.line
+
+            try:
+                bid, bpr, brest = self.parse_pr(b)
+            except Exception, e:
+                try:
+                    bid, brest = self.parse_commit(b)
+                except:
+                    bid = None
+                    bpr = None
+                    brest = e.line
+
+            if aid and bid:
+                print fmt_gh % (self.args.b, bpr, self.args.b, bid, aid)
+                print fmt_gh % (self.args.a, apr, self.args.a, aid, bid)
+            elif aid:
+                print fmt_na % (self.args.b, brest, aid)
+            elif bid:
+                print fmt_na % (self.args.a, arest, bid)
+            else:
+                raise Exception("No IDs found for line %s!" % i)
+
+    def list_prs(self, current, seealso):
+        """
+        Method for listing PRs while filtering out those which
+        have a seealso note
+        """
+        git_notes_ref = "refs/notes/see_also/" + seealso
+        merge_base = self.merge_base()
+        merge_range = "%s...%s/%s" % (merge_base, self.args.remote, current)
+        middle_marker = str(uuid.uuid4()).replace("-", "")
+        end_marker = str(uuid.uuid4()).replace("-", "")
+
+        popen = self.main_repo.call_no_wait("git", "log",
+                                  "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
+                                  "--notes=%s" % git_notes_ref,
+                                  "--first-parent", merge_range,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if self.args.write:
+            fname = self.fname(current)
+            if os.path.exists(fname):
+                raise Stop("File already exists: %s" % fname)
+            f = open(fname, "w")
+        else:
+            print "*"*100
+            print "PRs on %s without note for %s" % (current, seealso)
+            print "*"*100
+
+        out, err = popen.communicate()
+        for line in out.split(end_marker):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                line, rest = line.split(middle_marker)
+            except:
+                raise Exception("can't split on ##: " + line)
+            if "See gh-" in rest:
+                continue
+            elif "n/a" in rest:
+                continue
+            elif self.args.write:
+                print >>f, line
+            else:
+                print line
+
+    def merge_base(self):
+        a = "%s/%s" % (self.args.remote, self.args.a)
+        b = "%s/%s" % (self.args.remote, self.args.b)
+        mrg, err = self.main_repo.call("git", "merge-base", a, b,
+            stdout=subprocess.PIPE).communicate()
+        return mrg.strip()
+
+
 class UpdateSubmodules(GitRepoCommand):
     """
     Similar to the 'merge' command, but only updates submodule pointers.
-
     """
 
     NAME = "update-submodules"
@@ -1757,8 +1952,7 @@ class UpdateSubmodules(GitRepoCommand):
         super(UpdateSubmodules, self).__init__(sub_parsers)
         self.add_token_args()
 
-        self.parser.add_argument('--remote', default="origin",
-            help='Name of the remote to use as the origin')
+        self.add_remote_arg()
         self.parser.add_argument('--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
         self.parser.add_argument('--no-pr', action='store_false',
@@ -1818,6 +2012,7 @@ class UpdateSubmodules(GitRepoCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
 
 class Version(Command):
     """Find which version of scc is being used"""
