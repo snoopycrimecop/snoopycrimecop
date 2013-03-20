@@ -532,6 +532,10 @@ class GitHubRepository(object):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
 
+        # Fail fast if default is none and no include filter is specified
+        if filters["default"] == 'none' and all(v is None for v in filters["include"].values()):
+            return
+
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
 
