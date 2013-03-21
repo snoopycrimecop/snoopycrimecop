@@ -1002,7 +1002,8 @@ class Command(object):
         help = self.__doc__.lstrip()
         self.parser = sub_parsers.add_parser(self.NAME,
             help=help, description=help)
-        self.parser.set_defaults(func=self.__call__)
+        if not hasattr(self, "_configure"):
+            self.parser.set_defaults(func=self.__call__)
 
         self.parser.add_argument("-v", "--verbose", action="count", default=0,
             help="Increase the logging level by multiples of 10")
@@ -1691,7 +1692,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
 
 class Token(Command):
-    """Get, set, and create tokens for use by scc"""
+    """Utility functions to manipulate local and remote Github tokens"""
 
     NAME = "token"
 
@@ -1699,53 +1700,81 @@ class Token(Command):
         super(Token, self).__init__(sub_parsers)
         # No token args
 
-        self.parser.add_argument("--local", action="store_true",
-            help="Access token only in local repository")
-        self.parser.add_argument("--user", action="store_true",
-            help="Access token only in user configuration")
-        self.parser.add_argument("--all", action="store_true",
-            help="""Print all known tokens with key""")
-        self.parser.add_argument("--set",
-            help="Set token to specified value")
-        self.parser.add_argument("--create", action="store_true",
-            help="""Create token by authorizing with github.""")
-        self.parser.add_argument('--scopes', '-s', type=str, action='append',
+        token_parsers = self.parser.add_subparsers(title = "Subcommands")
+        self._configure(token_parsers)
+
+    def _configure(self, sub_parsers):
+        help = "Print all known Github tokens and users"
+        list = sub_parsers.add_parser("list", help=help, description=help)
+        list.set_defaults(func=self.list)
+
+        help = """Create a new token"""
+        create = sub_parsers.add_parser("create", help=help, description=help)
+        create.set_defaults(func=self.create)
+        create.add_argument('--scope', '-s', type=str, action='append',
             default = DefaultList(["public_repo"]),
-            help="Scopes to use for token creation")
+            help="Scopes to use for token creation. Default: ['public_repo']")
 
-    def __call__(self, args):
+        help = "Set token to the specified value"
+        set = sub_parsers.add_parser("set", help=help, description=help)
+        set.add_argument('value', type=str, help="Value of the token to set")
+        set.set_defaults(func=self.set)
+
+        help = "Get the github token"
+        get = sub_parsers.add_parser("get", help=help, description=help)
+        get.set_defaults(func=self.get)
+
+        for x in (create, set, get):
+            self.add_token_arguments(x)
+
+    def add_token_arguments(self, parser):
+        parser.add_argument("--local", action="store_true",
+            help="Access token only in local repository")
+        parser.add_argument("--user", action="store_true",
+            help="Access token only in user configuration")
+
+    def list(self, args):
+        """List existing github tokens and users"""
+
         super(Token, self).__call__(args)
-        # No login
+        for key in ("github.token", "github.user"):
 
-        if args.all:
-            for key in ("github.token", "github.user"):
+            for user, local, msg in \
+                ((False, True, "local"), (True, False, "user")):
 
-                for user, local, msg in \
-                    ((False, True, "local"), (True, False, "user")):
+                rv = git_config(key, user=user, local=local)
+                if rv is not None:
+                    print "[%s] %s=%s" % (msg, key, rv)
 
-                    rv = git_config(key, user=user, local=local)
-                    if rv is not None:
-                        print "[%s] %s=%s" % (msg, key, rv)
+    def create(self, args):
+        """Create a new github token"""
 
-        elif (args.set or args.create):
-            if args.create:
-                user = git_config("github.user")
-                if not user:
-                    raise Exception("No github.user configured")
-                gh = get_github(user)
-                user = gh.github.get_user()
-                auth = user.create_authorization(args.scopes, "scc token")
-                git_config("github.token", user=args.user,
-                    local=args.local, value=auth.token)
-            else:
-                git_config("github.token", user=args.user,
-                    local=args.local, value=args.set)
-        else:
-            token = git_config("github.token",
-                user=args.user, local=args.local)
-            if token:
-                print token
+        super(Token, self).__call__(args)
+        user = git_config("github.user")
+        if not user:
+            raise Exception("No github.user configured")
+        gh = get_github(user)
+        user = gh.github.get_user()
+        auth = user.create_authorization(args.scopes, "scc token")
+        git_config("github.token", user=args.user,
+            local=args.local, value=auth.token)
 
+    def get(self, args):
+        """Get the value of the github token"""
+        
+        super(Token, self).__call__(args)
+        token = git_config("github.token",
+            user=args.user, local=args.local)
+        if token:
+            print token
+
+    def set(self, args):
+        """Set the value of the github token"""
+
+        super(Token, self).__call__(args)
+        git_config("github.token", user=args.user,
+            local=args.local, value=args.value)
+        return
 
 class UpdateSubmodules(GitRepoCommand):
     """
