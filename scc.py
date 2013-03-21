@@ -1151,6 +1151,8 @@ class GitRepoCommand(Command):
             help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
+        self.parser.add_argument('--update-gitmodules', action='store_true',
+            help='Update submodule URLs to point at the forks of the Github user')
         self.parser.add_argument('base', type=str)
 
     def push(self, args, main_repo):
@@ -1593,7 +1595,8 @@ class Merge(GitRepoCommand):
 
         updated, merge_msg = main_repo.rmerge(self.filters, args.info,
             args.comment, commit_id = " ".join(commit_args),
-            top_message=args.message)
+            top_message=args.message,
+            update_gitmodules=args.update_gitmodules)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
@@ -2046,7 +2049,8 @@ class UpdateSubmodules(GitRepoCommand):
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
         updated, merge_msg = main_repo.rmerge(self.filters,
-            top_message=args.message)
+            top_message=args.message,
+            update_gitmodules=args.update_gitmodules)
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
