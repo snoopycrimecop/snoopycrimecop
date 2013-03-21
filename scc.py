@@ -1708,8 +1708,11 @@ class Token(Command):
         list = sub_parsers.add_parser("list", help=help, description=help)
         list.set_defaults(func=self.list)
 
-        help = """Create a new token"""
-        create = sub_parsers.add_parser("create", help=help, description=help)
+        help = """Create a new token and set the value of github token"""
+        desc = help +  """. See
+        http://developer.github.com/v3/oauth/#create-a-new-authorization for more information.
+        """
+        create = sub_parsers.add_parser("create", help=help, description=desc)
         create.set_defaults(func=self.create)
         create.add_argument('--scope', '-s', type=str, action='append',
             default = DefaultList(["public_repo"]),
@@ -1725,9 +1728,9 @@ class Token(Command):
         get.set_defaults(func=self.get)
 
         for x in (create, set, get):
-            self.add_token_arguments(x)
+            self.add_config_file_arguments(x)
 
-    def add_token_arguments(self, parser):
+    def add_config_file_arguments(self, parser):
         parser.add_argument("--local", action="store_true",
             help="Access token only in local repository")
         parser.add_argument("--user", action="store_true",
