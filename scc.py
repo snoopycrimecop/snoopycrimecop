@@ -108,7 +108,7 @@ def hash_object(filename):
     return digest.hexdigest()
 
 
-def git_config(name, user=False, local=False, value=None):
+def git_config(name, user=False, local=False, value=None, config_file=None):
     dbg = logging.getLogger("scc.config").debug
     try:
         pre_cmd = ["git", "config"]
@@ -121,6 +121,10 @@ def git_config(name, user=False, local=False, value=None):
             pre_cmd.append("--global")
         elif local:
             pre_cmd.append("--local")
+
+        if config_file is not None:
+            pre_cmd.extend(["-f", config_file])
+
         p = subprocess.Popen(pre_cmd + post_cmd, \
                 stdout=subprocess.PIPE).communicate()[0]
         value = p.split("\n")[0].strip()
