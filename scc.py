@@ -908,7 +908,7 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False):
         """Recursively merge PRs for each submodule."""
 
         merge_msg = ""
@@ -941,6 +941,20 @@ class GitRepository(object):
         if not info:
             if top_message is None:
                 top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
+
+            if update_gitmodules:
+                submodule_paths = self.get_submodule_paths()
+                for path in submodule_paths:
+                    # Read submodule URL registered in .gitmodules
+                    config_name = "submodule.%s.url" % path
+                    submodule_url = git_config(config_name, config_file=".gitmodules")
+
+                    # Substitute submodule URL using connection login
+                    user = self.gh.get_login()
+                    pattern = '(.*github.com[:/]).*(/.*.git)'
+                    new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
+                    git_config(config_name, config_file=".gitmodules", value=new_url)
+
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", top_message)
                 updated = True
