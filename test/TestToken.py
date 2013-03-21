@@ -36,13 +36,18 @@ class UnitTestToken(MockTest):
         self.default_scopes = ['public_repo']
 
     # Default arguments
-    def testDefaultScopes(self):
-        ns = self.scc_parser.parse_args(["token", "--create"])
-        self.assertEqual(ns.scopes, self.default_scopes)
+    def testCreateDefaults(self):
+        ns = self.scc_parser.parse_args(["token", "create"])
+        self.assertEqual(ns.scope, self.default_scopes)
+        self.assertFalse(ns.no_set)
 
-    def testNonDefaultScopes(self):
-        ns = self.scc_parser.parse_args(["token", "--create", "-srepo", "-spublic_repo"])
-        self.assertEqual(ns.scopes, ["repo", "public_repo"])
+    def testCreateNonDefaultScopes(self):
+        ns = self.scc_parser.parse_args(["token", "create", "-srepo", "-spublic_repo"])
+        self.assertEqual(ns.scope, ["repo", "public_repo"])
+
+    def testCreateNoSet(self):
+        ns = self.scc_parser.parse_args(["token", "create", "--no-set"])
+        self.assertTrue(ns.no_set)
 
 if __name__ == '__main__':
     import logging
