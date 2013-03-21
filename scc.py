@@ -108,7 +108,7 @@ def hash_object(filename):
     return digest.hexdigest()
 
 
-def git_config(name, user=False, local=False, value=None):
+def git_config(name, user=False, local=False, value=None, config_file=None):
     dbg = logging.getLogger("scc.config").debug
     try:
         pre_cmd = ["git", "config"]
@@ -121,6 +121,10 @@ def git_config(name, user=False, local=False, value=None):
             pre_cmd.append("--global")
         elif local:
             pre_cmd.append("--local")
+
+        if config_file is not None:
+            pre_cmd.extend(["-f", config_file])
+
         p = subprocess.Popen(pre_cmd + post_cmd, \
                 stdout=subprocess.PIPE).communicate()[0]
         value = p.split("\n")[0].strip()
@@ -588,12 +592,7 @@ class GitRepository(object):
 
     def register_submodules(self):
         if len(self.submodules) == 0:
-            submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
-                    "echo $path", stdout=subprocess.PIPE).communicate()[0]
-
-            lines = submodule_paths.split("\n")
-            while "".join(lines):
-                directory = lines.pop(0).strip()
+            for directory in self.get_submodule_paths():
                 try:
                     submodule_repo = self.gh.git_repo(directory)
                     self.submodules.append(submodule_repo)
@@ -798,6 +797,15 @@ class GitRepository(object):
             self.dbg("%s has local changes" ,self)
             return True
 
+    def get_submodule_paths(self):
+        """Return path of repository submodules"""
+
+        submodule_paths = self.call("git", "submodule", "--quiet",
+            "foreach", "echo $path", stdout=subprocess.PIPE).communicate()[0]
+        submodule_paths = submodule_paths.split("\n")[:-1]
+
+        return submodule_paths
+
     #
     # Higher level git commands
     #
@@ -900,7 +908,7 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False):
         """Recursively merge PRs for each submodule."""
 
         merge_msg = ""
@@ -919,7 +927,7 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             try:
-                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id)
+                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -933,6 +941,20 @@ class GitRepository(object):
         if not info:
             if top_message is None:
                 top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
+
+            if update_gitmodules:
+                submodule_paths = self.get_submodule_paths()
+                for path in submodule_paths:
+                    # Read submodule URL registered in .gitmodules
+                    config_name = "submodule.%s.url" % path
+                    submodule_url = git_config(config_name, config_file=".gitmodules")
+
+                    # Substitute submodule URL using connection login
+                    user = self.gh.get_login()
+                    pattern = '(.*github.com[:/]).*(/.*.git)'
+                    new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
+                    git_config(config_name, config_file=".gitmodules", value=new_url)
+
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", top_message)
                 updated = True
@@ -1129,6 +1151,8 @@ class GitRepoCommand(Command):
             help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--push', type=str,
             help='Name of the branch to use to recursively push the merged branch to Github')
+        self.parser.add_argument('--update-gitmodules', action='store_true',
+            help='Update submodule URLs to point at the forks of the Github user')
         self.parser.add_argument('base', type=str)
 
     def push(self, args, main_repo):
@@ -1571,7 +1595,8 @@ class Merge(GitRepoCommand):
 
         updated, merge_msg = main_repo.rmerge(self.filters, args.info,
             args.comment, commit_id = " ".join(commit_args),
-            top_message=args.message)
+            top_message=args.message,
+            update_gitmodules=args.update_gitmodules)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
@@ -2024,7 +2049,8 @@ class UpdateSubmodules(GitRepoCommand):
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
         updated, merge_msg = main_repo.rmerge(self.filters,
-            top_message=args.message)
+            top_message=args.message,
+            update_gitmodules=args.update_gitmodules)
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
