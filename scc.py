@@ -1714,6 +1714,8 @@ class Token(Command):
         """
         create = sub_parsers.add_parser("create", help=help, description=desc)
         create.set_defaults(func=self.create)
+        create.add_argument('--no-set', action="store_true",
+            help="Create the token but do not set it")
         create.add_argument('--scope', '-s', type=str, action='append',
             default = DefaultList(["public_repo"]),
             help="Scopes to use for token creation. Default: ['public_repo']")
@@ -1758,9 +1760,11 @@ class Token(Command):
             raise Exception("No github.user configured")
         gh = get_github(user)
         user = gh.github.get_user()
-        auth = user.create_authorization(args.scopes, "scc token")
-        git_config("github.token", user=args.user,
-            local=args.local, value=auth.token)
+        auth = user.create_authorization(args.scope, "scc token")
+        print "Created authentification token %s" % auth.token
+        if not args.no_set:
+            git_config("github.token", user=args.user,
+                local=args.local, value=auth.token)
 
     def get(self, args):
         """Get the value of the github token"""
