@@ -588,12 +588,7 @@ class GitRepository(object):
 
     def register_submodules(self):
         if len(self.submodules) == 0:
-            submodule_paths = self.call("git", "submodule", "--quiet", "foreach",\
-                    "echo $path", stdout=subprocess.PIPE).communicate()[0]
-
-            lines = submodule_paths.split("\n")
-            while "".join(lines):
-                directory = lines.pop(0).strip()
+            for directory in self.get_submodule_paths():
                 try:
                     submodule_repo = self.gh.git_repo(directory)
                     self.submodules.append(submodule_repo)
@@ -797,6 +792,15 @@ class GitRepository(object):
         except Exception, e:
             self.dbg("%s has local changes" ,self)
             return True
+
+    def get_submodule_paths(self):
+        """Return path of repository submodules"""
+
+        submodule_paths = self.call("git", "submodule", "--quiet",
+            "foreach", "echo $path", stdout=subprocess.PIPE).communicate()[0]
+        submodule_paths = submodule_paths.split("\n")[:-1]
+
+        return submodule_paths
 
     #
     # Higher level git commands
