@@ -927,7 +927,7 @@ class GitRepository(object):
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id)
             postsha1 = self.get_current_sha1()
-            updated = (presha1 != postsha)
+            updated = (presha1 != postsha1)
 
         for filt in ["include", "exclude"]:
             filters[filt]["pr"] = None
