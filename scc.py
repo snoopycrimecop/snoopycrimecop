@@ -934,7 +934,7 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             try:
-                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
