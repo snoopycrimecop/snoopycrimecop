@@ -2129,7 +2129,7 @@ def main(args=None):
     for name, MyCommand in sorted(globals().items()):
         if not isinstance(MyCommand, type): continue
         if not issubclass(MyCommand, Command): continue
-        if MyCommand == Command: continue
+        if MyCommand.NAME == "abstract": continue
         MyCommand(sub_parsers)
 
     ns = scc_parser.parse_args(args)
