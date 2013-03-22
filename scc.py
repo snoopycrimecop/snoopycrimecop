@@ -1717,7 +1717,7 @@ class Token(Command):
         create.add_argument('--no-set', action="store_true",
             help="Create the token but do not set it")
         create.add_argument('--scope', '-s', type=str, action='append',
-            default = DefaultList(["public_repo"]),
+            default = DefaultList(["public_repo"]), choices=self.get_scopes(),
             help="Scopes to use for token creation. Default: ['public_repo']")
 
         help = "Set token to the specified value"
@@ -1731,6 +1731,12 @@ class Token(Command):
 
         for x in (create, set, get):
             self.add_config_file_arguments(x)
+
+    def get_scopes(self):
+        """List available scopes for authorization creation"""
+
+        return ['user', 'user:email', 'user:follow', 'public_repo', 'repo',
+            'repo:status', 'delete_repo', 'notifications', 'gist']
 
     def add_config_file_arguments(self, parser):
         parser.add_argument("--local", action="store_true",

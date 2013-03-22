@@ -49,6 +49,17 @@ class UnitTestToken(MockTest):
         ns = self.scc_parser.parse_args(["token", "create", "--no-set"])
         self.assertTrue(ns.no_set)
 
+    # Authorization scopes
+    def testAllowedScopes(self):
+        for scope in self.token.get_scopes():
+            ns = self.scc_parser.parse_args(["token", "create", "-s%s" % scope])
+            self.assertEqual(ns.scope, ["%s" % scope])
+
+    def testNonAllowedScope(self):
+        with self.assertRaises(SystemExit):
+            self.scc_parser.parse_args(["token", "create", "-sinvalidscope"])
+
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig()
