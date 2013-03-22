@@ -56,8 +56,8 @@ class UnitTestToken(MockTest):
             self.assertEqual(ns.scope, ["%s" % scope])
 
     def testNonAllowedScope(self):
-        with self.assertRaises(SystemExit):
-            self.scc_parser.parse_args(["token", "create", "-sinvalidscope"])
+        self.assertRaises(SystemExit, self.scc_parser.parse_args,
+            ["token", "create", "-sinvalidscope"])
 
 
 if __name__ == '__main__':
