@@ -914,6 +914,7 @@ class GitRepository(object):
     def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False):
         """Recursively merge PRs for each submodule."""
 
+        updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
         self.origin.find_candidates(filters)
@@ -922,15 +923,18 @@ class GitRepository(object):
         else:
             self.cd(self.path)
             self.write_directories()
+            presha1 = self.get_current_sha1()
             merge_msg += self.fast_forward(filters["base"])  + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id)
+            postsha1 = self.get_current_sha1()
+            updated = (presha1 != postsha1)
 
         for filt in ["include", "exclude"]:
             filters[filt]["pr"] = None
 
         for submodule_repo in self.submodules:
             try:
-                updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -940,7 +944,6 @@ class GitRepository(object):
         else:
             merge_msg_footer = ""
 
-        updated = False
         if not info:
             if top_message is None:
                 top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
