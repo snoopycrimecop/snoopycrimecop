@@ -582,7 +582,9 @@ class GitRepository(object):
         self.infoWrap = LoggerWrapper(self.log, logging.INFO)
 
         self.gh = gh
-        self.path =  os.path.abspath(path)
+        self.cd(path)
+        root_path, e = self.communicate("git", "rev-parse", "--show-toplevel")
+        self.path =  os.path.abspath(root_path.strip())
 
         self.get_status()
 
