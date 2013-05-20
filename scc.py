@@ -1917,15 +1917,17 @@ class TravisMerge(GitRepoCommand):
         origin = self.main_repo.origin
         pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
-        # Create filters PR base ref and comments for dependency inclusion
+        # Create default merge filters using the PR base ref
         self.filters = {}
         self.filters["base"] = pr.get_base()
         self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+
+        # Parse comments for companion PRs inclusion in the Travis build
         included_prs = pr.parse_comments('depends_on')
         if included_prs:
-            self.filters["include"] = {"label": None, "user": None,
-                "pr": [int(x) for x in included_prs]}
-        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+            self.filters["include"]["pr"] = [int(x) for x in included_prs]
 
         try:
             updated, merge_msg = self.main_repo.rmerge(self.filters)
