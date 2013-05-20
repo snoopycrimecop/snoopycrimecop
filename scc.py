@@ -1914,16 +1914,17 @@ class TravisMerge(GitRepoCommand):
         args.reset = False
         self.init_main_repo(args)
 
-        pr = self.main_repo.origin.get_pull(int(pr_number))
+        origin = self.main_repo.origin
+        pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
         # Create filters PR base ref and comments for dependency inclusion
         self.filters = {}
-        self.filters["base"] = pr.base.ref
+        self.filters["base"] = pr.get_base()
         self.filters["default"] = "none"
-        prs = parse_comments('depends_on')
-        if prs:
+        included_prs = pr.parse_comments('depends_on')
+        if included_prs:
             self.filters["include"] = {"label": None, "user": None,
-                "pr": [int(x) for x in prs]}
+                "pr": [int(x) for x in included_prs]}
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
         try:
