@@ -1883,6 +1883,53 @@ class Token(Command):
             local=args.local, value=args.value)
         return
 
+class TravisMerge(GitRepoCommand):
+    """
+    Update submodules and merge Pull Requests in Travis CI jobs.
+
+    Use the Travis environment variable to read the pull request number. Read
+    the base branch using the Github API.
+    """
+
+    NAME = "travis-merge"
+
+    def __init__(self, sub_parsers):
+        super(TravisMerge, self).__init__(sub_parsers)
+        self.add_token_args()
+
+    def __call__(self, args):
+        super(TravisMerge, self).__call__(args)
+        self.login(args)
+
+        # Read pull request number from environment variable
+        pr_key = 'TRAVIS_PULL_REQUEST'
+        if pr_key in os.environ:
+            pr_number = os.environ.get(pr_key)
+            if not pr_number:
+                raise Stop("Travis job is not a pull request")
+        else:
+            raise Stop("No %s found. Re-run this command within a Travis environment" % pr_key)
+
+        args.reset = False
+        self.init_main_repo(args)
+
+        pr = self.main_repo.origin.get_pull(int(pr_number))
+
+        # Create commit message using command arguments
+        self.filters = {}
+        self.filters["base"] = pr.base.ref
+        self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+
+        try:
+            updated, merge_msg = self.main_repo.rmerge(self.filters)
+            for line in merge_msg.split("\n"):
+                self.log.info(line)
+        finally:
+            self.log.debug("Cleaning remote branches created for merging")
+            self.main_repo.rcleanup()
+
 class UnrebasedPRs(Command):
     """Check that PRs in one branch have been merged to another.
 
