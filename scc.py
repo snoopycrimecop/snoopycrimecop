@@ -389,14 +389,14 @@ class PullRequest(object):
     def __repr__(self):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(), self.get_title())
 
-    def test_directories(self):
-        directories = []
+    def parse_comments(self, argument):
+        found_comments = []
         for comment in self.get_comments():
             lines = comment.splitlines()
             for line in lines:
-                if line.startswith("--test"):
-                    directories.append(line.replace("--test", ""))
-        return directories
+                if line.startswith("--%s" % argument):
+                    found_comments.append(line.replace("--%s" % argument, ""))
+        return found_comments
 
     def get_title(self):
         """Return the title of the Pull Request."""
@@ -669,7 +669,7 @@ class GitRepository(object):
         directories_log = None
 
         for pr in self.origin.candidate_pulls:
-            directories = pr.test_directories()
+            directories = pr.parse_comments("test")
             if directories:
                 if directories_log == None:
                     directories_log = open('directories.txt', 'w')
@@ -1916,11 +1916,14 @@ class TravisMerge(GitRepoCommand):
 
         pr = self.main_repo.origin.get_pull(int(pr_number))
 
-        # Create commit message using command arguments
+        # Create filters PR base ref and comments for dependency inclusion
         self.filters = {}
         self.filters["base"] = pr.base.ref
         self.filters["default"] = "none"
-        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        prs = parse_comments('depends_on')
+        if prs:
+            self.filters["include"] = {"label": None, "user": None,
+                "pr": [int(x) for x in prs]}
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
         try:
