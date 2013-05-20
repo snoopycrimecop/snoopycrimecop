@@ -1899,6 +1899,7 @@ class TravisMerge(GitRepoCommand):
 
     def __call__(self, args):
         super(TravisMerge, self).__call__(args)
+        args.no_ask = True # Do not ask for login
         self.login(args)
 
         # Read pull request number from environment variable
