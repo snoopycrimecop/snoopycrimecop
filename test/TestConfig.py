@@ -31,9 +31,6 @@ from Sandbox import SandboxTest
 
 class TestGithub(unittest.TestCase):
 
-    def testAnonymous(self):
-        self.assertRaises(Stop, get_github, dont_ask=True)
-
     def testUserWithoutPassword(self):
         self.assertRaises(Stop, get_github, "openmicroscopy",
             dont_ask=True)
