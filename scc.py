@@ -1941,7 +1941,7 @@ class TravisMerge(GitRepoCommand):
         # Parse comments for companion PRs inclusion in the Travis build
         included_prs = pr.parse_comments('depends-on')
         if included_prs:
-            self.filters["include"]["pr"] = [str(int(x)) for x in included_prs]
+            self.filters["include"]["pr"] = [x.strip()[1:] for x in included_prs]
 
         try:
             updated, merge_msg = self.main_repo.rmerge(self.filters)
