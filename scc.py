@@ -1907,9 +1907,9 @@ class TravisMerge(GitRepoCommand):
         if pr_key in os.environ:
             pr_number = os.environ.get(pr_key)
             if pr_number == 'false':
-                raise Stop("Travis job is not a pull request")
+                raise Stop(0, "Travis job is not a pull request")
         else:
-            raise Stop("No %s found. Re-run this command within a Travis environment" % pr_key)
+            raise Stop(51, "No %s found. Re-run this command within a Travis environment" % pr_key)
 
         args.reset = False
         self.init_main_repo(args)
