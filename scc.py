@@ -182,7 +182,8 @@ class GHManager(object):
         self.user_agent=user_agent
         try:
             self.authorize(password)
-            self.get_login()
+            if login_or_token or password:
+                self.get_login()
         except github.GithubException, ge:
             raise Stop(ge.status, ge.data.get("message", ""))
 
