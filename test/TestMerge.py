@@ -110,6 +110,19 @@ class UnitTestMerge(MockTest):
         filters["base"] = self.base
         self.assertEqual(self.merge.filters, filters)
 
+    # Default PR sets
+    def testNone(self):
+        self.parse_filters(['-Dnone'])
+        filters = self.default_filters
+        filters["default"] = 'none'
+        self.assertEqual(self.merge.filters, filters)
+
+    def testAll(self):
+        self.parse_filters(['-Dall'])
+        filters = self.default_filters
+        filters["default"] = 'all'
+        self.assertEqual(self.merge.filters, filters)
+
     # PR inclusion
     def testIncludeLabelNoKey(self):
         self.parse_filters(["-Itest"])
