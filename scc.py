@@ -389,14 +389,14 @@ class PullRequest(object):
     def __repr__(self):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(), self.get_title())
 
-    def test_directories(self):
-        directories = []
+    def parse_comments(self, argument):
+        found_comments = []
         for comment in self.get_comments():
             lines = comment.splitlines()
             for line in lines:
-                if line.startswith("--test"):
-                    directories.append(line.replace("--test", ""))
-        return directories
+                if line.startswith("--%s" % argument):
+                    found_comments.append(line.replace("--%s" % argument, ""))
+        return found_comments
 
     def get_title(self):
         """Return the title of the Pull Request."""
@@ -669,7 +669,7 @@ class GitRepository(object):
         directories_log = None
 
         for pr in self.origin.candidate_pulls:
-            directories = pr.test_directories()
+            directories = pr.parse_comments("test")
             if directories:
                 if directories_log == None:
                     directories_log = open('directories.txt', 'w')
@@ -1882,6 +1882,60 @@ class Token(Command):
         git_config("github.token", user=args.user,
             local=args.local, value=args.value)
         return
+
+class TravisMerge(GitRepoCommand):
+    """
+    Update submodules and merge Pull Requests in Travis CI jobs.
+
+    Use the Travis environment variable to read the pull request number. Read
+    the base branch using the Github API.
+    """
+
+    NAME = "travis-merge"
+
+    def __init__(self, sub_parsers):
+        super(TravisMerge, self).__init__(sub_parsers)
+        self.add_token_args()
+
+    def __call__(self, args):
+        super(TravisMerge, self).__call__(args)
+        args.no_ask = True # Do not ask for login
+        self.login(args)
+
+        # Read pull request number from environment variable
+        pr_key = 'TRAVIS_PULL_REQUEST'
+        if pr_key in os.environ:
+            pr_number = os.environ.get(pr_key)
+            if pr_number == 'false':
+                raise Stop(0, "Travis job is not a pull request")
+        else:
+            raise Stop(51, "No %s found. Re-run this command within a Travis environment" % pr_key)
+
+        args.reset = False
+        self.init_main_repo(args)
+
+        origin = self.main_repo.origin
+        pr = PullRequest(origin, origin.get_pull(int(pr_number)))
+
+        # Create default merge filters using the PR base ref
+        self.filters = {}
+        self.filters["base"] = pr.get_base()
+        self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+
+        # Parse comments for companion PRs inclusion in the Travis build
+        included_prs = pr.parse_comments('depends-on')
+        if included_prs:
+            self.filters["include"]["pr"] = [str(int(x)) for x in included_prs]
+
+        try:
+            updated, merge_msg = self.main_repo.rmerge(self.filters)
+            for line in merge_msg.split("\n"):
+                self.log.info(line)
+        finally:
+            self.log.debug("Cleaning remote branches created for merging")
+            self.main_repo.rcleanup()
 
 class UnrebasedPRs(Command):
     """Check that PRs in one branch have been merged to another.
