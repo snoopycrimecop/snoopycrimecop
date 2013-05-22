@@ -1644,12 +1644,26 @@ class Merge(GitRepoCommand):
             for filt in getattr(args, ftype):
                 found = False
                 for key in keys:
-                    if filt.find(key + ":") == 0:
-                        value = filt.replace(key + ":",'',1)
+                    # Look for key:value pattern
+                    pattern = key + ":"
+                    if filt.find(pattern) == 0:
+                        value = filt.replace(pattern,'',1)
                         if self.filters[ftype][key]:
                             self.filters[ftype][key].append(value)
                         else:
                             self.filters[ftype][key] = [value]
+                        found = True
+                        continue
+
+                if not found:
+                    # Look for #value pattern
+                    pattern = "#"
+                    if filt.find(pattern) == 0:
+                        value = filt.replace(pattern,'',1)
+                        if self.filters[ftype]["pr"]:
+                            self.filters[ftype]["pr"].append(value)
+                        else:
+                            self.filters[ftype]["pr"] = [value]
                         found = True
                         continue
 

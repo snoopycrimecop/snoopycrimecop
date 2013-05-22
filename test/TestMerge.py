@@ -142,6 +142,20 @@ class UnitTestMerge(MockTest):
         filters["include"]["label"] = ['test' ,'test2']
         self.assertEqual(self.merge.filters, filters)
 
+    def testIncludePRHash(self):
+        self.parse_filters(["-I#65"])
+        filters = self.default_filters
+        filters["include"]["label"] = None
+        filters["include"]["pr"] = ["65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testIncludeMixedPRs(self):
+        self.parse_filters(["-I#65","-Ipr:66"])
+        filters = self.default_filters
+        filters["include"]["label"] = None
+        filters["include"]["pr"] = ["65", '66']
+        self.assertEqual(self.merge.filters, filters)
+
     def testIncludePR(self):
         self.parse_filters(["-Ipr:65"])
         filters = self.default_filters
@@ -180,6 +194,20 @@ class UnitTestMerge(MockTest):
         filters = self.default_filters
         filters["exclude"]["label"] = None
         filters["exclude"]["pr"] = ["65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludePRHash(self):
+        self.parse_filters(["-E#65"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = None
+        filters["exclude"]["pr"] = ["65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludeMixedPRs(self):
+        self.parse_filters(["-E#65","-Epr:66"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = None
+        filters["exclude"]["pr"] = ["65", '66']
         self.assertEqual(self.merge.filters, filters)
 
     def testExcludeUser(self):
