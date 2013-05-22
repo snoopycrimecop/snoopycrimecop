@@ -83,40 +83,98 @@ class UnitTestMerge(MockTest):
 
         self.scc_parser, self.sub_parser = parsers()
         self.merge = Merge(self.sub_parser)
-        self.default_exclude = ['exclude']
-        self.default_include = ['include']
-        self.default_default = 'org'
+        self.base = 'master'
+        self.default_filters = {'base': 'master', 'default': 'org',
+            'include':{}, 'exclude':{}}
+        self.default_filters["include"]["label"] = ["include"]
+        self.default_filters["include"]["pr"] = None
+        self.default_filters["include"]["user"] = None
+        self.default_filters["exclude"]["label"] = ["exclude"]
+        self.default_filters["exclude"]["pr"] = None
+        self.default_filters["exclude"]["user"] = None
+
+    def parse_filters(self, args):
+        main_cmd =["merge", self.base]
+        ns = self.scc_parser.parse_args(main_cmd + args)
+        self.merge._parse_filters(ns)
 
     # Default arguments
     def testDefaults(self):
-        ns = self.scc_parser.parse_args(["merge", "master"])
-        self.assertEqual(ns.exclude, self.default_exclude)
-        self.assertEqual(ns.include, self.default_include)
+        self.parse_filters([])
+        self.assertEqual(self.merge.filters, self.default_filters)
 
-    def testInclude(self):
-        ns = self.scc_parser.parse_args(["merge", "master", "-Itest"])
-        self.assertEqual(ns.exclude, self.default_exclude)
-        self.assertEqual(ns.include, ['test'])
+    def testBase(self):
+        self.base = 'develop'
+        self.parse_filters([])
+        filters = self.default_filters
+        filters["base"] = self.base
+        self.assertEqual(self.merge.filters, filters)
 
-    def testMultipleInclude(self):
-        ns = self.scc_parser.parse_args(["merge" ,"master", "-Itest", "-Itest2"])
-        self.assertEqual(ns.exclude, self.default_exclude)
-        self.assertEqual(ns.include, ['test' ,'test2'])
+    # PR inclusion
+    def testIncludeLabelNoKey(self):
+        self.parse_filters(["-Itest"])
+        filters = self.default_filters
+        filters["include"]["label"] = ["test"]
+        self.assertEqual(self.merge.filters, filters)
 
-    def testExclude(self):
-        ns = self.scc_parser.parse_args(["merge", "master", "-Etest"])
-        self.assertEqual(ns.exclude, ['test'])
-        self.assertEqual(ns.include, self.default_include)
+    def testIncludeLabelKey(self):
+        self.parse_filters(["-Ilabel:test"])
+        filters = self.default_filters
+        filters["include"]["label"] = ["test"]
+        self.assertEqual(self.merge.filters, filters)
 
-    def testMultipleExclude(self):
-        ns = self.scc_parser.parse_args(["merge" ,"master", "-Etest", "-Etest2"])
-        self.assertEqual(ns.include, self.default_include)
-        self.assertEqual(ns.exclude, ['test' ,'test2'])
+    def testIncludeMixedLabels(self):
+        self.parse_filters(["-Itest", "-Ilabel:test2"])
+        filters = self.default_filters
+        filters["include"]["label"] = ['test' ,'test2']
+        self.assertEqual(self.merge.filters, filters)
 
-    # Filter parins
-    def test(self):
+    def testIncludePR(self):
+        self.parse_filters(["-Ipr:65"])
+        filters = self.default_filters
+        filters["include"]["label"] = None
+        filters["include"]["pr"] = ["65"]
+        self.assertEqual(self.merge.filters, filters)
 
-        main(["merge","dev_4_4"])
+    def testIncludeUser(self):
+        self.parse_filters(["-Iuser:snoopycrimecop"])
+        filters = self.default_filters
+        filters["include"]["label"] = None
+        filters["include"]["user"] = ["snoopycrimecop"]
+        self.assertEqual(self.merge.filters, filters)
+
+    # Label exclusion
+    def testExcludeLabelNoKey(self):
+        self.parse_filters(["-Etest"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = ["test"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludeLabelKey(self):
+        self.parse_filters(["-Elabel:test"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = ["test"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludeMultipleLabels(self):
+        self.parse_filters(["-Etest", "-Elabel:test2"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = ['test' ,'test2']
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludePR(self):
+        self.parse_filters(["-Epr:65"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = None
+        filters["exclude"]["pr"] = ["65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludeUser(self):
+        self.parse_filters(["-Euser:snoopycrimecop"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = None
+        filters["exclude"]["user"] = ["snoopycrimecop"]
+        self.assertEqual(self.merge.filters, filters)
 
 class TestMerge(SandboxTest):
 
