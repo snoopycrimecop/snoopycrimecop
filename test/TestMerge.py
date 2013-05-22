@@ -28,22 +28,15 @@ from scc import *
 from Sandbox import SandboxTest
 from Mock import MockTest
 
-
-class UnitTestMerge(MockTest):
+class UnitTestFilter(MockTest):
 
     def setUp(self):
         MockTest.setUp(self)
-
-        self.scc_parser, self.sub_parser = parsers()
-        self.merge = Merge(self.sub_parser)
         self.test_filter = {
             "label": ["test_label"],
             "user": ["test_user"],
             "pr": ["1"],
             }
-        self.default_exclude = ['exclude']
-        self.default_include = ['include']
-        self.default_default = 'org'
 
     def testIntersect(self):
         self.assertEquals([3], self.gh_repo.intersect([1,2,3], [3,4,5]))
@@ -83,6 +76,17 @@ class UnitTestMerge(MockTest):
         prs_filter = {"label": [], "user": [None], "pr": ["1","2"]}
         self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
 
+class UnitTestMerge(MockTest):
+
+    def setUp(self):
+        MockTest.setUp(self)
+
+        self.scc_parser, self.sub_parser = parsers()
+        self.merge = Merge(self.sub_parser)
+        self.default_exclude = ['exclude']
+        self.default_include = ['include']
+        self.default_default = 'org'
+
     # Default arguments
     def testDefaults(self):
         ns = self.scc_parser.parse_args(["merge", "master"])
@@ -108,6 +112,11 @@ class UnitTestMerge(MockTest):
         ns = self.scc_parser.parse_args(["merge" ,"master", "-Etest", "-Etest2"])
         self.assertEqual(ns.include, self.default_include)
         self.assertEqual(ns.exclude, ['test' ,'test2'])
+
+    # Filter parins
+    def test(self):
+
+        main(["merge","dev_4_4"])
 
 class TestMerge(SandboxTest):
 
