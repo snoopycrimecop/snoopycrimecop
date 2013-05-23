@@ -6,3 +6,4 @@ RELEASE-VERSION
 build
 dist
 scc.egg-info
+.pypirc
