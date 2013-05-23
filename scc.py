@@ -1931,17 +1931,8 @@ class TravisMerge(GitRepoCommand):
         origin = self.main_repo.origin
         pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
-        # Create default merge filters using the PR base ref
-        self.filters = {}
-        self.filters["base"] = pr.get_base()
-        self.filters["default"] = "none"
-        self.filters["include"] = {"label": None, "user": None, "pr": None}
-        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
-
         # Parse comments for companion PRs inclusion in the Travis build
-        included_prs = pr.parse_comments('depends-on')
-        if included_prs:
-            self.filters["include"]["pr"] = [x.strip()[1:] for x in included_prs]
+        self.parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
 
         try:
             updated, merge_msg = self.main_repo.rmerge(self.filters)
@@ -1950,6 +1941,23 @@ class TravisMerge(GitRepoCommand):
         finally:
             self.log.debug("Cleaning remote branches created for merging")
             self.main_repo.rcleanup()
+
+    def _parse_dependencies(self, base, comments):
+        # Create default merge filters using the PR base ref
+        self.filters = {}
+        self.filters["base"] = base
+        self.filters["default"] = "none"
+        self.filters["include"] = {"label": None, "user": None, "pr": None}
+        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+
+        for comment in comments:
+            dep = comment.strip()
+            if dep.startswith('#'):
+                pr = dep[1:]
+                if self.filters["include"]["pr"]:
+                    self.filters["include"]["pr"].append(pr)
+                else:
+                    self.filters["include"]["pr"] = [pr]
 
 class UnrebasedPRs(Command):
     """Check that PRs in one branch have been merged to another.
