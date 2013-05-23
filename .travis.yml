@@ -11,7 +11,7 @@ before_install:
 install: python scc.py -h
 before_script: python scc.py travis-merge
 script:
-    - PYTHONPATH=. python test/TestMerge.py UnitTestMerge
+    - PYTHONPATH=. python test/TestMerge.py UnitTestFilter UnitTestMerge UnitTestTravisMerge
     - PYTHONPATH=. python test/TestConfig.py TestGithub
     - PYTHONPATH=. python test/TestDeploy.py
     - PYTHONPATH=. python test/TestToken.py
