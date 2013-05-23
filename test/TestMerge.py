@@ -217,6 +217,50 @@ class UnitTestMerge(MockTest):
         filters["exclude"]["user"] = ["snoopycrimecop"]
         self.assertEqual(self.merge.filters, filters)
 
+class UnitTestTravisMerge(MockTest):
+
+    def setUp(self):
+        MockTest.setUp(self)
+
+        self.scc_parser, self.sub_parser = parsers()
+        self.merge = TravisMerge(self.sub_parser)
+        self.base = 'master'
+        self.default_filters = {'base': 'master', 'default': 'none',
+            'include':{}, 'exclude':{}}
+        self.default_filters["include"]["label"] = None
+        self.default_filters["include"]["pr"] = None
+        self.default_filters["include"]["user"] = None
+        self.default_filters["exclude"]["label"] = None
+        self.default_filters["exclude"]["pr"] = None
+        self.default_filters["exclude"]["user"] = None
+
+    def parse_dependencies(self, comments):
+        self.merge._parse_dependencies('master', comments)
+
+    # Default arguments
+    def testDefaults(self):
+        self.parse_dependencies([])
+        self.assertEqual(self.merge.filters, self.default_filters)
+
+    def testIncludePRNoHash(self):
+        # --depends-on 21 does not change filters
+        self.parse_dependencies(['21'])
+        self.assertEqual(self.merge.filters, self.default_filters)
+
+    def testIncludeSinglePR(self):
+        # --depends-on #21 changes filters
+        self.parse_dependencies(['#21'])
+        filters = self.default_filters
+        filters["include"]["pr"] = ['21']
+        self.assertEqual(self.merge.filters, self.default_filters)
+
+    def testIncludeMultiplePRs(self):
+        # --depends-on #21 changes filters
+        self.parse_dependencies(['#21', '#22'])
+        filters = self.default_filters
+        filters["include"]["pr"] = ['21','22']
+        self.assertEqual(self.merge.filters, self.default_filters)
+
 class TestMerge(SandboxTest):
 
     def setUp(self):
