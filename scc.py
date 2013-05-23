@@ -1932,7 +1932,7 @@ class TravisMerge(GitRepoCommand):
         pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
         # Parse comments for companion PRs inclusion in the Travis build
-        self.parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
+        self._parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
 
         try:
             updated, merge_msg = self.main_repo.rmerge(self.filters)
