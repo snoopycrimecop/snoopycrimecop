@@ -182,11 +182,10 @@ class GHManager(object):
         self.user_agent=user_agent
         try:
             self.authorize(password)
-            self.get_login()
+            if login_or_token or password:
+                self.get_login()
         except github.GithubException, ge:
-            if self.exc_is_bad_credentials(ge):
-                print "Bad credentials"
-                sys.exit(ge.status)
+            raise Stop(ge.status, ge.data.get("message", ""))
 
     def exc_check_code_and_message(self, ge, status, message):
         if ge.status == status:
