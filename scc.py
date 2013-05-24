@@ -1965,8 +1965,10 @@ class TravisMerge(GitRepoCommand):
 
         for comment in comments:
             dep = comment.strip()
-            if dep.startswith('#'):
-                pr = dep[1:]
+            # Look for #value pattern
+            pattern = "#"
+            if dep.find(pattern) != -1:
+                pr = dep.replace(pattern,'',1)
                 if self.filters["include"]["pr"]:
                     self.filters["include"]["pr"].append(pr)
                 else:
