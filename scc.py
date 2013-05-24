@@ -931,12 +931,23 @@ class GitRepository(object):
             postsha1 = self.get_current_sha1()
             updated = (presha1 != postsha1)
 
-        for filt in ["include", "exclude"]:
-            filters[filt]["pr"] = None
-
         for submodule_repo in self.submodules:
+            submodule_name = "%s/%s" % (submodule_repo.origin.user_name, submodule_repo.origin.repo_name)
+
+            # Create submodule filters
+            import copy
+            submodule_filters = copy.deepcopy(filters)
+
+            for ftype in ["include", "exclude"]:
+                if submodule_filters[ftype]["pr"] :
+                    submodule_prs = [x.replace(submodule_name,'') for x in submodule_filters[ftype]["pr"] if x.startswith(submodule_name)]
+                    if len(submodule_prs) > 0:
+                        submodule_filters[ftype]["pr"] = submodule_prs
+                    else:
+                        submodule_filters[ftype]["pr"] = None
+
             try:
-                submodule_updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(submodule_filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -1657,7 +1668,7 @@ class Merge(GitRepoCommand):
                 if not found:
                     # Look for #value pattern
                     pattern = "#"
-                    if filt.find(pattern) == 0:
+                    if filt.find(pattern) != -1:
                         value = filt.replace(pattern,'',1)
                         if self.filters[ftype]["pr"]:
                             self.filters[ftype]["pr"].append(value)
