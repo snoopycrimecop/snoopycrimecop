@@ -1920,6 +1920,8 @@ class TravisMerge(GitRepoCommand):
     def __init__(self, sub_parsers):
         super(TravisMerge, self).__init__(sub_parsers)
         self.add_token_args()
+        self.parser.add_argument('--info', action='store_true',
+            help='Display merge candidates but do not merge them')
 
     def __call__(self, args):
         super(TravisMerge, self).__call__(args)
@@ -1945,7 +1947,7 @@ class TravisMerge(GitRepoCommand):
         self._parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
 
         try:
-            updated, merge_msg = self.main_repo.rmerge(self.filters)
+            updated, merge_msg = self.main_repo.rmerge(self.filters, args.info)
             for line in merge_msg.split("\n"):
                 self.log.info(line)
         finally:
