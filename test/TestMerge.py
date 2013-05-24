@@ -149,11 +149,18 @@ class UnitTestMerge(MockTest):
         filters["include"]["pr"] = ["65"]
         self.assertEqual(self.merge.filters, filters)
 
-    def testIncludeMixedPRs(self):
-        self.parse_filters(["-I#65","-Ipr:66"])
+    def testIncludePRSubmodule(self):
+        self.parse_filters(["-Iome/scripts#65"])
         filters = self.default_filters
         filters["include"]["label"] = None
-        filters["include"]["pr"] = ["65", '66']
+        filters["include"]["pr"] = ["ome/scripts65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testIncludeMixedPRs(self):
+        self.parse_filters(["-I#65","-Ipr:66","-Iome/scripts#65"])
+        filters = self.default_filters
+        filters["include"]["label"] = None
+        filters["include"]["pr"] = ["65", '66', 'ome/scripts65']
         self.assertEqual(self.merge.filters, filters)
 
     def testIncludePR(self):
@@ -203,11 +210,18 @@ class UnitTestMerge(MockTest):
         filters["exclude"]["pr"] = ["65"]
         self.assertEqual(self.merge.filters, filters)
 
-    def testExcludeMixedPRs(self):
-        self.parse_filters(["-E#65","-Epr:66"])
+    def testExcludePRSubmodule(self):
+        self.parse_filters(["-Eome/scripts#65"])
         filters = self.default_filters
         filters["exclude"]["label"] = None
-        filters["exclude"]["pr"] = ["65", '66']
+        filters["exclude"]["pr"] = ["ome/scripts65"]
+        self.assertEqual(self.merge.filters, filters)
+
+    def testExcludeMixedPRs(self):
+        self.parse_filters(["-E#65","-Epr:66","-Eome/scripts#65"])
+        filters = self.default_filters
+        filters["exclude"]["label"] = None
+        filters["exclude"]["pr"] = ["65", '66', 'ome/scripts65']
         self.assertEqual(self.merge.filters, filters)
 
     def testExcludeUser(self):
@@ -254,11 +268,19 @@ class UnitTestTravisMerge(MockTest):
         filters["include"]["pr"] = ['21']
         self.assertEqual(self.merge.filters, self.default_filters)
 
+    def testIncludeSubmodulePR(self):
+        # --depends-on ome/scripts#21 changes filters
+        self.parse_dependencies(['ome/scripts#21'])
+        filters = self.default_filters
+        filters["include"]["pr"] = ['ome/scripts21']
+        self.assertEqual(self.merge.filters, self.default_filters)
+
+
     def testIncludeMultiplePRs(self):
         # --depends-on #21 changes filters
-        self.parse_dependencies(['#21', '#22'])
+        self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
         filters = self.default_filters
-        filters["include"]["pr"] = ['21','22']
+        filters["include"]["pr"] = ['21','22', 'ome/scripts21']
         self.assertEqual(self.merge.filters, self.default_filters)
 
 class TestMerge(SandboxTest):
