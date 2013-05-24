@@ -1951,8 +1951,9 @@ class TravisMerge(GitRepoCommand):
             for line in merge_msg.split("\n"):
                 self.log.info(line)
         finally:
-            self.log.debug("Cleaning remote branches created for merging")
-            self.main_repo.rcleanup()
+            if not args.info:
+                self.log.debug("Cleaning remote branches created for merging")
+                self.main_repo.rcleanup()
 
     def _parse_dependencies(self, base, comments):
         # Create default merge filters using the PR base ref
