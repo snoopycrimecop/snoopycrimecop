@@ -931,12 +931,23 @@ class GitRepository(object):
             postsha1 = self.get_current_sha1()
             updated = (presha1 != postsha1)
 
-        for filt in ["include", "exclude"]:
-            filters[filt]["pr"] = None
-
         for submodule_repo in self.submodules:
+            submodule_name = "%s/%s" % (submodule_repo.origin.user_name, submodule_repo.origin.repo_name)
+
+            # Create submodule filters
+            import copy
+            submodule_filters = copy.deepcopy(filters)
+
+            for ftype in ["include", "exclude"]:
+                if submodule_filters[ftype]["pr"] :
+                    submodule_prs = [x.replace(submodule_name,'') for x in submodule_filters[ftype]["pr"] if x.startswith(submodule_name)]
+                    if len(submodule_prs) > 0:
+                        submodule_filters[ftype]["pr"] = submodule_prs
+                    else:
+                        submodule_filters[ftype]["pr"] = None
+
             try:
-                submodule_updated, submodule_msg = submodule_repo.rmerge(filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(submodule_filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -1657,7 +1668,7 @@ class Merge(GitRepoCommand):
                 if not found:
                     # Look for #value pattern
                     pattern = "#"
-                    if filt.find(pattern) == 0:
+                    if filt.find(pattern) != -1:
                         value = filt.replace(pattern,'',1)
                         if self.filters[ftype]["pr"]:
                             self.filters[ftype]["pr"].append(value)
@@ -1909,6 +1920,8 @@ class TravisMerge(GitRepoCommand):
     def __init__(self, sub_parsers):
         super(TravisMerge, self).__init__(sub_parsers)
         self.add_token_args()
+        self.parser.add_argument('--info', action='store_true',
+            help='Display merge candidates but do not merge them')
 
     def __call__(self, args):
         super(TravisMerge, self).__call__(args)
@@ -1934,12 +1947,13 @@ class TravisMerge(GitRepoCommand):
         self._parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
 
         try:
-            updated, merge_msg = self.main_repo.rmerge(self.filters)
+            updated, merge_msg = self.main_repo.rmerge(self.filters, args.info)
             for line in merge_msg.split("\n"):
                 self.log.info(line)
         finally:
-            self.log.debug("Cleaning remote branches created for merging")
-            self.main_repo.rcleanup()
+            if not args.info:
+                self.log.debug("Cleaning remote branches created for merging")
+                self.main_repo.rcleanup()
 
     def _parse_dependencies(self, base, comments):
         # Create default merge filters using the PR base ref
@@ -1951,8 +1965,10 @@ class TravisMerge(GitRepoCommand):
 
         for comment in comments:
             dep = comment.strip()
-            if dep.startswith('#'):
-                pr = dep[1:]
+            # Look for #value pattern
+            pattern = "#"
+            if dep.find(pattern) != -1:
+                pr = dep.replace(pattern,'',1)
                 if self.filters["include"]["pr"]:
                     self.filters["include"]["pr"].append(pr)
                 else:
