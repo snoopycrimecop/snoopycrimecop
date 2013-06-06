@@ -2251,9 +2251,10 @@ class UpdateSubmodules(GitRepoCommand):
                                     args.push))
                         self.log.info("New PR created: %s", pr.html_url)
                     else:
-                        msg = "Updated by build [%s#%s](%s)." % \
-                            (JOB_NAME, BUILD_NUMBER, BUILD_URL)
-                        pr.create_comment(msg)
+                        if IS_JENKINS_JOB:
+                            msg = "Updated by build [%s#%s](%s)." % \
+                                (JOB_NAME, BUILD_NUMBER, BUILD_URL)
+                            pr.create_comment(msg)
         finally:
             self.main_repo.rcleanup()
 
