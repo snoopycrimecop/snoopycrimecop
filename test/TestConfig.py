@@ -45,20 +45,22 @@ class TestGithub(unittest.TestCase):
 
 class TestConfig(SandboxTest):
 
+    def writeConfigFile(self, configString):
+        f = open(os.path.join(self.path,'.git', 'config'), 'w')
+        f.write(configString)
+        f.close()
+
     def testEmptyConfig(self):
-        os.chdir(self.path)
         self.assertEquals(None, get_token_or_user(local=True))
 
     def testUserConfig(self):
-        os.chdir(self.path)
         uuid = self.uuid()
-        git_config("github.user", value=uuid, local=True)
+        self.writeConfigFile("[github]\n    user = %s" % uuid)
         self.assertEquals(uuid, get_token_or_user(local=True))
 
     def testTokenConfig(self):
-        os.chdir(self.path)
         uuid = self.uuid()
-        git_config("github.token", value=uuid, local=True)
+        self.writeConfigFile("[github]\n    token = %s" % uuid)
         self.assertEquals(uuid, get_token_or_user(local=True))
 
 if __name__ == '__main__':
