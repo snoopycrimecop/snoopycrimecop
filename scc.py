@@ -850,7 +850,7 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user , repo]
 
-    def merge(self, comment=False, commit_id = "merge"):
+    def merge(self, comment=False, commit_id = "merge", set_commit_status=False):
         """Merge candidate pull requests."""
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
@@ -895,6 +895,21 @@ class GitRepository(object):
             for conflicting_pull in conflicting_pulls:
                 merge_msg += str(conflicting_pull) + "\n"
 
+        if set_commit_status:
+            for pullrequest in self.origin.candidate_pulls:
+                commit = self.origin.repo.get_commit(pullrequest.get_sha())
+                if conflicting_pulls:
+                    status = 'failure'
+                    message = 'Not all current PRs can be merged.'
+                else:
+                    status = 'success'
+                    message = 'All current PRs can be merged.'
+                if IS_JENKINS_JOB:
+                    url = BUILD_URL
+                else:
+                    url = github.GithubObject.NotSet
+                commit.create_status(status, url, message)
+
         self.call("git", "submodule", "update")
         return merge_msg
 
@@ -913,7 +928,7 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False):
+    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False, set_commit_status=False):
         """Recursively merge PRs for each submodule."""
 
         updated = False
@@ -927,7 +942,7 @@ class GitRepository(object):
             self.write_directories()
             presha1 = self.get_current_sha1()
             merge_msg += self.fast_forward(filters["base"])  + "\n"
-            merge_msg += self.merge(comment, commit_id = commit_id)
+            merge_msg += self.merge(comment, commit_id = commit_id, set_commit_status=set_commit_status)
             postsha1 = self.get_current_sha1()
             updated = (presha1 != postsha1)
 
@@ -947,7 +962,7 @@ class GitRepository(object):
                         submodule_filters[ftype]["pr"] = None
 
             try:
-                submodule_updated, submodule_msg = submodule_repo.rmerge(submodule_filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(submodule_filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules, set_commit_status=set_commit_status)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -1573,6 +1588,8 @@ class Merge(GitRepoCommand):
         self.parser.add_argument('--exclude', '-E', type=str, action='append',
             default = DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
+        self.parser.add_argument('--set-commit-status', action='store_true',
+            help='Set success/failure status on latest commits in all PRs in the merge.')
         self.add_new_commit_args()
 
     def __call__(self, args):
@@ -1612,7 +1629,8 @@ class Merge(GitRepoCommand):
         updated, merge_msg = main_repo.rmerge(self.filters, args.info,
             args.comment, commit_id = " ".join(commit_args),
             top_message=args.message,
-            update_gitmodules=args.update_gitmodules)
+            update_gitmodules=args.update_gitmodules,
+            set_commit_status=args.set_commit_status)
 
         for line in merge_msg.split("\n"):
             self.log.info(line)
