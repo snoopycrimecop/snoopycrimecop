@@ -895,23 +895,30 @@ class GitRepository(object):
             for conflicting_pull in conflicting_pulls:
                 merge_msg += str(conflicting_pull) + "\n"
 
-        if set_commit_status:
-            for pullrequest in self.origin.candidate_pulls:
-                commit = self.origin.repo.get_commit(pullrequest.get_sha())
-                if conflicting_pulls:
-                    status = 'failure'
-                    message = 'Not all current PRs can be merged.'
-                else:
-                    status = 'success'
-                    message = 'All current PRs can be merged.'
-                if IS_JENKINS_JOB:
-                    url = BUILD_URL
-                else:
-                    url = github.GithubObject.NotSet
-                commit.create_status(status, url, message)
+        if set_commit_status and get_token():
+            if conflicting_pulls:
+                status = 'failure'
+                message = 'Not all current PRs can be merged.'
+            else:
+                status = 'success'
+                message = 'All current PRs can be merged.'
+            url = BUILD_URL if IS_JENKINS_JOB else github.GithubObject.NotSet
+            merge_msg += self.set_commit_status(status, message, url)
 
         self.call("git", "submodule", "update")
         return merge_msg
+
+    def set_commit_status(self, status, message, url):
+        msg = ""
+        for pullrequest in self.origin.candidate_pulls:
+            msg += "Setting commit status %s on PR %s (%s)\n" % (
+                status,
+                pullrequest.get_number(),
+                pullrequest.get_sha(),
+            )
+            commit = self.origin.repo.get_commit(pullrequest.get_sha())
+            commit.create_status(status, url, message)
+        return msg
 
     def find_branching_point(self, topic_branch, main_branch):
         # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
@@ -927,6 +934,36 @@ class GitRepository(object):
         sha1 = main_revlist[matching_block[0].b]
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
+
+
+    def rset_commit_status(self, filters, status, message, url, info=False):
+        """Recursively set commit status for PRs for each submodule."""
+
+        msg = ""
+        msg += str(self.origin) + "\n"
+        self.origin.find_candidates(filters)
+        if not info:
+            msg += self.set_commit_status(status, message, url)
+
+        for submodule_repo in self.submodules:
+            submodule_name = "%s/%s" % (submodule_repo.origin.user_name, submodule_repo.origin.repo_name)
+
+            # Create submodule filters
+            import copy
+            submodule_filters = copy.deepcopy(filters)
+
+            for ftype in ["include", "exclude"]:
+                if submodule_filters[ftype]["pr"] :
+                    submodule_prs = [x.replace(submodule_name,'') for x in submodule_filters[ftype]["pr"] if x.startswith(submodule_name)]
+                    if len(submodule_prs) > 0:
+                        submodule_filters[ftype]["pr"] = submodule_prs
+                    else:
+                        submodule_filters[ftype]["pr"] = None
+
+            msg += submodule_repo.rset_commit_status(submodule_filters, status, message, url, info)
+
+        return msg
+
 
     def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False, set_commit_status=False):
         """Recursively merge PRs for each submodule."""
@@ -2213,6 +2250,127 @@ class UpdateSubmodules(GitRepoCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
+
+class SetCommitStatus(GitRepoCommand):
+    """
+    Set commit status on all pull requests with any of the given labels.
+    It assumes that you have checked out the target branch locally and
+    have updated any submodules.
+    """
+
+    NAME = "set-commit-status"
+
+    def __init__(self, sub_parsers):
+        super(SetCommitStatus, self).__init__(sub_parsers)
+        self.add_token_args()
+
+        filter_desc = " Filter keys can be specified using label:my_label, \
+            pr:24 or  user:username. If no key is specified, the filter is \
+            considered as a label filter."
+
+        self.parser.add_argument('--info', action='store_true',
+            help='Display pull requests but do not set commit status on them')
+        self.parser.add_argument('--default', '-D', type=str,
+            choices=["none", "mine", "org" , "all"], default="org",
+            help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
+        self.parser.add_argument('--include', '-I', type=str, action='append',
+            default = DefaultList(["include"]),
+            help='Filters to include PRs in the merge.' + filter_desc)
+        self.parser.add_argument('--exclude', '-E', type=str, action='append',
+            default = DefaultList(["exclude"]),
+            help='Filters to exclude PRs from the merge.' + filter_desc)
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
+        self.parser.add_argument('--status', '-s', type=str, required=True,
+            choices=["success", "failure", "error", "pending"],
+            help='Commit status.')
+        self.parser.add_argument('--message', '-m', required=True,
+            help='Message to use for the commit status.')
+        self.parser.add_argument('--url', '-u', required=True,
+            help='URL to use for the commit status.')
+        self.parser.add_argument('base', type=str)
+
+
+    def __call__(self, args):
+        super(SetCommitStatus, self).__call__(args)
+        self.login(args)
+        self.init_main_repo(args)
+        self.setCommitStatus(args, self.main_repo)
+
+
+    def setCommitStatus(self, args, main_repo):
+        self._parse_filters(args)
+        msg = main_repo.rset_commit_status(self.filters, args.status, args.message, args.url,
+                                           info=args.info)
+        for line in msg.split("\n"):
+            self.log.info(line)
+
+    def _parse_filters(self, args):
+        """ Read filters from arguments and fill filters dictionary"""
+
+        self.filters = {}
+        self.filters["base"] = args.base
+        self.filters["default"] = args.default
+        if args.default == "org":
+            default_user = "any public member of the organization"
+        elif args.default == "mine":
+            default_user = "%s" % self.gh.get_login()
+        elif args.default == "all":
+            default_user = "any user"
+        elif args.default == "none":
+            default_user = "no user"
+        else:
+            raise Exception("Unknown default mode: %s", args.default)
+
+        self.log.info("Setting commit status on PR based on %s opened by %s", args.base, default_user)
+
+        descr = {"label": " labelled as", "pr": "", "user": " opened by"}
+        keys = descr.keys()
+        default_key = "label"
+
+        for ftype in ["include" , "exclude"]:
+            self.filters[ftype] = dict.fromkeys(keys)
+
+            if not getattr(args, ftype):
+                continue
+
+            for filt in getattr(args, ftype):
+                found = False
+                for key in keys:
+                    # Look for key:value pattern
+                    pattern = key + ":"
+                    if filt.find(pattern) == 0:
+                        value = filt.replace(pattern,'',1)
+                        if self.filters[ftype][key]:
+                            self.filters[ftype][key].append(value)
+                        else:
+                            self.filters[ftype][key] = [value]
+                        found = True
+                        continue
+
+                if not found:
+                    # Look for #value pattern
+                    pattern = "#"
+                    if filt.find(pattern) != -1:
+                        value = filt.replace(pattern,'',1)
+                        if self.filters[ftype]["pr"]:
+                            self.filters[ftype]["pr"].append(value)
+                        else:
+                            self.filters[ftype]["pr"] = [value]
+                        found = True
+                        continue
+
+                if not found:
+                    if self.filters[ftype][key]:
+                        self.filters[ftype][default_key].append(filt)
+                    else:
+                        self.filters[ftype][default_key] = [filt]
+
+            action = ftype[0].upper() + ftype[1:-1] + "ing"
+            for key in keys:
+                if self.filters[ftype][key]:
+                    self.log.info("%s PR%s: %s", action, descr[key], " ".join(self.filters[ftype][key]))
 
 
 class Version(Command):
