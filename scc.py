@@ -445,6 +445,12 @@ class PullRequest(object):
 
         self.issue.create_comment(msg)
 
+    def create_status(self, status, message, url):
+        self.pull.base.repo.get_commit(self.get_sha()).create_status(
+            status, url or github.GithubObject.NotSet, message,
+        )
+
+
 class GitHubRepository(object):
 
     def __init__(self, gh, user_name, repo_name):
@@ -916,8 +922,7 @@ class GitRepository(object):
                 pullrequest.get_number(),
                 pullrequest.get_sha(),
             )
-            commit = self.origin.repo.get_commit(pullrequest.get_sha())
-            commit.create_status(status, url, message)
+            pullrequest.create_status(status, message, url)
         return msg
 
     def find_branching_point(self, topic_branch, main_branch):
@@ -2287,7 +2292,7 @@ class SetCommitStatus(GitRepoCommand):
             help='Commit status.')
         self.parser.add_argument('--message', '-m', required=True,
             help='Message to use for the commit status.')
-        self.parser.add_argument('--url', '-u', required=True,
+        self.parser.add_argument('--url', '-u',
             help='URL to use for the commit status.')
         self.parser.add_argument('base', type=str)
 
