@@ -1280,6 +1280,10 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             default = DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
 
+    def _log_parse_filters(self, args, default_user):
+        self.log.info("%s on PR based on %s opened by %s",
+                      self.NAME, args.base, default_user)
+
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
 
@@ -1297,8 +1301,7 @@ class FilteredPullRequestsCommand(GitRepoCommand):
         else:
             raise Exception("Unknown default mode: %s", args.default)
 
-        self.log.info("%s on PR based on %s opened by %s",
-                      self.NAME, args.base, default_user)
+        self._log_parse_filters(args, default_user)
 
         descr = {"label": " labelled as", "pr": "", "user": " opened by"}
         keys = descr.keys()
@@ -1755,6 +1758,13 @@ class Merge(FilteredPullRequestsCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
+    def _log_parse_filters(self, args, default_user):
+        if args.info:
+            action = "Finding"
+        else:
+            action = "Merging"
+        self.log.info("%s PR based on %s opened by %s", action, args.base, default_user)
 
 
 class Rebase(Command):
