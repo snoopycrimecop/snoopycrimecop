@@ -947,7 +947,9 @@ class GitRepository(object):
         msg = ""
         msg += str(self.origin) + "\n"
         self.origin.find_candidates(filters)
-        if not info:
+        if info:
+            msg += self.origin.merge_info()
+        else:
             msg += self.set_commit_status(status, message, url)
 
         for submodule_repo in self.submodules:
