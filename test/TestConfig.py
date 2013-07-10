@@ -43,19 +43,24 @@ class TestGithub(unittest.TestCase):
         self.assertRaises(Stop, get_github, "openmicroscopy",
             password ="bad_password", dont_ask=True)
 
-class TestEmptyConfig(SandboxTest):
+class TestConfig(SandboxTest):
 
-    def testChecksForNoUser(self):
-        os.chdir(self.path)
+    def writeConfigFile(self, configString):
+        f = open(os.path.join(self.path,'.git', 'config'), 'w')
+        f.write(configString)
+        f.close()
+
+    def testEmptyConfig(self):
         self.assertEquals(None, get_token_or_user(local=True))
 
-
-class TestSetConfig(SandboxTest):
-
-    def testChecksForNoUser(self):
-        os.chdir(self.path)
+    def testUserConfig(self):
         uuid = self.uuid()
-        git_config("github.user", value=uuid, local=True)
+        self.writeConfigFile("[github]\n    user = %s" % uuid)
+        self.assertEquals(uuid, get_token_or_user(local=True))
+
+    def testTokenConfig(self):
+        uuid = self.uuid()
+        self.writeConfigFile("[github]\n    token = %s" % uuid)
         self.assertEquals(uuid, get_token_or_user(local=True))
 
 if __name__ == '__main__':

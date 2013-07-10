@@ -150,7 +150,7 @@ def get_token_or_user(local=False):
     """
     Get the Github API token or the Github user if undefined.
     """
-    token = get_token()
+    token = get_token(local=local)
     if not token:
         token = git_config("github.user", local=local)
     return token
