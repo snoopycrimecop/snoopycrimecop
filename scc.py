@@ -1216,10 +1216,13 @@ class GitRepoCommand(Command):
 
     def __init__(self, sub_parsers):
         super(GitRepoCommand, self).__init__(sub_parsers)
+        self.parser.add_argument('--shallow', action='store_true',
+            help='Do not recurse into submodules')
 
     def init_main_repo(self, args):
         self.main_repo = self.gh.git_repo(self.cwd)
-        self.main_repo.register_submodules()
+        if not args.shallow:
+            self.main_repo.register_submodules()
         if args.reset:
             self.main_repo.reset()
             self.main_repo.get_status()
