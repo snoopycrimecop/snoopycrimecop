@@ -829,14 +829,15 @@ class GitRepository(object):
         *github/user/repository.git
         """
         self.cd(self.path)
+        config_key = "remote.%s.url" % remote_name
         try:
             originurl = self.call("git", "config", "--get", \
-                "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
+                config_key, stdout = subprocess.PIPE, \
                 stderr = subprocess.PIPE).communicate()[0].rstrip("\n")
             if originurl[-1] == "/":
                 originurl = originurl[:-1]
         except:
-            self.dbg("git config --get remote failure", exc_info=1)
+            self.dbg("git config --get %s failure" % config_key, exc_info=1)
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
