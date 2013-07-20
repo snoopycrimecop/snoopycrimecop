@@ -831,17 +831,13 @@ class GitRepository(object):
         """
         self.cd(self.path)
         config_key = "remote.%s.url" % remote_name
-        try:
-            originurl = self.call("git", "config", "--get", \
-                config_key, stdout = subprocess.PIPE, \
-                stderr = subprocess.PIPE).communicate()[0].rstrip("\n")
-            if originurl[-1] == "/":
-                originurl = originurl[:-1]
-        except:
-            self.dbg("git config --get %s failure" % config_key, exc_info=1)
+        originurl = git_config(config_key)
+        if originurl is None:
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+        if originurl[-1] == "/":
+            originurl = originurl[:-1]
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
