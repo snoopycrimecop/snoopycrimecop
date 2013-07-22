@@ -50,6 +50,18 @@ class SandboxTest(unittest.TestCase):
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
 
+    def init_submodules(self):
+        """
+        Fetch submodules after cloning the repository
+        """
+
+        try:
+            p = Popen(["git", "submodule", "update", "--init"])
+            self.assertEquals(0, p.wait())
+        except:
+            os.chdir(self.path)
+            raise
+
     def uuid(self):
         """
         Return a string representing a uuid.uuid4
