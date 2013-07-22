@@ -575,7 +575,7 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path):
+    def __init__(self, gh, path, remote="origin"):
         """
         Register the git repository path, return the current status and
         register the Github origin remote.
@@ -595,8 +595,9 @@ class GitRepository(object):
         self.get_status()
 
 
-        # Register the origin remote
-        [user_name, repo_name] = self.get_remote_info("origin")
+        # Register the remote
+        [user_name, repo_name] = self.get_remote_info(remote)
+        self.remote = remote
         self.submodules = []
         if gh:
             self.origin = gh.gh_repo(repo_name, user_name)
@@ -829,17 +830,14 @@ class GitRepository(object):
         *github/user/repository.git
         """
         self.cd(self.path)
-        try:
-            originurl = self.call("git", "config", "--get", \
-                "remote." + remote_name + ".url", stdout = subprocess.PIPE, \
-                stderr = subprocess.PIPE).communicate()[0].rstrip("\n")
-            if originurl[-1] == "/":
-                originurl = originurl[:-1]
-        except:
-            self.dbg("git config --get remote failure", exc_info=1)
+        config_key = "remote.%s.url" % remote_name
+        originurl = git_config(config_key)
+        if originurl is None:
             remotes = self.call("git", "remote", stdout = subprocess.PIPE,
                 stderr = subprocess.PIPE).communicate()[0]
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+        if originurl[-1] == "/":
+            originurl = originurl[:-1]
 
         # Read user from origin URL
         dirname = os.path.dirname(originurl)
@@ -985,7 +983,7 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            merge_msg += self.fast_forward(filters["base"])  + "\n"
+            merge_msg += self.fast_forward(filters["base"], remote=self.remote) + "\n"
             merge_msg += self.merge(comment, commit_id = commit_id, set_commit_status=set_commit_status)
             postsha1 = self.get_current_sha1()
             updated = (presha1 != postsha1)
@@ -1215,10 +1213,14 @@ class GitRepoCommand(Command):
 
     def __init__(self, sub_parsers):
         super(GitRepoCommand, self).__init__(sub_parsers)
+        self.parser.add_argument('--shallow', action='store_true',
+            help='Do not recurse into submodules')
+        self.add_remote_arg()
 
     def init_main_repo(self, args):
-        self.main_repo = self.gh.git_repo(self.cwd)
-        self.main_repo.register_submodules()
+        self.main_repo = self.gh.git_repo(self.cwd, remote=args.remote)
+        if not args.shallow:
+            self.main_repo.register_submodules()
         if args.reset:
             self.main_repo.reset()
             self.main_repo.get_status()
@@ -2208,7 +2210,6 @@ class UpdateSubmodules(GitRepoCommand):
         super(UpdateSubmodules, self).__init__(sub_parsers)
         self.add_token_args()
 
-        self.add_remote_arg()
         self.parser.add_argument('--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
         self.parser.add_argument('--no-pr', action='store_false',
