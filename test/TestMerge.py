@@ -114,6 +114,11 @@ class UnitTestMerge(MockTest):
         self.filters["default"] = 'none'
         self.assertEqual(self.merge.filters, self.filters)
 
+    def testOrg(self):
+        self.parse_filters(['-Dorg'])
+        self.filters["default"] = 'org'
+        self.assertEqual(self.merge.filters, self.filters)
+
     def testAll(self):
         self.parse_filters(['-Dall'])
         self.filters["default"] = 'all'
