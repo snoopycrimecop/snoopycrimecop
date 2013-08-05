@@ -76,11 +76,9 @@ class UnitTestFilter(MockTest):
         prs_filter = {"label": [], "user": [None], "pr": ["1","2"]}
         self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
 
-class UnitTestFilteredPullRequestsCommand(MockTest):
+class UnitTestFilteredPullRequestsCommand(object):
 
     def setUp(self):
-        MockTest.setUp(self)
-
         self.scc_parser, self.sub_parser = parsers()
         self.base = 'master'
         self.filters = self.get_default_filters()
@@ -214,18 +212,20 @@ class UnitTestFilteredPullRequestsCommand(MockTest):
         self.filters["exclude"]["user"] = ["snoopycrimecop"]
         self.assertEqual(self.command.filters, self.filters)
 
-class UnitTestMerge(UnitTestFilteredPullRequestsCommand):
+class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
 
     def setUp(self):
+        MockTest.setUp(self)
         UnitTestFilteredPullRequestsCommand.setUp(self)
         self.command = Merge(self.sub_parser)
 
     def get_main_cmd(self):
         return [self.command.NAME, self.base]
 
-class UnitTestSetCommitStatus(UnitTestFilteredPullRequestsCommand):
+class UnitTestSetCommitStatus(MockTest, UnitTestFilteredPullRequestsCommand):
 
     def setUp(self):
+        MockTest.setUp(self)
         UnitTestFilteredPullRequestsCommand.setUp(self)
         self.command = SetCommitStatus(self.sub_parser)
         self.status = 'success'
