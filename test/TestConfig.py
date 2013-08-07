@@ -63,5 +63,10 @@ class TestConfig(SandboxTest):
         self.writeConfigFile("[github]\n    token = %s" % uuid)
         self.assertEquals(uuid, get_token_or_user(local=True))
 
+    def testUserAndTokenConfig(self):
+        uuid = self.uuid()
+        self.writeConfigFile("[github]\n    user = 2\n    token = %s" % uuid)
+        self.assertEquals(uuid, get_token_or_user(local=True))
+
 if __name__ == '__main__':
     unittest.main()

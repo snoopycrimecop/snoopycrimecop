@@ -76,160 +76,185 @@ class UnitTestFilter(MockTest):
         prs_filter = {"label": [], "user": [None], "pr": ["1","2"]}
         self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
 
-class UnitTestMerge(MockTest):
+class UnitTestFilteredPullRequestsCommand(object):
 
     def setUp(self):
-        MockTest.setUp(self)
-
         self.scc_parser, self.sub_parser = parsers()
-        self.merge = Merge(self.sub_parser)
         self.base = 'master'
-        self.default_filters = {'base': 'master', 'default': 'org',
-            'include':{}, 'exclude':{}}
-        self.default_filters["include"]["label"] = ["include"]
-        self.default_filters["include"]["pr"] = None
-        self.default_filters["include"]["user"] = None
-        self.default_filters["exclude"]["label"] = ["exclude"]
-        self.default_filters["exclude"]["pr"] = None
-        self.default_filters["exclude"]["user"] = None
+        self.filters = self.get_default_filters()
+
+    def get_default_filters(self):
+        include_default = {'pr': None, 'user': None, 'label': ['include']}
+        exclude_default = {'pr': None, 'user': None, 'label': ['exclude']}
+        return {'base': self.base, 'default': 'org',
+            'include': include_default, 'exclude': exclude_default}
 
     def parse_filters(self, args):
-        main_cmd =["merge", self.base]
-        ns = self.scc_parser.parse_args(main_cmd + args)
-        self.merge._parse_filters(ns)
+        ns = self.scc_parser.parse_args(self.get_main_cmd() + args)
+        self.command._parse_filters(ns)
 
     # Default arguments
     def testDefaults(self):
         self.parse_filters([])
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.assertEqual(self.command.filters, self.filters)
 
     def testBase(self):
         self.base = 'develop'
+        self.filters = self.get_default_filters() # Regenerate default filters
         self.parse_filters([])
-        filters = self.default_filters
-        filters["base"] = self.base
-        self.assertEqual(self.merge.filters, filters)
+        self.assertEqual(self.command.filters, self.filters)
 
     # Default PR sets
     def testNone(self):
         self.parse_filters(['-Dnone'])
-        filters = self.default_filters
-        filters["default"] = 'none'
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["default"] = 'none'
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testOrg(self):
+        self.parse_filters(['-Dorg'])
+        self.filters["default"] = 'org'
+        self.assertEqual(self.command.filters, self.filters)
 
     def testAll(self):
         self.parse_filters(['-Dall'])
-        filters = self.default_filters
-        filters["default"] = 'all'
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["default"] = 'all'
+        self.assertEqual(self.command.filters, self.filters)
 
     # PR inclusion
     def testIncludeLabelNoKey(self):
         self.parse_filters(["-Itest"])
-        filters = self.default_filters
-        filters["include"]["label"] = ["test"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = ["test"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeLabelKey(self):
         self.parse_filters(["-Ilabel:test"])
-        filters = self.default_filters
-        filters["include"]["label"] = ["test"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = ["test"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeMixedLabels(self):
         self.parse_filters(["-Itest", "-Ilabel:test2"])
-        filters = self.default_filters
-        filters["include"]["label"] = ['test' ,'test2']
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = ['test' ,'test2']
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludePRHash(self):
         self.parse_filters(["-I#65"])
-        filters = self.default_filters
-        filters["include"]["label"] = None
-        filters["include"]["pr"] = ["65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = None
+        self.filters["include"]["pr"] = ["65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludePRSubmodule(self):
         self.parse_filters(["-Iome/scripts#65"])
-        filters = self.default_filters
-        filters["include"]["label"] = None
-        filters["include"]["pr"] = ["ome/scripts65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = None
+        self.filters["include"]["pr"] = ["ome/scripts65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeMixedPRs(self):
         self.parse_filters(["-I#65","-Ipr:66","-Iome/scripts#65"])
-        filters = self.default_filters
-        filters["include"]["label"] = None
-        filters["include"]["pr"] = ["65", '66', 'ome/scripts65']
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = None
+        self.filters["include"]["pr"] = ["65", '66', 'ome/scripts65']
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludePR(self):
         self.parse_filters(["-Ipr:65"])
-        filters = self.default_filters
-        filters["include"]["label"] = None
-        filters["include"]["pr"] = ["65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = None
+        self.filters["include"]["pr"] = ["65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeUser(self):
         self.parse_filters(["-Iuser:snoopycrimecop"])
-        filters = self.default_filters
-        filters["include"]["label"] = None
-        filters["include"]["user"] = ["snoopycrimecop"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["include"]["label"] = None
+        self.filters["include"]["user"] = ["snoopycrimecop"]
+        self.assertEqual(self.command.filters, self.filters)
 
     # Label exclusion
     def testExcludeLabelNoKey(self):
         self.parse_filters(["-Etest"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = ["test"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = ["test"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludeLabelKey(self):
         self.parse_filters(["-Elabel:test"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = ["test"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = ["test"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludeMultipleLabels(self):
         self.parse_filters(["-Etest", "-Elabel:test2"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = ['test' ,'test2']
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = ['test' ,'test2']
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludePR(self):
         self.parse_filters(["-Epr:65"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = None
-        filters["exclude"]["pr"] = ["65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = None
+        self.filters["exclude"]["pr"] = ["65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludePRHash(self):
         self.parse_filters(["-E#65"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = None
-        filters["exclude"]["pr"] = ["65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = None
+        self.filters["exclude"]["pr"] = ["65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludePRSubmodule(self):
         self.parse_filters(["-Eome/scripts#65"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = None
-        filters["exclude"]["pr"] = ["ome/scripts65"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = None
+        self.filters["exclude"]["pr"] = ["ome/scripts65"]
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludeMixedPRs(self):
         self.parse_filters(["-E#65","-Epr:66","-Eome/scripts#65"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = None
-        filters["exclude"]["pr"] = ["65", '66', 'ome/scripts65']
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = None
+        self.filters["exclude"]["pr"] = ["65", '66', 'ome/scripts65']
+        self.assertEqual(self.command.filters, self.filters)
 
     def testExcludeUser(self):
         self.parse_filters(["-Euser:snoopycrimecop"])
-        filters = self.default_filters
-        filters["exclude"]["label"] = None
-        filters["exclude"]["user"] = ["snoopycrimecop"]
-        self.assertEqual(self.merge.filters, filters)
+        self.filters["exclude"]["label"] = None
+        self.filters["exclude"]["user"] = ["snoopycrimecop"]
+        self.assertEqual(self.command.filters, self.filters)
+
+class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
+
+    def setUp(self):
+        MockTest.setUp(self)
+        UnitTestFilteredPullRequestsCommand.setUp(self)
+        self.command = Merge(self.sub_parser)
+
+    def get_main_cmd(self):
+        return [self.command.NAME, self.base]
+
+class UnitTestSetCommitStatus(MockTest, UnitTestFilteredPullRequestsCommand):
+
+    def setUp(self):
+        MockTest.setUp(self)
+        UnitTestFilteredPullRequestsCommand.setUp(self)
+        self.command = SetCommitStatus(self.sub_parser)
+        self.status = 'success'
+        self.message = 'test'
+
+    def get_main_cmd(self):
+        return [self.command.NAME, self.base, '-s', self.status, '-m',
+            self.message]
+
+    # Status tests
+    def testSuccess(self):
+        self.status = 'success'
+        self.parse_filters([])
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testFailure(self):
+        self.status = 'failure'
+        self.parse_filters([])
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testError(self):
+        self.status = 'error'
+        self.parse_filters([])
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testPending(self):
+        self.status = 'pending'
+        self.parse_filters([])
+        self.assertEqual(self.command.filters, self.filters)
 
 class UnitTestTravisMerge(MockTest):
 
@@ -237,51 +262,53 @@ class UnitTestTravisMerge(MockTest):
         MockTest.setUp(self)
 
         self.scc_parser, self.sub_parser = parsers()
-        self.merge = TravisMerge(self.sub_parser)
+        self.command = TravisMerge(self.sub_parser)
         self.base = 'master'
-        self.default_filters = {'base': 'master', 'default': 'none',
-            'include':{}, 'exclude':{}}
-        self.default_filters["include"]["label"] = None
-        self.default_filters["include"]["pr"] = None
-        self.default_filters["include"]["user"] = None
-        self.default_filters["exclude"]["label"] = None
-        self.default_filters["exclude"]["pr"] = None
-        self.default_filters["exclude"]["user"] = None
+        self.filters = self.get_default_filters()
+
+    def get_default_filters(self):
+        include_default = {'pr': None, 'user': None, 'label': None}
+        exclude_default = {'pr': None, 'user': None, 'label': None}
+        return {'base': self.base, 'default': 'none',
+            'include': include_default, 'exclude': exclude_default}
 
     def parse_dependencies(self, comments):
-        self.merge._parse_dependencies('master', comments)
+        self.command._parse_dependencies(self.base, comments)
 
     # Default arguments
     def testDefaults(self):
         self.parse_dependencies([])
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testBase(self):
+        self.base = 'develop'
+        self.filters = self.get_default_filters() # Regenerate default filters
+        self.parse_dependencies([])
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludePRNoHash(self):
         # --depends-on 21 does not change filters
         self.parse_dependencies(['21'])
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeSinglePR(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21'])
-        filters = self.default_filters
-        filters["include"]["pr"] = ['21']
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.filters["include"]["pr"] = ['21']
+        self.assertEqual(self.command.filters, self.filters)
 
     def testIncludeSubmodulePR(self):
         # --depends-on ome/scripts#21 changes filters
         self.parse_dependencies(['ome/scripts#21'])
-        filters = self.default_filters
-        filters["include"]["pr"] = ['ome/scripts21']
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.filters["include"]["pr"] = ['ome/scripts21']
+        self.assertEqual(self.command.filters, self.filters)
 
 
     def testIncludeMultiplePRs(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
-        filters = self.default_filters
-        filters["include"]["pr"] = ['21','22', 'ome/scripts21']
-        self.assertEqual(self.merge.filters, self.default_filters)
+        self.filters["include"]["pr"] = ['21','22', 'ome/scripts21']
+        self.assertEqual(self.command.filters, self.filters)
 
 class TestMerge(SandboxTest):
 

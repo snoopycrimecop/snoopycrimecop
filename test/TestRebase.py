@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2013 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -32,35 +32,42 @@ from subprocess import *
 
 class TestRebase(SandboxTest):
 
-    def test(self):
+    def setUp(self):
 
-        # Setup
-        user = self.gh.get_login()
-        gh_repo = self.gh.gh_repo("snoopys-sandbox", "openmicroscopy")
+        super(TestRebase, self).setUp()
 
-        # Create first PR from master
-        name = self.fake_branch(head="origin/dev_4_4")
-        self.sandbox.add_remote(user)
-        self.sandbox.push_branch(name, remote=user)
-        try:
-            pr = gh_repo.open_pr(
-                title="test %s" % name,
-                description="This is a call to sandbox.open_pr",
-                base="dev_4_4",
-                head="%s:%s" % (user, name))
+        # Open first PR against dev_4_4 branch
+        self.source_base = "dev_4_4"
+        self.source_branch = self.fake_branch(head=self.source_base)
+        self.pr = self.open_pr(self.source_branch, self.source_base)
 
-            main(["rebase", \
-                    "--token=%s"%self.gh.login_or_token, \
-                    "--no-ask", \
-                    str(pr.number), \
-                    "develop"])
-            # If it succeeds, then we immediately close the PR
-            self.sandbox.push_branch(":rebased/develop/%s"%name, remote=user)
+    def tearDown(self):
 
-        finally:
-            # This will also clean the first PR
-            self.sandbox.push_branch(":%s"%name, remote=user)
+        # Clean the initial branch. This will close the inital PRs
+        self.sandbox.push_branch(":%s"%self.source_branch, remote=self.user)
 
+        super(TestRebase, self).tearDown()
+
+    def testRebase(self):
+
+        self.target_base="develop"
+        self.target_branch="rebased/%s/%s" % (self.target_base,
+            self.source_branch)
+
+        # Rebase the PR
+        main(["rebase", \
+            "--token=%s"%self.token, \
+            "--no-ask", \
+            str(self.pr.number), \
+            self.target_base])
+
+        # Check the last opened PR is the rebased one
+        prs = list(self.sandbox.origin.get_pulls())
+        self.assertEquals(prs[0].head.user.login, self.user)
+        self.assertEquals(prs[0].head.ref, self.target_branch)
+
+        # Clean the rebased branch
+        self.sandbox.push_branch(":%s"%self.target_branch, remote=self.user)
 
 if __name__ == '__main__':
     unittest.main()

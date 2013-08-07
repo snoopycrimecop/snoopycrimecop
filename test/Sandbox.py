@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2013 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,8 +25,8 @@ import shutil
 import unittest
 import tempfile
 
-from scc import *
-from subprocess import *
+from scc import get_github, get_token_or_user
+from subprocess import Popen
 
 sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
 
@@ -37,7 +37,8 @@ class SandboxTest(unittest.TestCase):
         self.cwd = os.getcwd()
         self.token = get_token_or_user(local=False)
         self.gh = get_github(self.token, dont_ask=True)
-        self.path = tempfile.mkdtemp("","sandbox-", ".")
+        self.user = self.gh.get_login()
+        self.path = tempfile.mkdtemp("", "sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
             p = Popen(["git", "clone", sandbox_url, self.path])
@@ -48,6 +49,18 @@ class SandboxTest(unittest.TestCase):
             raise
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
+
+    def init_submodules(self):
+        """
+        Fetch submodules after cloning the repository
+        """
+
+        try:
+            p = Popen(["git", "submodule", "update", "--init"])
+            self.assertEquals(0, p.wait())
+        except:
+            os.chdir(self.path)
+            raise
 
     def uuid(self):
         """
@@ -65,6 +78,10 @@ class SandboxTest(unittest.TestCase):
         return open(name, "w")
 
     def fake_branch(self, head="master"):
+        """
+        Return a local branch with a single commit adding a unique file
+        """
+
         f = self.unique_file()
         f.write("hi")
         f.close()
@@ -78,6 +95,21 @@ class SandboxTest(unittest.TestCase):
         self.sandbox.commit("Writing %s" % name)
         self.sandbox.get_status()
         return name
+
+    def open_pr(self, branch, base):
+        """
+        Push a local branch and open a PR against the selected base
+        """
+
+        self.sandbox.add_remote(self.user)
+        self.sandbox.push_branch(branch, remote=self.user)
+        new_pr = self.sandbox.origin.open_pr(
+          title="test %s" % branch,
+          description="This is a call to SandboxTest.open_pr",
+          base=base,
+          head="%s:%s" % (self.user, branch))
+
+        return new_pr
 
     def tearDown(self):
         try:

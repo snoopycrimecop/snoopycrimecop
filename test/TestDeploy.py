@@ -23,7 +23,7 @@ import os
 import shutil
 import unittest
 
-from scc import *
+from scc import main, Stop
 
 class TestDeploy(unittest.TestCase):
 
@@ -32,32 +32,31 @@ class TestDeploy(unittest.TestCase):
         self.live_folder = self.folder + ".live"
         self.tmp_folder = self.folder + ".tmp"
         
-        # Initialize old folder
+        # Initialize old folder with file and directory
         os.mkdir(self.folder)
-        self.oldfilename = "a"
-        self.oldfile = os.path.join(self.folder, self.oldfilename)
-        self.oldtargetfile = os.path.join(self.live_folder, self.oldfilename)
-        open(self.oldfile, "w")
-        self.olddirname = "d"
-        self.olddir = os.path.join(self.folder, self.olddirname)
-        self.oldtargetdir = os.path.join(self.live_folder, self.olddirname)
-        os.mkdir(self.olddir)
+        oldfile = os.path.join(self.folder, "a")
+        open(oldfile, "w")
+        self.oldtargetfile = os.path.join(self.live_folder, "a")
+        olddir = os.path.join(self.folder, "d")
+        os.mkdir(olddir)
+        self.oldtargetdir = os.path.join(self.live_folder, "d")
         
         # Create tmp folder for content replacement
         os.mkdir(self.tmp_folder)
-        self.newfilename = "b"
-        self.newfile = os.path.join(self.tmp_folder, self.newfilename)
-        self.newtargetfile = os.path.join(self.live_folder, self.newfilename)
-        open(self.newfile, "w")
+        newfile = os.path.join(self.tmp_folder, "b")
+        open(newfile, "w")
+        self.newtargetfile = os.path.join(self.live_folder, "b")
 
     def createBrokenSymlink(self, folder):
-        self.brokenlinkname = "brokensymlink"
-        self.brokenlink = os.path.join(folder, self.brokenlinkname)
-        self.badsource = os.path.join(folder, "nonexistingsource")
-        self.targetlink = os.path.join(self.folder, self.brokenlinkname)
-        os.symlink(self.badsource, self.brokenlink)
-        self.assertTrue(os.path.lexists(self.brokenlink))
-        self.assertFalse(os.path.exists(self.brokenlink))
+
+        # Create broken symboic link
+        brokenlink = os.path.join(folder, "brokensymlink")
+        badsource = os.path.join(folder, "nonexistingsource")
+        os.symlink(badsource, brokenlink)
+        self.assertTrue(os.path.lexists(brokenlink))
+        self.assertFalse(os.path.exists(brokenlink))
+
+        return os.path.join(self.folder, "brokensymlink")
 
     def tearDown(self):
         for path in [self.folder, self.live_folder, self.tmp_folder]:
@@ -82,10 +81,10 @@ class TestDeploy(unittest.TestCase):
         self.assertTrue(os.path.isdir(self.oldtargetdir))
 
     def testDeployInitBrokenSymlink(self):
-        self.createBrokenSymlink(self.folder)
+        targetlink = self.createBrokenSymlink(self.folder)
         self.testDeployInit()
-        self.assertFalse(os.path.lexists(self.targetlink))
-        self.assertFalse(os.path.exists(self.targetlink))
+        self.assertFalse(os.path.lexists(targetlink))
+        self.assertFalse(os.path.exists(targetlink))
 
     def testDeployNoInit(self):
         self.assertRaises(Stop,  main, ["deploy", self.folder])
@@ -112,10 +111,10 @@ class TestDeploy(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.newtargetfile))
 
     def testDeployBrokenSymlink(self):
-        self.createBrokenSymlink(self.tmp_folder)
+        targetlink = self.createBrokenSymlink(self.tmp_folder)
         self.testDeploy()
-        self.assertFalse(os.path.lexists(self.targetlink))
-        self.assertFalse(os.path.exists(self.targetlink))
+        self.assertFalse(os.path.lexists(targetlink))
+        self.assertFalse(os.path.exists(targetlink))
 
 if __name__ == '__main__':
     unittest.main()
