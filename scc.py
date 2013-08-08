@@ -1052,8 +1052,14 @@ class GitRepository(object):
         "Return the tag prefix for this repository using git describe"
 
         self.cd(self.path)
-        version, e = self.call("git", "describe", stdout = subprocess.PIPE).communicate()
-        return re.split('\d', version)[0]
+        try:
+            version, e = self.call("git", "describe", stdout = subprocess.PIPE).communicate()
+            prefix = re.split('\d', version)[0]
+        except:
+            # If no tag is present on the branch, git describe fails
+            prefix = ""
+
+        return prefix
 
     def rtag(self, release, message=None):
         """Recursively tag repositories with a release number."""
