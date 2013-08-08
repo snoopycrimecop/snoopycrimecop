@@ -729,6 +729,18 @@ class GitRepository(object):
         self.dbg("Committing %s...", msg)
         self.call("git", "commit", "-m", msg)
 
+    def tag(self, tag, message=None, force=False):
+        """Tag the HEAD of the git repository"""
+        self.cd(self.path)
+        if message is None:
+            message = "Tag with version %s" % tag
+
+        self.dbg("Creating tag %s...", tag)
+        if force:
+            self.call("git", "tag", "-f", tag, "-m", message)
+        else:
+            self.call("git", "tag", tag, "-m", message)
+
     def new_branch(self, name, head="HEAD"):
         self.cd(self.path)
         self.dbg("New branch %s from %s...", name, head)
@@ -1035,6 +1047,30 @@ class GitRepository(object):
                 self.call("git", "commit", "-a", "-n", "-m", top_message)
                 updated = True
         return updated, merge_msg
+
+    def get_tag_prefix(self):
+        "Return the tag prefix for this repository using git describe"
+
+        self.cd(self.path)
+        version, e = self.call("git", "describe", stdout = subprocess.PIPE).communicate()
+        return re.split('\d', version)[0]
+
+    def rtag(self, release, message=None):
+        """Recursively tag repositories with a release number."""
+
+        msg = ""
+        msg += str(self.origin) + "\n"
+        tag_prefix = self.get_tag_prefix()
+        self.tag(tag_prefix + release, message)
+        msg += "Created tag %s\n" % (tag_prefix + release)
+
+        for submodule_repo in self.submodules:
+            msg += str(submodule_repo.origin) + "\n"
+            tag_prefix = submodule_repo.get_tag_prefix()
+            submodule_repo.tag(tag_prefix + release, message)
+            msg += "Created tag %s\n" % (tag_prefix + release)
+
+        return msg
 
     def unique_logins(self):
         """Return a set of unique logins."""
@@ -2312,6 +2348,31 @@ class SetCommitStatus(FilteredPullRequestsCommand):
         for line in msg.split("\n"):
             self.log.info(line)
 
+class TagRelease(GitRepoCommand):
+    """
+    Tag a release number recursively across submodules.
+    """
+
+    NAME = "tag-release"
+
+    def __init__(self, sub_parsers):
+        super(TagRelease, self).__init__(sub_parsers)
+
+        self.parser.add_argument('release', type=str,
+            help='Release number to use for the tag')
+        self.parser.add_argument('--message', '-m', type=str,
+            help='Message  status.')
+
+    def __call__(self, args):
+        super(TagRelease, self).__call__(args)
+        self.login(args)
+        self.init_main_repo(args)
+        if args.message is None:
+            args.message = 'Tag release %s' % args.release
+        msg = self.main_repo.rtag(args.release, message=args.message)
+
+        for line in msg.split("\n"):
+            self.log.info(line)
 
 class Version(Command):
     """Find which version of scc is being used"""
