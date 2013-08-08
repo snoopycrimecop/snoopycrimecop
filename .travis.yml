@@ -10,8 +10,4 @@ before_install:
   - git config github.token 3bc7fc530b01081559eb911f59ccfec7f4fb2592
 install: python scc.py -h
 before_script: python scc.py travis-merge
-script:
-    - PYTHONPATH=. python test/TestMerge.py UnitTestFilter UnitTestMerge UnitTestSetCommitStatus UnitTestTravisMerge
-    - PYTHONPATH=. python test/TestConfig.py TestGithub
-    - PYTHONPATH=. python test/TestDeploy.py
-    - PYTHONPATH=. python test/TestToken.py
+script: nosetests -v -d
