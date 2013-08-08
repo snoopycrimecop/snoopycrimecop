@@ -8,6 +8,8 @@ before_install:
   - "pip install -r dev_requirements.txt --use-mirrors"
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors argparse; fi
   - git config github.token 3bc7fc530b01081559eb911f59ccfec7f4fb2592
+  - git config --global user.email snoopycrimecop@gmail.com
+  - git config --global user.name 'Snoopy Crime Cop'
 install: python scc.py -h
 before_script: python scc.py travis-merge
 script: nosetests -v -d
