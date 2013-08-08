@@ -1215,7 +1215,10 @@ class GitRepoCommand(Command):
         super(GitRepoCommand, self).__init__(sub_parsers)
         self.parser.add_argument('--shallow', action='store_true',
             help='Do not recurse into submodules')
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
         self.add_remote_arg()
+        self.add_token_args()
 
     def init_main_repo(self, args):
         self.main_repo = self.gh.git_repo(self.cwd, remote=args.remote)
@@ -1226,8 +1229,6 @@ class GitRepoCommand(Command):
             self.main_repo.get_status()
 
     def add_new_commit_args(self):
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
         self.parser.add_argument('--message', '-m',
             help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--push', type=str,
@@ -1266,7 +1267,6 @@ class FilteredPullRequestsCommand(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(FilteredPullRequestsCommand, self).__init__(sub_parsers)
-        self.add_token_args()
 
         filter_desc = " Filter keys can be specified using label:my_label, \
             pr:24 or  user:username. If no key is specified, the filter is \
@@ -2002,7 +2002,6 @@ class TravisMerge(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(TravisMerge, self).__init__(sub_parsers)
-        self.add_token_args()
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
 
@@ -2208,7 +2207,6 @@ class UpdateSubmodules(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(UpdateSubmodules, self).__init__(sub_parsers)
-        self.add_token_args()
 
         self.parser.add_argument('--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
@@ -2292,8 +2290,6 @@ class SetCommitStatus(FilteredPullRequestsCommand):
     def __init__(self, sub_parsers):
         super(SetCommitStatus, self).__init__(sub_parsers)
 
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
         self.parser.add_argument('--status', '-s', type=str, required=True,
             choices=["success", "failure", "error", "pending"],
             help='Commit status.')
