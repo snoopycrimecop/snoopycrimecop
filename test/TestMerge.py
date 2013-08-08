@@ -329,11 +329,11 @@ class TestMerge(SandboxTest):
             
     def test(self):
 
-        main(["merge","dev_4_4"])
+        main(["merge", "--no-ask", "dev_4_4"])
 
     def testPush(self):
 
-        main(["merge","dev_4_4" ,"--push", "test"])
+        main(["merge", "--no-ask", "dev_4_4" ,"--push", "test"])
         # This will clean the pushed branch
         remote = "git@github.com:%s/" % (self.user) + "%s.git"
         self.sandbox.rpush(":test", remote=remote)
