@@ -2356,7 +2356,7 @@ class SetCommitStatus(FilteredPullRequestsCommand):
 
 class TagRelease(GitRepoCommand):
     """
-    Tag a release number recursively across submodules.
+    Tag a release recursively across submodules.
     """
 
     NAME = "tag-release"
@@ -2367,7 +2367,9 @@ class TagRelease(GitRepoCommand):
         self.parser.add_argument('release', type=str,
             help='Release number to use for the tag')
         self.parser.add_argument('--message', '-m', type=str,
-            help='Message  status.')
+            help='Tag message')
+        self.parser.add_argument('--push', action='store_true',
+            help='Push new tag to Github')
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
@@ -2379,6 +2381,11 @@ class TagRelease(GitRepoCommand):
 
         for line in msg.split("\n"):
             self.log.info(line)
+
+        if args.push:
+            user = self.gh.get_login()
+            remote = "git@github.com:%s/" % (user) + "%s.git"
+            self.main_repo.rpush('--tags', remote, force=True)
 
 class Version(Command):
     """Find which version of scc is being used"""
