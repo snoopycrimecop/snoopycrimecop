@@ -53,17 +53,28 @@ class TestRebase(SandboxTest):
 
         super(TestRebase, self).tearDown()
 
-    def testRebase(self):
+    def testLocalRebase(self):
 
         # Rebase the PR locally
         main(["rebase", \
             "--token=%s"%self.token, \
             "--no-ask", \
             "--no-push", \
+            "--no-pr", \
             str(self.pr.number), \
             self.target_base])
 
     def testRebasePush(self):
+
+        # Rebase the PR locally
+        main(["rebase", \
+            "--token=%s"%self.token, \
+            "--no-ask", \
+            "--no-pr", \
+            str(self.pr.number), \
+            self.target_base])
+
+    def testRebasePushPR(self):
 
         # Rebase the PR and push to Github
         main(["rebase", \
