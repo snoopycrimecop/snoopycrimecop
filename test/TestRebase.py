@@ -41,6 +41,11 @@ class TestRebase(SandboxTest):
         self.source_branch = self.fake_branch(head=self.source_base)
         self.pr = self.open_pr(self.source_branch, self.source_base)
 
+        # Define target branch for rebasing PR
+        self.target_base="develop"
+        self.target_branch="rebased/%s/%s" % (self.target_base,
+            self.source_branch)
+
     def tearDown(self):
 
         # Clean the initial branch. This will close the inital PRs
@@ -50,11 +55,17 @@ class TestRebase(SandboxTest):
 
     def testRebase(self):
 
-        self.target_base="develop"
-        self.target_branch="rebased/%s/%s" % (self.target_base,
-            self.source_branch)
+        # Rebase the PR locally
+        main(["rebase", \
+            "--token=%s"%self.token, \
+            "--no-ask", \
+            "--no-push", \
+            str(self.pr.number), \
+            self.target_base])
 
-        # Rebase the PR
+    def testRebasePush(self):
+
+        # Rebase the PR and push to Github
         main(["rebase", \
             "--token=%s"%self.token, \
             "--no-ask", \
