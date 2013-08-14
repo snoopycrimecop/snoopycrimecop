@@ -46,12 +46,20 @@ class TestTagRelease(SandboxTest):
 
     def testTag(self):
 
-        if self.new_tag in  self.get_tags():
-            pass
-
         # Tag a new release
         main(["tag-release", "--no-ask", self.new_tag])
         self.assertTrue('v.' + self.new_tag in self.get_tags())
+
+    def testExitingTag(self):
+        """Test existing tag"""
+
+        # Create local tag and check local existence
+        p = Popen(["git", "tag", 'v.' + self.new_tag], stdout=subprocess.PIPE)
+        self.assertTrue('v.' + self.new_tag in self.get_tags())
+
+        # Test Stop is thrown by tag-release command
+        self.assertRaises(Stop, main, ["tag-release", "-v", "--no-ask",
+            self.new_tag])
 
 if __name__ == '__main__':
     unittest.main()

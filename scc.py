@@ -735,6 +735,9 @@ class GitRepository(object):
         if message is None:
             message = "Tag with version %s" % tag
 
+        if self.has_local_tag(tag):
+            raise Stop(21, "Tag %s already exists in %s." % (tag, self.path))
+
         self.dbg("Creating tag %s...", tag)
         if force:
             self.call("git", "tag", "-f", tag, "-m", message)
@@ -820,6 +823,16 @@ class GitRepository(object):
         except Exception, e:
             self.dbg("%s has local changes" ,self)
             return True
+
+    def has_local_tag(self, tag):
+        """Check for tag existence in the local Git repository"""
+
+        self.cd(self.path)
+        try:
+            r = self.call("git", "show-ref", "--verify", "--quiet", "refs/tags/%s" % tag)
+            return True
+        except Exception, e:
+            return False
 
     def get_submodule_paths(self):
         """Return path of repository submodules"""
