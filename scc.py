@@ -738,6 +738,9 @@ class GitRepository(object):
         if self.has_local_tag(tag):
             raise Stop(21, "Tag %s already exists in %s." % (tag, self.path))
 
+        if not self.is_valid_tag(tag):
+            raise Stop(22, "%s is not a valid tag name." % tag)
+
         self.dbg("Creating tag %s...", tag)
         if force:
             self.call("git", "tag", "-f", tag, "-m", message)
@@ -830,6 +833,16 @@ class GitRepository(object):
         self.cd(self.path)
         try:
             r = self.call("git", "show-ref", "--verify", "--quiet", "refs/tags/%s" % tag)
+            return True
+        except Exception, e:
+            return False
+
+    def is_valid_tag(self, tag):
+        """Check the validity of a reference name for a tag"""
+
+        self.cd(self.path)
+        try:
+            r = self.call("git", "check-ref-format", "refs/tags/%s" % tag)
             return True
         except Exception, e:
             return False

@@ -58,8 +58,15 @@ class TestTagRelease(SandboxTest):
         self.assertTrue('v.' + self.new_tag in self.get_tags())
 
         # Test Stop is thrown by tag-release command
-        self.assertRaises(Stop, main, ["tag-release", "-v", "--no-ask",
+        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
             self.new_tag])
+
+    def testInvalidTag(self):
+        """Test invalid tag reference name"""
+
+        # Test Stop is thrown by tag-release command
+        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
+            self.new_tag + ".."])
 
 if __name__ == '__main__':
     unittest.main()
