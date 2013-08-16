@@ -45,14 +45,34 @@ class TestTagRelease(SandboxTest):
         return p.split("\n")
 
     def testTag(self):
+        """Test tagging on repository without submodules"""
 
-        # Tag a new release
         main(["tag-release", "--no-ask", self.new_tag])
         self.assertTrue('v.' + self.new_tag in self.get_tags())
 
-    def testInvalidVersionNumber(self):
+    def testRecursiveTag(self):
+        """Test recursive tagging on repository with submodules"""
 
-        # Try to pass an invalid release number
+        self.init_submodules()
+        main(["tag-release", "--no-ask", self.new_tag])
+        os.chdir(self.path)
+        self.assertTrue('v.' + self.new_tag in self.get_tags())
+        os.chdir("snoopys-sandbox-2")
+        self.assertTrue(self.new_tag in self.get_tags())
+
+    def testShallowTag(self):
+        """Test shallow tagging on repository with submodules"""
+
+        self.init_submodules()
+        main(["tag-release", "--shallow", "--no-ask", self.new_tag])
+        os.chdir(self.path)
+        self.assertTrue('v.' + self.new_tag in self.get_tags())
+        os.chdir("snoopys-sandbox-2")
+        self.assertFalse(self.new_tag in self.get_tags())
+
+    def testInvalidVersionNumber(self):
+        """Test invalid version number"""
+
         self.assertRaises(Stop, main, ["tag-release", "--no-ask",
             'v0.0.0'])
 
