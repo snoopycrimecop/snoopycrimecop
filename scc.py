@@ -1087,20 +1087,20 @@ class GitRepository(object):
 
         return prefix
 
-    def rtag(self, release, message=None):
-        """Recursively tag repositories with a release number."""
+    def rtag(self, version, message=None):
+        """Recursively tag repositories with a version number."""
 
         msg = ""
         msg += str(self.origin) + "\n"
         tag_prefix = self.get_tag_prefix()
-        self.tag(tag_prefix + release, message)
-        msg += "Created tag %s\n" % (tag_prefix + release)
+        self.tag(tag_prefix + version, message)
+        msg += "Created tag %s\n" % (tag_prefix + version)
 
         for submodule_repo in self.submodules:
             msg += str(submodule_repo.origin) + "\n"
             tag_prefix = submodule_repo.get_tag_prefix()
-            submodule_repo.tag(tag_prefix + release, message)
-            msg += "Created tag %s\n" % (tag_prefix + release)
+            submodule_repo.tag(tag_prefix + version, message)
+            msg += "Created tag %s\n" % (tag_prefix + version)
 
         return msg
 
@@ -2390,8 +2390,8 @@ class TagRelease(GitRepoCommand):
     def __init__(self, sub_parsers):
         super(TagRelease, self).__init__(sub_parsers)
 
-        self.parser.add_argument('release', type=str,
-            help='Release number to use for the tag')
+        self.parser.add_argument('version', type=str,
+            help='Version number to use to construct the tag')
         self.parser.add_argument('--message', '-m', type=str,
             help='Tag message')
         self.parser.add_argument('--push', action='store_true',
@@ -2399,11 +2399,15 @@ class TagRelease(GitRepoCommand):
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
+
+        if not self.check_version_format(args):
+            raise Stop(23, '%s is not a valid version number. See http://semver.org for more information.' % args.version)
+
         self.login(args)
         self.init_main_repo(args)
         if args.message is None:
-            args.message = 'Tag release %s' % args.release
-        msg = self.main_repo.rtag(args.release, message=args.message)
+            args.message = 'Tag version %s' % args.version
+        msg = self.main_repo.rtag(args.version, message=args.message)
 
         for line in msg.split("\n"):
             self.log.info(line)
@@ -2412,6 +2416,13 @@ class TagRelease(GitRepoCommand):
             user = self.gh.get_login()
             remote = "git@github.com:%s/" % (user) + "%s.git"
             self.main_repo.rpush('--tags', remote, force=True)
+
+    def check_version_format(self, args):
+        """Check format of version number"""
+
+        import re
+        pattern = '[0-9]+[.][0-9]+[.][0-9]+.*'
+        return re.match(pattern, args.version) is not None
 
 class Version(Command):
     """Find which version of scc is being used"""
