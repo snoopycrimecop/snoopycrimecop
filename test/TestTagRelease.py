@@ -35,10 +35,7 @@ class TestTagRelease(SandboxTest):
     def setUp(self):
 
         super(TestTagRelease, self).setUp()
-
-        import random
-        self.new_tag = '%s.%s.%s' % (random.randint(2,100),
-            random.randint(0,100), random.randint(0,100))
+        self.new_tag = '5.0.0-beta1'
 
     def get_tags(self):
         p = Popen(["git","tag"],stdout=subprocess.PIPE).communicate()[0]
