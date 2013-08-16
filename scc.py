@@ -2421,7 +2421,7 @@ class TagRelease(GitRepoCommand):
         """Check format of version number"""
 
         import re
-        pattern = '[0-9]+[.][0-9]+[.][0-9]+.*'
+        pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
         return re.match(pattern, args.version) is not None
 
 class Version(Command):

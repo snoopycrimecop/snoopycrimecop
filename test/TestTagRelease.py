@@ -71,7 +71,13 @@ class TestTagRelease(SandboxTest):
         """Test invalid version number"""
 
         self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            'v0.0.0'])
+            'v5.0.0-beta1'])
+
+    def testInvalidVersionPreReleaseNumber(self):
+        """Test invalid version pre-release number"""
+
+        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
+            '0.0.0beta1'])
 
     def testExitingTag(self):
         """Test existing tag"""
