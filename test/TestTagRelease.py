@@ -35,37 +35,35 @@ class TestTagRelease(SandboxTest):
     def setUp(self):
 
         super(TestTagRelease, self).setUp()
-        self.new_tag = '5.0.0-beta1'
+        self.new_version = '5.0.0-beta1'
 
-    def get_tags(self):
-        p = Popen(["git","tag"],stdout=subprocess.PIPE).communicate()[0]
-        return p.split("\n")
+    def has_new_prefixed_tag(self, repo):
+
+        return repo.has_local_tag(repo.get_tag_prefix() + self.new_version)
 
     def testTag(self):
         """Test tagging on repository without submodules"""
 
-        main(["tag-release", "--no-ask", self.new_tag])
-        self.assertTrue('v.' + self.new_tag in self.get_tags())
+        main(["tag-release", "--no-ask", self.new_version])
+        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
 
     def testRecursiveTag(self):
         """Test recursive tagging on repository with submodules"""
 
         self.init_submodules()
-        main(["tag-release", "--no-ask", self.new_tag])
-        os.chdir(self.path)
-        self.assertTrue('v.' + self.new_tag in self.get_tags())
-        os.chdir("snoopys-sandbox-2")
-        self.assertTrue(self.new_tag in self.get_tags())
+        main(["tag-release", "--no-ask", self.new_version])
+        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
+        for submodule in self.sandbox.submodules:
+            self.assertTrue(self.has_new_prefixed_tag(submodule))
 
     def testShallowTag(self):
         """Test shallow tagging on repository with submodules"""
 
         self.init_submodules()
-        main(["tag-release", "--shallow", "--no-ask", self.new_tag])
-        os.chdir(self.path)
-        self.assertTrue('v.' + self.new_tag in self.get_tags())
-        os.chdir("snoopys-sandbox-2")
-        self.assertFalse(self.new_tag in self.get_tags())
+        main(["tag-release", "--shallow", "--no-ask", self.new_version])
+        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
+        for submodule in self.sandbox.submodules:
+            self.assertFalse(self.has_new_prefixed_tag(submodule))
 
     def testInvalidVersionNumber(self):
         """Test invalid version number"""
@@ -83,19 +81,19 @@ class TestTagRelease(SandboxTest):
         """Test existing tag"""
 
         # Create local tag and check local existence
-        p = Popen(["git", "tag", 'v.' + self.new_tag], stdout=subprocess.PIPE)
-        self.assertTrue('v.' + self.new_tag in self.get_tags())
+        p = Popen(["git", "tag", 'v.' + self.new_version], stdout=subprocess.PIPE)
+        self.assertTrue(self.sandbox.has_local_tag('v.' + self.new_version))
 
         # Test Stop is thrown by tag-release command
         self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            self.new_tag])
+            self.new_version])
 
     def testInvalidTag(self):
         """Test invalid tag reference name"""
 
         # Test Stop is thrown by tag-release command
         self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            self.new_tag + ".."])
+            self.new_version + ".."])
 
 if __name__ == '__main__':
     unittest.main()
