@@ -28,7 +28,7 @@ import tempfile
 from scc import get_github, get_token_or_user
 from subprocess import Popen
 
-sandbox_url = "git@github.com:openmicroscopy/snoopys-sandbox.git"
+sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
 class SandboxTest(unittest.TestCase):
 
@@ -101,7 +101,9 @@ class SandboxTest(unittest.TestCase):
         Push a local branch and open a PR against the selected base
         """
 
-        self.sandbox.add_remote(self.user)
+        remote_url = "https://%s@github.com/%s/%s.git" % (self.token,
+            self.user, self.sandbox.origin.name)
+        self.sandbox.add_remote(self.user, remote_url)
         self.sandbox.push_branch(branch, remote=self.user)
         new_pr = self.sandbox.origin.open_pr(
           title="test %s" % branch,

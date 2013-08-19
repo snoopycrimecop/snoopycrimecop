@@ -729,6 +729,24 @@ class GitRepository(object):
         self.dbg("Committing %s...", msg)
         self.call("git", "commit", "-m", msg)
 
+    def tag(self, tag, message=None, force=False):
+        """Tag the HEAD of the git repository"""
+        self.cd(self.path)
+        if message is None:
+            message = "Tag with version %s" % tag
+
+        if self.has_local_tag(tag):
+            raise Stop(21, "Tag %s already exists in %s." % (tag, self.path))
+
+        if not self.is_valid_tag(tag):
+            raise Stop(22, "%s is not a valid tag name." % tag)
+
+        self.dbg("Creating tag %s...", tag)
+        if force:
+            self.call("git", "tag", "-f", tag, "-m", message)
+        else:
+            self.call("git", "tag", tag, "-m", message)
+
     def new_branch(self, name, head="HEAD"):
         self.cd(self.path)
         self.dbg("New branch %s from %s...", name, head)
@@ -808,6 +826,26 @@ class GitRepository(object):
         except Exception, e:
             self.dbg("%s has local changes" ,self)
             return True
+
+    def has_local_tag(self, tag):
+        """Check for tag existence in the local Git repository"""
+
+        self.cd(self.path)
+        try:
+            r = self.call("git", "show-ref", "--verify", "--quiet", "refs/tags/%s" % tag)
+            return True
+        except Exception, e:
+            return False
+
+    def is_valid_tag(self, tag):
+        """Check the validity of a reference name for a tag"""
+
+        self.cd(self.path)
+        try:
+            r = self.call("git", "check-ref-format", "refs/tags/%s" % tag)
+            return True
+        except Exception, e:
+            return False
 
     def get_submodule_paths(self):
         """Return path of repository submodules"""
@@ -1036,6 +1074,36 @@ class GitRepository(object):
                 updated = True
         return updated, merge_msg
 
+    def get_tag_prefix(self):
+        "Return the tag prefix for this repository using git describe"
+
+        self.cd(self.path)
+        try:
+            version, e = self.call("git", "describe", stdout = subprocess.PIPE).communicate()
+            prefix = re.split('\d', version)[0]
+        except:
+            # If no tag is present on the branch, git describe fails
+            prefix = ""
+
+        return prefix
+
+    def rtag(self, version, message=None):
+        """Recursively tag repositories with a version number."""
+
+        msg = ""
+        msg += str(self.origin) + "\n"
+        tag_prefix = self.get_tag_prefix()
+        self.tag(tag_prefix + version, message)
+        msg += "Created tag %s\n" % (tag_prefix + version)
+
+        for submodule_repo in self.submodules:
+            msg += str(submodule_repo.origin) + "\n"
+            tag_prefix = submodule_repo.get_tag_prefix()
+            submodule_repo.tag(tag_prefix + version, message)
+            msg += "Created tag %s\n" % (tag_prefix + version)
+
+        return msg
+
     def unique_logins(self):
         """Return a set of unique logins."""
         unique_logins = set()
@@ -1215,7 +1283,10 @@ class GitRepoCommand(Command):
         super(GitRepoCommand, self).__init__(sub_parsers)
         self.parser.add_argument('--shallow', action='store_true',
             help='Do not recurse into submodules')
+        self.parser.add_argument('--reset', action='store_true',
+            help='Reset the current branch to its HEAD')
         self.add_remote_arg()
+        self.add_token_args()
 
     def init_main_repo(self, args):
         self.main_repo = self.gh.git_repo(self.cwd, remote=args.remote)
@@ -1226,8 +1297,6 @@ class GitRepoCommand(Command):
             self.main_repo.get_status()
 
     def add_new_commit_args(self):
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
         self.parser.add_argument('--message', '-m',
             help='Message to use for the commit. Overwrites auto-generated value')
         self.parser.add_argument('--push', type=str,
@@ -1266,7 +1335,6 @@ class FilteredPullRequestsCommand(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(FilteredPullRequestsCommand, self).__init__(sub_parsers)
-        self.add_token_args()
 
         filter_desc = " Filter keys can be specified using label:my_label, \
             pr:24 or  user:username. If no key is specified, the filter is \
@@ -2002,7 +2070,6 @@ class TravisMerge(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(TravisMerge, self).__init__(sub_parsers)
-        self.add_token_args()
         self.parser.add_argument('--info', action='store_true',
             help='Display merge candidates but do not merge them')
 
@@ -2208,7 +2275,6 @@ class UpdateSubmodules(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(UpdateSubmodules, self).__init__(sub_parsers)
-        self.add_token_args()
 
         self.parser.add_argument('--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
@@ -2251,9 +2317,10 @@ class UpdateSubmodules(GitRepoCommand):
                                     args.push))
                         self.log.info("New PR created: %s", pr.html_url)
                     else:
-                        msg = "Updated by build [%s#%s](%s)." % \
-                            (JOB_NAME, BUILD_NUMBER, BUILD_URL)
-                        pr.create_comment(msg)
+                        if IS_JENKINS_JOB:
+                            msg = "Updated by build [%s#%s](%s)." % \
+                                (JOB_NAME, BUILD_NUMBER, BUILD_URL)
+                            pr.create_comment(msg)
         finally:
             self.main_repo.rcleanup()
 
@@ -2291,8 +2358,6 @@ class SetCommitStatus(FilteredPullRequestsCommand):
     def __init__(self, sub_parsers):
         super(SetCommitStatus, self).__init__(sub_parsers)
 
-        self.parser.add_argument('--reset', action='store_true',
-            help='Reset the current branch to its HEAD')
         self.parser.add_argument('--status', '-s', type=str, required=True,
             choices=["success", "failure", "error", "pending"],
             help='Commit status.')
@@ -2315,6 +2380,49 @@ class SetCommitStatus(FilteredPullRequestsCommand):
         for line in msg.split("\n"):
             self.log.info(line)
 
+class TagRelease(GitRepoCommand):
+    """
+    Tag a release recursively across submodules.
+    """
+
+    NAME = "tag-release"
+
+    def __init__(self, sub_parsers):
+        super(TagRelease, self).__init__(sub_parsers)
+
+        self.parser.add_argument('version', type=str,
+            help='Version number to use to construct the tag')
+        self.parser.add_argument('--message', '-m', type=str,
+            help='Tag message')
+        self.parser.add_argument('--push', action='store_true',
+            help='Push new tag to Github')
+
+    def __call__(self, args):
+        super(TagRelease, self).__call__(args)
+
+        if not self.check_version_format(args):
+            raise Stop(23, '%s is not a valid version number. See http://semver.org for more information.' % args.version)
+
+        self.login(args)
+        self.init_main_repo(args)
+        if args.message is None:
+            args.message = 'Tag version %s' % args.version
+        msg = self.main_repo.rtag(args.version, message=args.message)
+
+        for line in msg.split("\n"):
+            self.log.info(line)
+
+        if args.push:
+            user = self.gh.get_login()
+            remote = "git@github.com:%s/" % (user) + "%s.git"
+            self.main_repo.rpush('--tags', remote, force=True)
+
+    def check_version_format(self, args):
+        """Check format of version number"""
+
+        import re
+        pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
+        return re.match(pattern, args.version) is not None
 
 class Version(Command):
     """Find which version of scc is being used"""
