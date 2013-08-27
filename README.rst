@@ -20,27 +20,21 @@ For Python 2.6, you will also need to install `argparse`_
 
     $ pip install argparse
 
-With that, it's possible to execute scc:
+With that, it is possible to execute scc:
 
 ::
 
     $ python scc.py
 
-Brew installation
+scc installation
 -----------------
 
-To install the latest release of scc under `Homebrew`_, use brew
+To install or update the latest release of scc, use pip
 install:
 
 ::
 
-    $ brew install scc
-
-Or for the latest development version:
-
-::
-
-    $ brew install --HEAD scc
+    $ pip install -U scc
 
 License
 -------
@@ -50,11 +44,10 @@ snoopycrimecop is released under the GPL.
 Copyright
 ---------
 
-2012, The Open Microscopy Environment
+2012-2013, The Open Microscopy Environment
 
 .. _PyGithub: https://github.com/jacquev6/PyGithub
 .. _argparse: http://pypi.python.org/pypi/argparse
-.. _Homebrew: http://mxcl.github.com/homebrew/
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
    :target: http://travis-ci.org/openmicroscopy/snoopycrimecop
