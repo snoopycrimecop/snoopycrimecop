@@ -69,7 +69,7 @@ if "SCC_DEBUG_LEVEL" in os.environ:
     try:
         SCC_DEBUG_LEVEL = int(os.environ.get("SCC_DEBUG_LEVEL"))
     except:
-        SCC_DEBUG_LEVEL = 10 # Assume poorly formatted means "debug"
+        SCC_DEBUG_LEVEL = 10  # Assume poorly formatted means "debug"
 
 # Read Jenkins environment variables
 jenkins_envvar = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
@@ -82,6 +82,7 @@ if IS_JENKINS_JOB:
 #
 # Public global functions
 #
+
 
 def hash_object(filename):
     """
@@ -125,8 +126,8 @@ def git_config(name, user=False, local=False, value=None, config_file=None):
         if config_file is not None:
             pre_cmd.extend(["-f", config_file])
 
-        p = subprocess.Popen(pre_cmd + post_cmd, \
-                stdout=subprocess.PIPE).communicate()[0]
+        p = subprocess.Popen(
+            pre_cmd + post_cmd, stdout=subprocess.PIPE).communicate()[0]
         value = p.split("\n")[0].strip()
         if value:
             dbg("Found %s", name)
@@ -174,12 +175,14 @@ class GHManager(object):
     to getpass.getpass. This is useful during unit tests.
     """
 
-    def __init__(self, login_or_token=None, password=None, dont_ask=False, user_agent='PyGithub'):
+    def __init__(self, login_or_token=None, password=None, dont_ask=False,
+                 user_agent='PyGithub'):
+
         self.log = logging.getLogger("scc.gh")
         self.dbg = self.log.debug
         self.login_or_token = login_or_token
         self.dont_ask = dont_ask
-        self.user_agent=user_agent
+        self.user_agent = user_agent
         try:
             self.authorize(password)
             if login_or_token or password:
@@ -206,12 +209,13 @@ class GHManager(object):
         elif self.login_or_token is not None:
             try:
                 self.create_instance(self.login_or_token)
-                self.get_login() # Trigger
+                self.get_login()  # Trigger
             except github.GithubException:
                 if self.dont_ask:
                     raise
                 import getpass
-                msg = "Enter password for http://github.com/%s:" % self.login_or_token
+                msg = "Enter password for http://github.com/%s:" % \
+                    self.login_or_token
                 try:
                     password = getpass.getpass(msg)
                     if password is not None:
@@ -235,7 +239,8 @@ class GHManager(object):
         Subclasses can override this method in order
         to prevent use of the pygithub2 library.
         """
-        self.github = github.Github(*args, user_agent=self.user_agent, **kwargs)
+        self.github = github.Github(*args, user_agent=self.user_agent,
+                                    **kwargs)
 
     def __getattr__(self, key):
         self.dbg("github.%s", key)
@@ -254,7 +259,6 @@ class GHManager(object):
             username = self.get_login()
         return GitHubRepository(self, username, reponame)
 
-
     def git_repo(self, path, *args, **kwargs):
         """
         Git repository instances are constructed by passing the path
@@ -262,14 +266,15 @@ class GHManager(object):
         """
         return GitRepository(self, os.path.abspath(path), *args, **kwargs)
 
-
-
 #
 # Utility classes
 #
+
+
 class DefaultList(list):
     def __copy__(self):
         return []
+
 
 class LoggerWrapper(threading.Thread):
     """
@@ -280,7 +285,9 @@ class LoggerWrapper(threading.Thread):
 
     fdWrite ==> fdRead ==> pipeReader
 
-    See: http://codereview.stackexchange.com/questions/6567/how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
+    See:
+    http://codereview.stackexchange.com/questions/6567/
+    how-to-redirect-a-subprocesses-output-stdout-and-stderr-to-logging-module
     """
 
     def __init__(self, logger, level=logging.DEBUG):
@@ -386,7 +393,8 @@ class PullRequest(object):
         return key in self.get_labels()
 
     def __repr__(self):
-        return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(), self.get_title())
+        return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
+                                      self.get_title())
 
     def parse_comments(self, argument):
         found_comments = []
@@ -431,7 +439,7 @@ class PullRequest(object):
 
     def get_labels(self):
         """Return the labels of the Pull Request."""
-        return [x.name for x in  self.issue.labels]
+        return [x.name for x in self.issue.labels]
 
     def get_comments(self):
         """Return the labels of the Pull Request."""
@@ -546,32 +554,40 @@ class GitHubRepository(object):
         self.dbg("## PRs found:")
 
         # Fail fast if default is none and no include filter is specified
-        if filters["default"] == 'none' and all(v is None for v in filters["include"].values()):
+        no_include = all(v is None for v in filters["include"].values())
+        if filters["default"] == 'none' and no_include:
             return
 
         # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.get_pulls() if (pull.base.ref == filters["base"])]
+        pulls = [pull for pull in self.get_pulls()
+                 if (pull.base.ref == filters["base"])]
 
         for pull in pulls:
             pullrequest = PullRequest(self, pull)
             pr_attributes = {}
-            pr_attributes["label"] = [x.lower() for x in pullrequest.get_labels()]
+            pr_attributes["label"] = [x.lower() for x in
+                                      pullrequest.get_labels()]
             pr_attributes["user"] = [pullrequest.get_user().login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            if not self.is_whitelisted(pullrequest.get_user(), filters["default"]):
+            if not self.is_whitelisted(pullrequest.get_user(),
+                                       filters["default"]):
                 # Allow filter PR inclusion using include filter
-                if not self.run_filter(filters["include"], pr_attributes, action="Include"):
+                if not self.run_filter(filters["include"], pr_attributes,
+                                       action="Include"):
                     continue
 
             # Exclude PRs specified by filters
-            if self.run_filter(filters["exclude"], pr_attributes,  action="Exclude"):
+            if self.run_filter(filters["exclude"], pr_attributes,
+                               action="Exclude"):
                 continue
 
             self.dbg(pullrequest)
             self.candidate_pulls.append(pullrequest)
 
-        self.candidate_pulls.sort(lambda a, b: cmp(a.get_number(), b.get_number()))
+        self.candidate_pulls.sort(lambda a, b:
+                                  cmp(a.get_number(), b.get_number()))
+
 
 class GitRepository(object):
 
@@ -590,10 +606,9 @@ class GitRepository(object):
         self.gh = gh
         self.cd(path)
         root_path, e = self.communicate("git", "rev-parse", "--show-toplevel")
-        self.path =  os.path.abspath(root_path.strip())
+        self.path = os.path.abspath(root_path.strip())
 
         self.get_status()
-
 
         # Register the remote
         [user_name, repo_name] = self.get_remote_info(remote)
@@ -620,8 +635,8 @@ class GitRepository(object):
     def communicate(self, *command):
         self.dbg("Calling '%s' for stdout/err" % " ".join(command))
         p = subprocess.Popen(command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
         o, e = p.communicate()
         if p.returncode:
             msg = """Failed to run '%s'
@@ -677,7 +692,7 @@ class GitRepository(object):
         for pr in self.origin.candidate_pulls:
             directories = pr.parse_comments("test")
             if directories:
-                if directories_log == None:
+                if directories_log is None:
                     directories_log = open('directories.txt', 'w')
                 for directory in directories:
                     directories_log.write(directory)
@@ -791,20 +806,23 @@ class GitRepository(object):
         self.call("git", "reset", "--hard", "HEAD")
         self.call("git", "submodule", "update", "--recursive")
 
-    def fast_forward(self, base, remote = "origin"):
+    def fast_forward(self, base, remote="origin"):
         """Execute merge --ff-only against the current base"""
         self.dbg("## Merging base to ensure closed PRs are included.")
-        p = subprocess.Popen(["git", "merge", "--ff-only", "%s/%s" % (remote, base)], stdout = subprocess.PIPE).communicate()[0]
+        p = subprocess.Popen(
+            ["git", "merge", "--ff-only", "%s/%s" % (remote, base)],
+            stdout=subprocess.PIPE).communicate()[0]
         self.dbg(p.rstrip("/n"))
-        return  p.rstrip("/n").split("\n")[0]
+        return p.rstrip("/n").split("\n")[0]
 
     def rebase(self, newbase, upstream, sha1):
-        self.call_info("git", "rebase", "--onto", \
-                "%s" % newbase, "%s" % upstream, "%s" % sha1)
+        self.call_info("git", "rebase", "--onto",
+                       "%s" % newbase, "%s" % upstream, "%s" % sha1)
 
     def get_rev_list(self, commit):
-        revlist_cmd = lambda x: ["git","rev-list","--first-parent","%s" % x]
-        p = subprocess.Popen(revlist_cmd(commit), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        revlist_cmd = lambda x: ["git", "rev-list", "--first-parent", "%s" % x]
+        p = subprocess.Popen(revlist_cmd(commit),
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
         (revlist, stderr) = p.communicate('')
 
@@ -820,11 +838,11 @@ class GitRepository(object):
         """Check for local changes in the Git repository"""
         self.cd(self.path)
         try:
-            r = self.call("git", "diff-index", "--quiet", "HEAD")
-            self.dbg("%s has no local changes" ,self)
+            self.call("git", "diff-index", "--quiet", "HEAD")
+            self.dbg("%s has no local changes", self)
             return False
-        except Exception, e:
-            self.dbg("%s has local changes" ,self)
+        except Exception:
+            self.dbg("%s has local changes", self)
             return True
 
     def has_local_tag(self, tag):
@@ -832,9 +850,10 @@ class GitRepository(object):
 
         self.cd(self.path)
         try:
-            r = self.call("git", "show-ref", "--verify", "--quiet", "refs/tags/%s" % tag)
+            self.call("git", "show-ref", "--verify", "--quiet",
+                      "refs/tags/%s" % tag)
             return True
-        except Exception, e:
+        except Exception:
             return False
 
     def is_valid_tag(self, tag):
@@ -842,16 +861,17 @@ class GitRepository(object):
 
         self.cd(self.path)
         try:
-            r = self.call("git", "check-ref-format", "refs/tags/%s" % tag)
+            self.call("git", "check-ref-format", "refs/tags/%s" % tag)
             return True
-        except Exception, e:
+        except Exception:
             return False
 
     def get_submodule_paths(self):
         """Return path of repository submodules"""
 
-        submodule_paths = self.call("git", "submodule", "--quiet",
-            "foreach", "echo $path", stdout=subprocess.PIPE).communicate()[0]
+        submodule_paths = self.call(
+            "git", "submodule", "--quiet", "foreach", "echo $path",
+            stdout=subprocess.PIPE).communicate()[0]
         submodule_paths = submodule_paths.split("\n")[:-1]
 
         return submodule_paths
@@ -871,9 +891,11 @@ class GitRepository(object):
         config_key = "remote.%s.url" % remote_name
         originurl = git_config(config_key)
         if originurl is None:
-            remotes = self.call("git", "remote", stdout = subprocess.PIPE,
-                stderr = subprocess.PIPE).communicate()[0]
-            raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s can be passed with the --remote argument." % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+            remotes = self.call("git", "remote", stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE).communicate()[0]
+            raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s"
+                       "can be passed with the --remote argument."
+                       % (remote_name, ", ".join(remotes.split("\n")[:-1])))
         if originurl[-1] == "/":
             originurl = originurl[:-1]
 
@@ -890,9 +912,10 @@ class GitRepository(object):
             repo = basename.rsplit(".git")[0]
         else:
             repo = basename.rsplit()[0]
-        return [user , repo]
+        return [user, repo]
 
-    def merge(self, comment=False, commit_id = "merge", set_commit_status=False):
+    def merge(self, comment=False, commit_id="merge",
+              set_commit_status=False):
         """Merge candidate pull requests."""
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
@@ -903,27 +926,31 @@ class GitRepository(object):
         merged_pulls = []
 
         for pullrequest in self.origin.candidate_pulls:
-            premerge_sha, e = self.call("git", "rev-parse", "HEAD", stdout = subprocess.PIPE).communicate()
+            premerge_sha, e = self.call(
+                "git", "rev-parse", "HEAD",
+                stdout=subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
-                self.call("git", "merge", "--no-ff", "-m", \
-                        "%s: PR %s (%s)" % (commit_id, pullrequest.get_number(), pullrequest.get_title()), pullrequest.get_sha())
+                self.call("git", "merge", "--no-ff", "-m", "%s: PR %s (%s)"
+                          % (commit_id, pullrequest.get_number(),
+                             pullrequest.get_title()), pullrequest.get_sha())
                 merged_pulls.append(pullrequest)
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
                 conflicting_pulls.append(pullrequest)
 
                 msg = "Conflicting PR."
-                job_dict = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
                 if IS_JENKINS_JOB:
-                    job_values = [os.environ.get(key) for key in job_dict]
-                    msg += " Removed from build [%s#%s](%s). See the [console output](%s) for more details." % \
-                        (JOB_NAME, BUILD_NUMBER, BUILD_URL, BUILD_URL + "/consoleText")
+                    msg += " Removed from build [%s#%s](%s). See the" \
+                           "[console output](%s) for more details." \
+                           % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
+                              BUILD_URL + "/consoleText")
                 self.dbg(msg)
 
                 if comment and get_token():
-                    self.dbg("Adding comment to issue #%g." % pullrequest.get_number())
+                    self.dbg("Adding comment to issue #%g."
+                             % pullrequest.get_number())
                     pullrequest.create_comment(msg)
 
         merge_msg = ""
@@ -962,7 +989,6 @@ class GitRepository(object):
         return msg
 
     def find_branching_point(self, topic_branch, main_branch):
-        # See http://stackoverflow.com/questions/1527234/finding-a-branch-point-with-git
         topic_revlist = self.get_rev_list(topic_branch)
         main_revlist = self.get_rev_list(main_branch)
 
@@ -976,7 +1002,6 @@ class GitRepository(object):
         self.info("Branching SHA1: %s" % sha1[0:6])
         return sha1
 
-
     def rset_commit_status(self, filters, status, message, url, info=False):
         """Recursively set commit status for PRs for each submodule."""
 
@@ -989,26 +1014,31 @@ class GitRepository(object):
             msg += self.set_commit_status(status, message, url)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name, submodule_repo.origin.repo_name)
+            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
+                                        submodule_repo.origin.repo_name)
 
             # Create submodule filters
             import copy
             submodule_filters = copy.deepcopy(filters)
 
             for ftype in ["include", "exclude"]:
-                if submodule_filters[ftype]["pr"] :
-                    submodule_prs = [x.replace(submodule_name,'') for x in submodule_filters[ftype]["pr"] if x.startswith(submodule_name)]
+                if submodule_filters[ftype]["pr"]:
+                    submodule_prs = [x.replace(submodule_name, '')
+                                     for x in submodule_filters[ftype]["pr"]
+                                     if x.startswith(submodule_name)]
                     if len(submodule_prs) > 0:
                         submodule_filters[ftype]["pr"] = submodule_prs
                     else:
                         submodule_filters[ftype]["pr"] = None
 
-            msg += submodule_repo.rset_commit_status(submodule_filters, status, message, url, info)
+            msg += submodule_repo.rset_commit_status(
+                submodule_filters, status, message, url, info)
 
         return msg
 
-
-    def rmerge(self, filters, info=False, comment=False, commit_id = "merge", top_message=None, update_gitmodules=False, set_commit_status=False):
+    def rmerge(self, filters, info=False, comment=False, commit_id="merge",
+               top_message=None, update_gitmodules=False,
+               set_commit_status=False):
         """Recursively merge PRs for each submodule."""
 
         updated = False
@@ -1021,53 +1051,65 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            merge_msg += self.fast_forward(filters["base"], remote=self.remote) + "\n"
-            merge_msg += self.merge(comment, commit_id = commit_id, set_commit_status=set_commit_status)
+            merge_msg += self.fast_forward(filters["base"],
+                                           remote=self.remote) + "\n"
+            merge_msg += self.merge(comment, commit_id=commit_id,
+                                    set_commit_status=set_commit_status)
             postsha1 = self.get_current_sha1()
             updated = (presha1 != postsha1)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name, submodule_repo.origin.repo_name)
+            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
+                                        submodule_repo.origin.repo_name)
 
             # Create submodule filters
             import copy
             submodule_filters = copy.deepcopy(filters)
 
             for ftype in ["include", "exclude"]:
-                if submodule_filters[ftype]["pr"] :
-                    submodule_prs = [x.replace(submodule_name,'') for x in submodule_filters[ftype]["pr"] if x.startswith(submodule_name)]
+                if submodule_filters[ftype]["pr"]:
+                    submodule_prs = [x.replace(submodule_name, '')
+                                     for x in submodule_filters[ftype]["pr"]
+                                     if x.startswith(submodule_name)]
                     if len(submodule_prs) > 0:
                         submodule_filters[ftype]["pr"] = submodule_prs
                     else:
                         submodule_filters[ftype]["pr"] = None
 
             try:
-                submodule_updated, submodule_msg = submodule_repo.rmerge(submodule_filters, info, comment, commit_id = commit_id, update_gitmodules = update_gitmodules, set_commit_status=set_commit_status)
+                submodule_updated, submodule_msg = submodule_repo.rmerge(
+                    submodule_filters, info, comment, commit_id=commit_id,
+                    update_gitmodules=update_gitmodules,
+                    set_commit_status=set_commit_status)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
 
         if IS_JENKINS_JOB:
-            merge_msg_footer = "\nGenerated by %s#%s (%s)" % (JOB_NAME, BUILD_NUMBER, BUILD_URL)
+            merge_msg_footer = "\nGenerated by %s#%s (%s)" \
+                               % (JOB_NAME, BUILD_NUMBER, BUILD_URL)
         else:
             merge_msg_footer = ""
 
         if not info:
             if top_message is None:
-                top_message = "%s\n\n%s" % (commit_id, merge_msg + merge_msg_footer)
+                top_message = "%s\n\n%s" \
+                    % (commit_id, merge_msg + merge_msg_footer)
 
             if update_gitmodules:
                 submodule_paths = self.get_submodule_paths()
                 for path in submodule_paths:
                     # Read submodule URL registered in .gitmodules
                     config_name = "submodule.%s.url" % path
-                    submodule_url = git_config(config_name, config_file=".gitmodules")
+                    submodule_url = git_config(config_name,
+                                               config_file=".gitmodules")
 
                     # Substitute submodule URL using connection login
                     user = self.gh.get_login()
                     pattern = '(.*github.com[:/]).*(/.*.git)'
                     new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
-                    git_config(config_name, config_file=".gitmodules", value=new_url)
+                    git_config(config_name, config_file=".gitmodules",
+                               value=new_url)
 
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", top_message)
@@ -1079,7 +1121,8 @@ class GitRepository(object):
 
         self.cd(self.path)
         try:
-            version, e = self.call("git", "describe", stdout = subprocess.PIPE).communicate()
+            version, e = self.call("git", "describe",
+                                   stdout=subprocess.PIPE).communicate()
             prefix = re.split('\d', version)[0]
         except:
             # If no tag is present on the branch, git describe fails
@@ -1117,7 +1160,7 @@ class GitRepository(object):
         for user in self.unique_logins():
             key = "merge_%s" % user
             if self.origin.private:
-                url = "git@github.com:%s/%s.git"  % (user, self.origin.name)
+                url = "git@github.com:%s/%s.git" % (user, self.origin.name)
             else:
                 url = "git://github.com/%s/%s.git" % (user, self.origin.name)
             remotes[key] = url
@@ -1161,6 +1204,7 @@ class GitRepository(object):
 # Exceptions
 #
 
+
 class Stop(Exception):
     """
     Exception which specifies that the current execution has finished.
@@ -1201,22 +1245,25 @@ class Command(object):
     NAME = "abstract"
 
     def __init__(self, sub_parsers):
-        self.log = logging.getLogger("scc.%s"%self.NAME)
+        self.log = logging.getLogger("scc.%s" % self.NAME)
         self.log_level = SCC_DEBUG_LEVEL
 
         help = self.__doc__.lstrip()
-        self.parser = sub_parsers.add_parser(self.NAME,
-            help=help, description=help)
+        self.parser = sub_parsers.add_parser(
+            self.NAME, help=help, description=help)
         if not hasattr(self, "_configure"):
             self.parser.set_defaults(func=self.__call__)
 
-        self.parser.add_argument("-v", "--verbose", action="count", default=0,
+        self.parser.add_argument(
+            "-v", "--verbose", action="count", default=0,
             help="Increase the logging level by multiples of 10")
-        self.parser.add_argument("-q", "--quiet", action="count", default=0,
+        self.parser.add_argument(
+            "-q", "--quiet", action="count", default=0,
             help="Decrease the logging level by multiples of 10")
 
         sha1_chars = "^([0-9a-f]+)\s"
-        self.pr_pattern = re.compile(sha1_chars + "Merge\spull\srequest\s.(\d+)\s(.*)$")
+        self.pr_pattern = re.compile(sha1_chars +
+                                     "Merge\spull\srequest\s.(\d+)\s(.*)$")
         self.commit_pattern = re.compile(sha1_chars + "(.*)$")
 
     def parse_pr(self, line):
@@ -1237,13 +1284,16 @@ class Command(object):
         return sha1, rest
 
     def add_remote_arg(self):
-        self.parser.add_argument('--remote', default="origin",
+        self.parser.add_argument(
+            '--remote', default="origin",
             help='Name of the remote to use as the origin')
 
     def add_token_args(self):
-        self.parser.add_argument("--token",
+        self.parser.add_argument(
+            "--token",
             help="Token to use rather than from config files")
-        self.parser.add_argument("--no-ask", action='store_true',
+        self.parser.add_argument(
+            "--no-ask", action='store_true',
             help="Don't ask for a password if token usage fails")
 
     def __call__(self, args):
@@ -1265,12 +1315,14 @@ class Command(object):
         self.log_level += args.quiet * 10
         self.log_level -= args.verbose * 10
 
-        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-5.5s %(message)s"""
+        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-5.5s""" \
+            """%(message)s"""
         logging.basicConfig(level=self.log_level, format=log_format)
         logging.getLogger('github').setLevel(logging.INFO)
 
-        self.log = logging.getLogger('scc.%s'%self.NAME)
+        self.log = logging.getLogger('scc.%s' % self.NAME)
         self.dbg = self.log.debug
+
 
 class GitRepoCommand(Command):
     """
@@ -1281,9 +1333,11 @@ class GitRepoCommand(Command):
 
     def __init__(self, sub_parsers):
         super(GitRepoCommand, self).__init__(sub_parsers)
-        self.parser.add_argument('--shallow', action='store_true',
+        self.parser.add_argument(
+            '--shallow', action='store_true',
             help='Do not recurse into submodules')
-        self.parser.add_argument('--reset', action='store_true',
+        self.parser.add_argument(
+            '--reset', action='store_true',
             help='Reset the current branch to its HEAD')
         self.add_remote_arg()
         self.add_token_args()
@@ -1297,12 +1351,18 @@ class GitRepoCommand(Command):
             self.main_repo.get_status()
 
     def add_new_commit_args(self):
-        self.parser.add_argument('--message', '-m',
-            help='Message to use for the commit. Overwrites auto-generated value')
-        self.parser.add_argument('--push', type=str,
-            help='Name of the branch to use to recursively push the merged branch to Github')
-        self.parser.add_argument('--update-gitmodules', action='store_true',
-            help='Update submodule URLs to point at the forks of the Github user')
+        self.parser.add_argument(
+            '--message', '-m',
+            help='Message to use for the commit. '
+            'Overwrites auto-generated value')
+        self.parser.add_argument(
+            '--push', type=str,
+            help='Name of the branch to use to recursively push'
+            ' the merged branch to Github')
+        self.parser.add_argument(
+            '--update-gitmodules', action='store_true',
+            help='Update submodule URLs to point at the forks'
+            ' of the Github user')
         self.parser.add_argument('base', type=str)
 
     def push(self, args, main_repo):
@@ -1312,7 +1372,8 @@ class GitRepoCommand(Command):
         remote = "git@github.com:%s/" % (user) + "%s.git"
 
         main_repo.rpush(branch_name, remote, force=True)
-        gh_branch = "https://github.com/%s/%s/tree/%s" % (user, main_repo.origin.repo_name, args.push)
+        gh_branch = "https://github.com/%s/%s/tree/%s" \
+            % (user, main_repo.origin.repo_name, args.push)
         self.log.info("Merged branch pushed to %s" % gh_branch)
 
     def get_open_pr(self, args):
@@ -1340,16 +1401,25 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             pr:24 or  user:username. If no key is specified, the filter is \
             considered as a label filter."
 
-        self.parser.add_argument('--info', action='store_true',
+        self.parser.add_argument(
+            '--info', action='store_true',
             help='Display pull requests but do not perform actions on them')
-        self.parser.add_argument('--default', '-D', type=str,
-            choices=["none", "mine", "org" , "all"], default="org",
-            help='Mode specifying the default PRs to include. None includes no PR. All includes all open PRs. Mine only includes the PRs opened by the authenticated user. If the repository belongs to an organization, org includes any PR opened by a public member of the organization. Default: org.')
-        self.parser.add_argument('--include', '-I', type=str, action='append',
-            default = DefaultList(["include"]),
+        self.parser.add_argument(
+            '--default', '-D', type=str,
+            choices=["none", "mine", "org", "all"], default="org",
+            help='Mode specifying the default PRs to include. '
+            'None includes no PR. All includes all open PRs. '
+            'Mine only includes the PRs opened by the authenticated user. '
+            'If the repository belongs to an organization, org includes '
+            'any PR opened by a public member of the organization. '
+            'Default: org.')
+        self.parser.add_argument(
+            '--include', '-I', type=str, action='append',
+            default=DefaultList(["include"]),
             help='Filters to include PRs in the merge.' + filter_desc)
-        self.parser.add_argument('--exclude', '-E', type=str, action='append',
-            default = DefaultList(["exclude"]),
+        self.parser.add_argument(
+            '--exclude', '-E', type=str, action='append',
+            default=DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
 
     def _log_parse_filters(self, args, default_user):
@@ -1379,7 +1449,7 @@ class FilteredPullRequestsCommand(GitRepoCommand):
         keys = descr.keys()
         default_key = "label"
 
-        for ftype in ["include" , "exclude"]:
+        for ftype in ["include", "exclude"]:
             self.filters[ftype] = dict.fromkeys(keys)
 
             if not getattr(args, ftype):
@@ -1391,7 +1461,7 @@ class FilteredPullRequestsCommand(GitRepoCommand):
                     # Look for key:value pattern
                     pattern = key + ":"
                     if filt.find(pattern) == 0:
-                        value = filt.replace(pattern,'',1)
+                        value = filt.replace(pattern, '', 1)
                         if self.filters[ftype][key]:
                             self.filters[ftype][key].append(value)
                         else:
@@ -1403,7 +1473,7 @@ class FilteredPullRequestsCommand(GitRepoCommand):
                     # Look for #value pattern
                     pattern = "#"
                     if filt.find(pattern) != -1:
-                        value = filt.replace(pattern,'',1)
+                        value = filt.replace(pattern, '', 1)
                         if self.filters[ftype]["pr"]:
                             self.filters[ftype]["pr"].append(value)
                         else:
@@ -1420,7 +1490,8 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             action = ftype[0].upper() + ftype[1:-1] + "ing"
             for key in keys:
                 if self.filters[ftype][key]:
-                    self.log.info("%s PR%s: %s", action, descr[key], " ".join(self.filters[ftype][key]))
+                    self.log.info("%s PR%s: %s", action, descr[key],
+                                  " ".join(self.filters[ftype][key]))
 
 
 class CheckMilestone(Command):
@@ -1463,9 +1534,9 @@ Usage:
                     if milestone:
                         break
 
-
                 if not milestone:
-                    raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
+                    raise Stop(3, "Unknown milestone: %s"
+                               % args.milestone_name)
 
             p = main_repo.call("git", "log", "--oneline", "--first-parent",
                                "%s...%s" % (args.tag, args.head),
@@ -1480,18 +1551,21 @@ Usage:
                         continue
                     pr = main_repo.origin.get_issue(num)
                     if pr.milestone:
-                        self.log.debug("PR %s in milestone %s", pr.number, pr.milestone.title)
+                        self.log.debug("PR %s in milestone %s",
+                                       pr.number, pr.milestone.title)
                     else:
                         if args.milestone_name:
                             try:
                                 pr.edit(milestone=milestone)
-                                print "Set milestone for PR %s to %s" % (pr.number, milestone.title)
+                                print "Set milestone for PR %s to %s" \
+                                    % (pr.number, milestone.title)
                             except github.GithubException, ge:
                                 if self.gh.exc_is_not_found(ge):
                                     raise Stop(10, "Can't edit milestone")
                                 raise
                         else:
-                            print "No milestone for PR %s ('%s')" % (pr.number, line)
+                            print "No milestone for PR %s ('%s')" \
+                                % (pr.number, line)
         finally:
             main_repo.cleanup()
 
@@ -1505,11 +1579,14 @@ class AlreadyMerged(Command):
         super(AlreadyMerged, self).__init__(sub_parsers)
         self.add_token_args()
 
-        self.parser.add_argument("target",
-                help="Head to check against. E.g. master or origin/master")
-        self.parser.add_argument("ref", nargs="*",
-                default=["refs/heads", "refs/remotes"],
-                help="List of ref patterns to be checked. E.g. refs/remotes/origin")
+        self.parser.add_argument(
+            "target",
+            help="Head to check against. E.g. master or origin/master")
+        self.parser.add_argument(
+            "ref", nargs="*",
+            default=["refs/heads", "refs/remotes"],
+            help="List of ref patterns to be checked. "
+            "E.g. refs/remotes/origin")
 
     def __call__(self, args):
         super(AlreadyMerged, self).__call__(args)
@@ -1535,9 +1612,11 @@ class AlreadyMerged(Command):
     def go(self, main_repo, input, target):
         parts = input.split(" ")
         branch = parts[3]
-        tip, err = main_repo.call("git", "rev-parse", branch,
+        tip, err = main_repo.call(
+            "git", "rev-parse", branch,
             stdout=subprocess.PIPE).communicate()
-        mrg, err = main_repo.call("git", "merge-base", branch, target,
+        mrg, err = main_repo.call(
+            "git", "merge-base", branch, target,
             stdout=subprocess.PIPE).communicate()
         if tip == mrg:
             print input
@@ -1556,10 +1635,12 @@ Removes all branches from your fork of snoopys-sandbox
         self.add_token_args()
 
         group = self.parser.add_mutually_exclusive_group(required=True)
-        group.add_argument('-f', '--force', action="store_true",
-                help="Perform a clean of all non-master branches")
-        group.add_argument('-n', '--dry-run', action="store_true",
-                help="Perform a dry-run without removing any branches")
+        group.add_argument(
+            '-f', '--force', action="store_true",
+            help="Perform a clean of all non-master branches")
+        group.add_argument(
+            '-n', '--dry-run', action="store_true",
+            help="Perform a dry-run without removing any branches")
 
         self.parser.add_argument("--skip", action="append", default=["master"])
 
@@ -1580,6 +1661,7 @@ Removes all branches from your fork of snoopys-sandbox
             else:
                 raise Exception("Not possible!")
 
+
 class Deploy(Command):
     """
     Deploy an update to a website using the "symlink swapping" strategy.
@@ -1591,9 +1673,12 @@ class Deploy(Command):
     def __init__(self, sub_parsers):
         super(Deploy, self).__init__(sub_parsers)
 
-        self.parser.add_argument('--init', action='store_true',
+        self.parser.add_argument(
+            '--init', action='store_true',
             help='Prepare a folder with content for "symlink swapping"')
-        self.parser.add_argument('folder', type=str, help="The folder to be deployed/updated")
+        self.parser.add_argument(
+            'folder', type=str,
+            help="The folder to be deployed/updated")
 
     def __call__(self, args):
         super(Deploy, self).__call__(args)
@@ -1613,10 +1698,14 @@ class Deploy(Command):
         """
 
         if not os.path.exists(self.folder):
-             raise Stop(5, "The following path does not exist: %s. Copy some contents to this folder and run scc deploy --init again." % self.folder)
+            raise Stop(5, "The following path does not exist: %s. "
+                       "Copy some contents to this folder and run"
+                       " scc deploy --init again." % self.folder)
 
         if os.path.exists(self.live_folder):
-            raise Stop(5, "The following path already exists: %s. Run the scc deploy command without the --init argument." % self.live_folder)
+            raise Stop(5, "The following path already exists: %s. "
+                       "Run the scc deploy command without the --init"
+                       " argument." % self.live_folder)
 
         self.copytree(self.folder, self.live_folder)
         self.rmtree(self.folder)
@@ -1631,13 +1720,19 @@ class Deploy(Command):
         """
 
         if not os.path.exists(self.live_folder):
-            raise Stop(5, "The following path does not exist: %s. Pass --init to the scc deploy command to initialize the symlink swapping." % self.live_folder)
+            raise Stop(5, "The following path does not exist: %s. "
+                       "Pass --init to the scc deploy command to initialize "
+                       "the symlink swapping." % self.live_folder)
 
         if not os.path.islink(self.folder):
-            raise Stop(5, "The following path is not a symlink: %s. Pass --init to the scc deploy command to initialize the symlink swapping." % self.folder)
+            raise Stop(5, "The following path is not a symlink: %s. "
+                       "Pass --init to the scc deploy command to initialize "
+                       "the symlink swapping." % self.folder)
 
         if not os.path.exists(self.tmp_folder):
-            raise Stop(5, "The following path does not exist: %s. Copy the new content to be deployed to this folder and run scc deploy again." % self.tmp_folder)
+            raise Stop(5, "The following path does not exist: %s. "
+                       "Copy the new content to be deployed to this folder "
+                       "and  run scc deploy again." % self.tmp_folder)
 
         self.symlink(self.tmp_folder, self.folder)
         self.rmtree(self.live_folder)
@@ -1655,7 +1750,8 @@ class Deploy(Command):
         except shutil.Error, e:
             for src, dst, error in e.args[0]:
                 if os.path.islink(src):
-                    print >> sys.stderr, "Could not copy symbolic link %s" % src
+                    print >> sys.stderr, "Could not copy symbolic link %s" \
+                        % src
                 else:
                     print >> sys.stderr, "Could not copy %s" % src
 
@@ -1667,14 +1763,15 @@ class Deploy(Command):
     def symlink(self, src, link):
 
         if os.path.islink(link):
-            import tempfile
             self.dbg("Replacing symbolic link %s to point to %s", link, src)
             new = link + ".new"
             os.symlink(src, new)
             os.rename(new, link)
         else:
-            self.dbg("Creating a symbolic link named %s pointing to %s", link, src)
+            self.dbg("Creating a symbolic link named %s pointing to %s",
+                     link, src)
             os.symlink(src, link)
+
 
 class Label(Command):
     """
@@ -1687,16 +1784,20 @@ class Label(Command):
         super(Label, self).__init__(sub_parsers)
         self.add_token_args()
 
-        self.parser.add_argument('issue', nargs="*", type=int,
-                help="The number of the issue to check")
+        self.parser.add_argument(
+            'issue', nargs="*", type=int,
+            help="The number of the issue to check")
 
         # Actions
         group = self.parser.add_mutually_exclusive_group(required=True)
-        group.add_argument('--add', action='append',
+        group.add_argument(
+            '--add', action='append',
             help='List labels attached to the issue')
-        group.add_argument('--available', action='store_true',
+        group.add_argument(
+            '--available', action='store_true',
             help='List all available labels for this repo')
-        group.add_argument('--list', action='store_true',
+        group.add_argument(
+            '--list', action='store_true',
             help='List labels attached to the issue')
 
     def __call__(self, args):
@@ -1721,8 +1822,7 @@ class Label(Command):
         # Copied from Rebase command.
         # TODO: this could be refactored
         if args.issue and len(args.issue) > 1:
-            if print_issue_num:
-                print "# %s" % issue
+            print "# %s" % issue
         return main_repo.origin.get_issue(issue)
 
     def add(self, args, main_repo):
@@ -1781,10 +1881,13 @@ class Merge(FilteredPullRequestsCommand):
 
     def __init__(self, sub_parsers):
         super(Merge, self).__init__(sub_parsers)
-        self.parser.add_argument('--comment', action='store_true',
+        self.parser.add_argument(
+            '--comment', action='store_true',
             help='Add comment to conflicting PR')
-        self.parser.add_argument('--set-commit-status', action='store_true',
-            help='Set success/failure status on latest commits in all PRs in the merge.')
+        self.parser.add_argument(
+            '--set-commit-status', action='store_true',
+            help='Set success/failure status on latest commits in all PRs '
+            'in the merge.')
         self.add_new_commit_args()
 
     def __call__(self, args):
@@ -1821,8 +1924,9 @@ class Merge(FilteredPullRequestsCommand):
                 commit_args.append("-E")
                 commit_args.append(filt)
 
-        updated, merge_msg = main_repo.rmerge(self.filters, args.info,
-            args.comment, commit_id = " ".join(commit_args),
+        updated, merge_msg = main_repo.rmerge(
+            self.filters, args.info,
+            args.comment, commit_id=" ".join(commit_args),
             top_message=args.message,
             update_gitmodules=args.update_gitmodules,
             set_commit_status=args.set_commit_status)
@@ -1836,7 +1940,8 @@ class Merge(FilteredPullRequestsCommand):
             action = "Finding"
         else:
             action = "Merging"
-        self.log.info("%s PR based on %s opened by %s", action, args.base, default_user)
+        self.log.info("%s PR based on %s opened by %s",
+                      action, args.base, default_user)
 
 
 class Rebase(Command):
@@ -1865,16 +1970,21 @@ class Rebase(Command):
                 ('push', 'Skip pushing github'),
                 ('delete', 'Skip deleting local branch')):
 
-            self.parser.add_argument('--no-%s'%name, action='store_false',
+            self.parser.add_argument(
+                '--no-%s' % name, action='store_false',
                 dest=name, default=True, help=help)
 
         self.add_remote_arg()
 
-        self.parser.add_argument('--continue', action="store_true", dest="_continue",
-                                 help="Continue from a failed rebase")
+        self.parser.add_argument(
+            '--continue', action="store_true", dest="_continue",
+            help="Continue from a failed rebase")
 
-        self.parser.add_argument('PR', type=int, help="The number of the pull request to rebase")
-        self.parser.add_argument('newbase', type=str, help="The branch of origin onto which the PR should be rebased")
+        self.parser.add_argument(
+            'PR', type=int, help="The number of the pull request to rebase")
+        self.parser.add_argument(
+            'newbase', type=str,
+            help="The branch of origin onto which the PR should be rebased")
 
     def __call__(self, args):
         super(Rebase, self).__call__(args)
@@ -1900,20 +2010,21 @@ class Rebase(Command):
 
         # Remote information
         pr = main_repo.origin.get_pull(args.PR)
-        self.log.info("PR %g: %s opened by %s against %s", \
-            args.PR, pr.title, pr.head.user.name, pr.base.ref)
+        self.log.info("PR %g: %s opened by %s against %s",
+                      args.PR, pr.title, pr.head.user.name, pr.base.ref)
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
 
         if not args._continue:
-            branching_sha1 = main_repo.find_branching_point(pr_head,
-                    "%s/%s" % (args.remote, pr.base.ref))
+            branching_sha1 = main_repo.find_branching_point(
+                pr_head, "%s/%s" % (args.remote, pr.base.ref))
             try:
                 main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                    branching_sha1, pr_head)
+                                 branching_sha1, pr_head)
             except:
-                raise Stop(20, "rebasing failed.\nFix conflicts and re-run with an additional --continue flag")
+                raise Stop(20, "rebasing failed.\nFix conflicts and re-run "
+                           "with an additional --continue flag")
 
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
         main_repo.new_branch(new_branch)
@@ -1928,10 +2039,12 @@ class Rebase(Command):
                 print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
 
                 if args.pr:
-                    template_args = {"id":pr.number, "base":args.newbase,
-                            "title": pr.title, "body": pr.body}
-                    title = "%(title)s (rebased onto %(base)s)" % template_args
-                    body= """
+                    template_args = {
+                        "id": pr.number, "base": args.newbase,
+                        "title": pr.title, "body": pr.body}
+                    title = "%(title)s (rebased onto %(base)s)" \
+                        % template_args
+                    body = """
 
 This is the same as gh-%(id)s but rebased onto %(base)s.
 
@@ -1942,8 +2055,9 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     """ % template_args
 
                     gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    pr = gh_repo.open_pr(title, body,
-                            base=args.newbase, head="%s:%s" % (user, new_branch))
+                    pr = gh_repo.open_pr(
+                        title, body,
+                        base=args.newbase, head="%s:%s" % (user, new_branch))
                     print pr.html_url
                     # Reload in order to prevent mergeable being null.
                     time.sleep(0.5)
@@ -1969,7 +2083,7 @@ class Token(Command):
         super(Token, self).__init__(sub_parsers)
         # No token args
 
-        token_parsers = self.parser.add_subparsers(title = "Subcommands")
+        token_parsers = self.parser.add_subparsers(title="Subcommands")
         self._configure(token_parsers)
 
     def _configure(self, sub_parsers):
@@ -1978,15 +2092,16 @@ class Token(Command):
         list.set_defaults(func=self.list)
 
         help = """Create a new token and set the value of github token"""
-        desc = help +  """. See
-        http://developer.github.com/v3/oauth/#create-a-new-authorization for more information.
-        """
+        desc = help + ". See http://developer.github.com/v3/oauth/" \
+            "#create-a-new-authorization for more information."
         create = sub_parsers.add_parser("create", help=help, description=desc)
         create.set_defaults(func=self.create)
-        create.add_argument('--no-set', action="store_true",
+        create.add_argument(
+            '--no-set', action="store_true",
             help="Create the token but do not set it")
-        create.add_argument('--scope', '-s', type=str, action='append',
-            default = DefaultList(["public_repo"]), choices=self.get_scopes(),
+        create.add_argument(
+            '--scope', '-s', type=str, action='append',
+            default=DefaultList(["public_repo"]), choices=self.get_scopes(),
             help="Scopes to use for token creation. Default: ['public_repo']")
 
         help = "Set token to the specified value"
@@ -2005,12 +2120,14 @@ class Token(Command):
         """List available scopes for authorization creation"""
 
         return ['user', 'user:email', 'user:follow', 'public_repo', 'repo',
-            'repo:status', 'delete_repo', 'notifications', 'gist']
+                'repo:status', 'delete_repo', 'notifications', 'gist']
 
     def add_config_file_arguments(self, parser):
-        parser.add_argument("--local", action="store_true",
+        parser.add_argument(
+            "--local", action="store_true",
             help="Access token only in local repository")
-        parser.add_argument("--user", action="store_true",
+        parser.add_argument(
+            "--user", action="store_true",
             help="Access token only in user configuration")
 
     def list(self, args):
@@ -2018,9 +2135,8 @@ class Token(Command):
 
         super(Token, self).__call__(args)
         for key in ("github.token", "github.user"):
-
             for user, local, msg in \
-                ((False, True, "local"), (True, False, "user")):
+                    ((False, True, "local"), (True, False, "user")):
 
                 rv = git_config(key, user=user, local=local)
                 if rv is not None:
@@ -2039,14 +2155,14 @@ class Token(Command):
         print "Created authentification token %s" % auth.token
         if not args.no_set:
             git_config("github.token", user=args.user,
-                local=args.local, value=auth.token)
+                       local=args.local, value=auth.token)
 
     def get(self, args):
         """Get the value of the github token"""
-        
+
         super(Token, self).__call__(args)
         token = git_config("github.token",
-            user=args.user, local=args.local)
+                           user=args.user, local=args.local)
         if token:
             print token
 
@@ -2055,8 +2171,9 @@ class Token(Command):
 
         super(Token, self).__call__(args)
         git_config("github.token", user=args.user,
-            local=args.local, value=args.value)
+                   local=args.local, value=args.value)
         return
+
 
 class TravisMerge(GitRepoCommand):
     """
@@ -2070,12 +2187,13 @@ class TravisMerge(GitRepoCommand):
 
     def __init__(self, sub_parsers):
         super(TravisMerge, self).__init__(sub_parsers)
-        self.parser.add_argument('--info', action='store_true',
+        self.parser.add_argument(
+            '--info', action='store_true',
             help='Display merge candidates but do not merge them')
 
     def __call__(self, args):
         super(TravisMerge, self).__call__(args)
-        args.no_ask = True # Do not ask for login
+        args.no_ask = True  # Do not ask for login
         self.login(args)
 
         # Read pull request number from environment variable
@@ -2085,7 +2203,8 @@ class TravisMerge(GitRepoCommand):
             if pr_number == 'false':
                 raise Stop(0, "Travis job is not a pull request")
         else:
-            raise Stop(51, "No %s found. Re-run this command within a Travis environment" % pr_key)
+            raise Stop(51, "No %s found. Re-run this command within a Travis"
+                       " environment" % pr_key)
 
         args.reset = False
         self.init_main_repo(args)
@@ -2094,10 +2213,12 @@ class TravisMerge(GitRepoCommand):
         pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
         # Parse comments for companion PRs inclusion in the Travis build
-        self._parse_dependencies(pr.get_base(), pr.parse_comments('depends-on'))
+        self._parse_dependencies(pr.get_base(),
+                                 pr.parse_comments('depends-on'))
 
         try:
-            updated, merge_msg = self.main_repo.rmerge(self.filters, args.info)
+            updated, merge_msg = self.main_repo.rmerge(self.filters,
+                                                       args.info)
             for line in merge_msg.split("\n"):
                 self.log.info(line)
         finally:
@@ -2118,11 +2239,12 @@ class TravisMerge(GitRepoCommand):
             # Look for #value pattern
             pattern = "#"
             if dep.find(pattern) != -1:
-                pr = dep.replace(pattern,'',1)
+                pr = dep.replace(pattern, '', 1)
                 if self.filters["include"]["pr"]:
                     self.filters["include"]["pr"].append(pr)
                 else:
                     self.filters["include"]["pr"] = [pr]
+
 
 class UnrebasedPRs(Command):
     """Check that PRs in one branch have been merged to another.
@@ -2139,10 +2261,12 @@ command.
         super(UnrebasedPRs, self).__init__(sub_parsers)
         self.add_token_args()
         group = self.parser.add_mutually_exclusive_group()
-        group.add_argument('--parse', action='store_true',
-                           help="Parse generated files into git commands")
-        group.add_argument('--write', action='store_true',
-                           help="Write PRs to files.")
+        group.add_argument(
+            '--parse', action='store_true',
+            help="Parse generated files into git commands")
+        group.add_argument(
+            '--write', action='store_true',
+            help="Write PRs to files.")
 
         self.parser.add_argument('a', help="First branch to compare")
         self.parser.add_argument('b', help="Second branch to compare")
@@ -2177,10 +2301,12 @@ command.
         blines = open(bname, "r").read().strip().split("\n")
 
         if len(alines) != len(blines):
-            print 'Size of files does not match! (%s <> %s)' % (len(alines), len(blines))
+            print 'Size of files does not match! (%s <> %s)' \
+                % (len(alines), len(blines))
             print 'Edit files so that lines match'
 
-        fmt_gh = "git notes --ref=see_also/%s append -m 'See gh-%s on %s (%s)' %s"
+        fmt_gh = "git notes --ref=see_also/%s append" \
+            " -m 'See gh-%s on %s (%s)' %s"
         fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
         for i, a in enumerate(alines):
             b = blines[i]
@@ -2225,11 +2351,12 @@ command.
         middle_marker = str(uuid.uuid4()).replace("-", "")
         end_marker = str(uuid.uuid4()).replace("-", "")
 
-        popen = self.main_repo.call_no_wait("git", "log",
-                                  "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
-                                  "--notes=%s" % git_notes_ref,
-                                  "--first-parent", merge_range,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        popen = self.main_repo.call_no_wait(
+            "git", "log",
+            "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
+            "--notes=%s" % git_notes_ref,
+            "--first-parent", merge_range,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if self.args.write:
             fname = self.fname(current)
             if os.path.exists(fname):
@@ -2261,7 +2388,8 @@ command.
     def merge_base(self):
         a = "%s/%s" % (self.args.remote, self.args.a)
         b = "%s/%s" % (self.args.remote, self.args.b)
-        mrg, err = self.main_repo.call("git", "merge-base", a, b,
+        mrg, err = self.main_repo.call(
+            "git", "merge-base", a, b,
             stdout=subprocess.PIPE).communicate()
         return mrg.strip()
 
@@ -2276,9 +2404,11 @@ class UpdateSubmodules(GitRepoCommand):
     def __init__(self, sub_parsers):
         super(UpdateSubmodules, self).__init__(sub_parsers)
 
-        self.parser.add_argument('--no-fetch', action='store_true',
+        self.parser.add_argument(
+            '--no-fetch', action='store_true',
             help="Fetch the latest target branch for all repos")
-        self.parser.add_argument('--no-pr', action='store_false',
+        self.parser.add_argument(
+            '--no-pr', action='store_false',
             dest='pr', default=True, help='Skip creating a PR.')
         self.add_new_commit_args()
 
@@ -2298,9 +2428,6 @@ class UpdateSubmodules(GitRepoCommand):
                 self.push(args, self.main_repo)
 
                 if args.pr:
-                    if IS_JENKINS_JOB:
-                        job_dict = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
-                        job_values = [os.environ.get(key) for key in job_dict]
 
                     pr = self.get_open_pr(args)
                     if pr is None:
@@ -2312,9 +2439,10 @@ class UpdateSubmodules(GitRepoCommand):
                             body = ""
 
                         user = self.gh.get_login()
-                        pr = self.main_repo.origin.open_pr(title, body,
-                                base=args.base, head="%s:%s" % (user,
-                                    args.push))
+                        pr = self.main_repo.origin.open_pr(
+                            title, body,
+                            base=args.base, head="%s:%s"
+                            % (user, args.push))
                         self.log.info("New PR created: %s", pr.html_url)
                     else:
                         if IS_JENKINS_JOB:
@@ -2338,7 +2466,8 @@ class UpdateSubmodules(GitRepoCommand):
         self.filters["include"] = {"label": None, "user": None, "pr": None}
         self.filters["exclude"] = {"label": None, "user": None, "pr": None}
 
-        updated, merge_msg = main_repo.rmerge(self.filters,
+        updated, merge_msg = main_repo.rmerge(
+            self.filters,
             top_message=args.message,
             update_gitmodules=args.update_gitmodules)
         for line in merge_msg.split("\n"):
@@ -2358,12 +2487,15 @@ class SetCommitStatus(FilteredPullRequestsCommand):
     def __init__(self, sub_parsers):
         super(SetCommitStatus, self).__init__(sub_parsers)
 
-        self.parser.add_argument('--status', '-s', type=str, required=True,
+        self.parser.add_argument(
+            '--status', '-s', type=str, required=True,
             choices=["success", "failure", "error", "pending"],
             help='Commit status.')
-        self.parser.add_argument('--message', '-m', required=True,
+        self.parser.add_argument(
+            '--message', '-m', required=True,
             help='Message to use for the commit status.')
-        self.parser.add_argument('--url', '-u',
+        self.parser.add_argument(
+            '--url', '-u',
             help='URL to use for the commit status.')
         self.parser.add_argument('base', type=str)
 
@@ -2375,10 +2507,12 @@ class SetCommitStatus(FilteredPullRequestsCommand):
 
     def setCommitStatus(self, args, main_repo):
         self._parse_filters(args)
-        msg = main_repo.rset_commit_status(self.filters, args.status, args.message, args.url,
-                                           info=args.info)
+        msg = main_repo.rset_commit_status(
+            self.filters, args.status, args.message,
+            args.url, info=args.info)
         for line in msg.split("\n"):
             self.log.info(line)
+
 
 class TagRelease(GitRepoCommand):
     """
@@ -2390,18 +2524,23 @@ class TagRelease(GitRepoCommand):
     def __init__(self, sub_parsers):
         super(TagRelease, self).__init__(sub_parsers)
 
-        self.parser.add_argument('version', type=str,
+        self.parser.add_argument(
+            'version', type=str,
             help='Version number to use to construct the tag')
-        self.parser.add_argument('--message', '-m', type=str,
+        self.parser.add_argument(
+            '--message', '-m', type=str,
             help='Tag message')
-        self.parser.add_argument('--push', action='store_true',
+        self.parser.add_argument(
+            '--push', action='store_true',
             help='Push new tag to Github')
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
 
         if not self.check_version_format(args):
-            raise Stop(23, '%s is not a valid version number. See http://semver.org for more information.' % args.version)
+            raise Stop(23, '%s is not a valid version number. '
+                       'See http://semver.org for more information.'
+                       % args.version)
 
         self.login(args)
         self.init_main_repo(args)
@@ -2423,6 +2562,7 @@ class TagRelease(GitRepoCommand):
         import re
         pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
         return re.match(pattern, args.version) is not None
+
 
 class Version(Command):
     """Find which version of scc is being used"""
@@ -2452,15 +2592,17 @@ def parsers():
 
     class HelpFormatter(argparse.RawTextHelpFormatter):
         """
-        argparse.HelpFormatter subclass which cleans up our usage, preventing very long
-        lines in subcommands.
+        argparse.HelpFormatter subclass which cleans up our usage, preventing
+        very long lines in subcommands.
 
         Borrowed from omero/cli.py
         Defined inside of parsers() in case argparse is not installed.
         """
 
-        def __init__(self, prog, indent_increment=2, max_help_position=40, width=None):
-            argparse.RawTextHelpFormatter.__init__(self, prog, indent_increment, max_help_position, width)
+        def __init__(self, prog, indent_increment=2, max_help_position=40,
+                     width=None):
+            argparse.RawTextHelpFormatter.__init__(
+                self, prog, indent_increment, max_help_position, width)
             self._action_max_length = 20
 
         def _split_lines(self, text, width):
@@ -2471,7 +2613,8 @@ def parsers():
             def __init__(self, formatter, parent, heading=None):
                 #if heading:
                 #    heading = "\n%s\n%s" % ("=" * 40, heading)
-                argparse.RawTextHelpFormatter._Section.__init__(self, formatter, parent, heading)
+                argparse.RawTextHelpFormatter._Section.__init__(
+                    self, formatter, parent, heading)
 
     scc_parser = argparse.ArgumentParser(
         description='Snoopy Crime Cop Script',
@@ -2479,6 +2622,7 @@ def parsers():
     sub_parsers = scc_parser.add_subparsers(title="Subcommands")
 
     return scc_parser, sub_parsers
+
 
 def main(args=None):
     """
@@ -2490,14 +2634,18 @@ def main(args=None):
 
     if not argparse_loaded or not github_loaded:
         raise Stop(2, "Missing required module")
-    if args is None: args = sys.argv[1:]
+    if args is None:
+        args = sys.argv[1:]
 
     scc_parser, sub_parsers = parsers()
 
     for name, MyCommand in sorted(globals().items()):
-        if not isinstance(MyCommand, type): continue
-        if not issubclass(MyCommand, Command): continue
-        if MyCommand.NAME == "abstract": continue
+        if not isinstance(MyCommand, type):
+            continue
+        if not issubclass(MyCommand, Command):
+            continue
+        if MyCommand.NAME == "abstract":
+            continue
         MyCommand(sub_parsers)
 
     ns = scc_parser.parse_args(args)
