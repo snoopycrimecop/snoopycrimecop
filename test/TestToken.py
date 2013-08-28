@@ -19,10 +19,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import os
 import unittest
 
-from scc import *
+from scc import parsers, Token
 from Mock import MockTest
 
 
@@ -42,7 +41,8 @@ class UnitTestToken(MockTest):
         self.assertFalse(ns.no_set)
 
     def testCreateNonDefaultScopes(self):
-        ns = self.scc_parser.parse_args(["token", "create", "-srepo", "-spublic_repo"])
+        ns = self.scc_parser.parse_args(
+            ["token", "create", "-srepo", "-spublic_repo"])
         self.assertEqual(ns.scope, ["repo", "public_repo"])
 
     def testCreateNoSet(self):
@@ -52,12 +52,13 @@ class UnitTestToken(MockTest):
     # Authorization scopes
     def testAllowedScopes(self):
         for scope in self.token.get_scopes():
-            ns = self.scc_parser.parse_args(["token", "create", "-s%s" % scope])
+            ns = self.scc_parser.parse_args(
+                ["token", "create", "-s%s" % scope])
             self.assertEqual(ns.scope, ["%s" % scope])
 
     def testNonAllowedScope(self):
         self.assertRaises(SystemExit, self.scc_parser.parse_args,
-            ["token", "create", "-sinvalidscope"])
+                          ["token", "create", "-sinvalidscope"])
 
 
 if __name__ == '__main__':

@@ -19,15 +19,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import os
-import uuid
-import shutil
 import unittest
-import tempfile
 
-from scc import *
-from Sandbox import *
-from subprocess import *
+from scc import main
+from Sandbox import SandboxTest
 
 
 class TestRebase(SandboxTest):
@@ -42,46 +37,46 @@ class TestRebase(SandboxTest):
         self.pr = self.open_pr(self.source_branch, self.source_base)
 
         # Define target branch for rebasing PR
-        self.target_base="develop"
-        self.target_branch="rebased/%s/%s" % (self.target_base,
-            self.source_branch)
+        self.target_base = "develop"
+        self.target_branch = "rebased/%s/%s" \
+            % (self.target_base, self.source_branch)
 
     def tearDown(self):
 
         # Clean the initial branch. This will close the inital PRs
-        self.sandbox.push_branch(":%s"%self.source_branch, remote=self.user)
+        self.sandbox.push_branch(":%s" % self.source_branch, remote=self.user)
 
         super(TestRebase, self).tearDown()
 
     def testLocalRebase(self):
 
         # Rebase the PR locally
-        main(["rebase", \
-            "--token=%s"%self.token, \
-            "--no-ask", \
-            "--no-push", \
-            "--no-pr", \
-            str(self.pr.number), \
-            self.target_base])
+        main(["rebase",
+              "--token=%s" % self.token,
+              "--no-ask",
+              "--no-push",
+              "--no-pr",
+              str(self.pr.number),
+              self.target_base])
 
     def testRebasePush(self):
 
         # Rebase the PR locally
-        main(["rebase", \
-            "--token=%s"%self.token, \
-            "--no-ask", \
-            "--no-pr", \
-            str(self.pr.number), \
-            self.target_base])
+        main(["rebase",
+              "--token=%s" % self.token,
+              "--no-ask",
+              "--no-pr",
+              str(self.pr.number),
+              self.target_base])
 
     def testRebasePushPR(self):
 
         # Rebase the PR and push to Github
-        main(["rebase", \
-            "--token=%s"%self.token, \
-            "--no-ask", \
-            str(self.pr.number), \
-            self.target_base])
+        main(["rebase",
+              "--token=%s" % self.token,
+              "--no-ask",
+              str(self.pr.number),
+              self.target_base])
 
         # Check the last opened PR is the rebased one
         prs = list(self.sandbox.origin.get_pulls())
@@ -89,7 +84,7 @@ class TestRebase(SandboxTest):
         self.assertEquals(prs[0].head.ref, self.target_branch)
 
         # Clean the rebased branch
-        self.sandbox.push_branch(":%s"%self.target_branch, remote=self.user)
+        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
 if __name__ == '__main__':
     unittest.main()

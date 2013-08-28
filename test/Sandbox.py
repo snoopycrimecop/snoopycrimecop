@@ -30,6 +30,7 @@ from subprocess import Popen
 
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
+
 class SandboxTest(unittest.TestCase):
 
     def setUp(self):
@@ -101,15 +102,15 @@ class SandboxTest(unittest.TestCase):
         Push a local branch and open a PR against the selected base
         """
 
-        remote_url = "https://%s@github.com/%s/%s.git" % (self.token,
-            self.user, self.sandbox.origin.name)
+        remote_url = "https://%s@github.com/%s/%s.git" \
+            % (self.token, self.user, self.sandbox.origin.name)
         self.sandbox.add_remote(self.user, remote_url)
         self.sandbox.push_branch(branch, remote=self.user)
         new_pr = self.sandbox.origin.open_pr(
-          title="test %s" % branch,
-          description="This is a call to SandboxTest.open_pr",
-          base=base,
-          head="%s:%s" % (self.user, branch))
+            title="test %s" % branch,
+            description="This is a call to SandboxTest.open_pr",
+            base=base,
+            head="%s:%s" % (self.user, branch))
 
         return new_pr
 
