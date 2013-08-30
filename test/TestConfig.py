@@ -22,10 +22,7 @@
 import os
 import unittest
 
-from scc import git_config
-from scc import get_token_or_user
-from scc import get_github
-from scc import Stop
+from scc import get_token_or_user, get_github, Stop
 from Sandbox import SandboxTest
 
 
@@ -33,20 +30,21 @@ class TestGithub(unittest.TestCase):
 
     def testUserWithoutPassword(self):
         self.assertRaises(Stop, get_github, "openmicroscopy",
-            dont_ask=True)
+                          dont_ask=True)
 
     def testUserWithWrongPassword(self):
         self.assertRaises(Stop, get_github, "openmicroscopy",
-            password ="bad_password")
+                          password="bad_password")
 
     def testUserWithWrongPasswordNoAsk(self):
         self.assertRaises(Stop, get_github, "openmicroscopy",
-            password ="bad_password", dont_ask=True)
+                          password="bad_password", dont_ask=True)
+
 
 class TestConfig(SandboxTest):
 
     def writeConfigFile(self, configString):
-        f = open(os.path.join(self.path,'.git', 'config'), 'w')
+        f = open(os.path.join(self.path, '.git', 'config'), 'w')
         f.write(configString)
         f.close()
 

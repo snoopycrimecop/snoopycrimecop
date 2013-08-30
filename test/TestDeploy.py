@@ -25,13 +25,14 @@ import unittest
 
 from scc import main, Stop
 
+
 class TestDeploy(unittest.TestCase):
 
     def setUp(self):
         self.folder = os.path.abspath("deploy_test")
         self.live_folder = self.folder + ".live"
         self.tmp_folder = self.folder + ".tmp"
-        
+
         # Initialize old folder with file and directory
         os.mkdir(self.folder)
         oldfile = os.path.join(self.folder, "a")
@@ -40,7 +41,7 @@ class TestDeploy(unittest.TestCase):
         olddir = os.path.join(self.folder, "d")
         os.mkdir(olddir)
         self.oldtargetdir = os.path.join(self.live_folder, "d")
-        
+
         # Create tmp folder for content replacement
         os.mkdir(self.tmp_folder)
         newfile = os.path.join(self.tmp_folder, "b")

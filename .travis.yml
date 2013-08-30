@@ -13,4 +13,6 @@ before_install:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 install: python scc.py -h
 before_script: python scc.py travis-merge
-script: nosetests -v -d -e Push -e Rebase
+script:
+  - nosetests -v -d -e Push -e Rebase
+  - flake8 scc.py test

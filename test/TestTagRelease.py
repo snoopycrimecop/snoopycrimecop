@@ -19,15 +19,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import os
-import uuid
-import shutil
 import unittest
-import tempfile
+import subprocess
 
-from scc import *
-from Sandbox import *
-from subprocess import Popen
+from scc import Stop, main
+from Sandbox import SandboxTest
 
 
 class TestTagRelease(SandboxTest):
@@ -68,32 +64,34 @@ class TestTagRelease(SandboxTest):
     def testInvalidVersionNumber(self):
         """Test invalid version number"""
 
-        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            'v5.0.0-beta1'])
+        self.assertRaises(
+            Stop, main, ["tag-release", "--no-ask", 'v5.0.0-beta1'])
 
     def testInvalidVersionPreReleaseNumber(self):
         """Test invalid version pre-release number"""
 
-        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            '0.0.0beta1'])
+        self.assertRaises(
+            Stop, main, ["tag-release", "--no-ask", '0.0.0beta1'])
 
     def testExitingTag(self):
         """Test existing tag"""
 
         # Create local tag and check local existence
-        p = Popen(["git", "tag", 'v.' + self.new_version], stdout=subprocess.PIPE)
+        subprocess.Popen(
+            ["git", "tag", 'v.' + self.new_version],
+            stdout=subprocess.PIPE).communicate()
         self.assertTrue(self.sandbox.has_local_tag('v.' + self.new_version))
 
         # Test Stop is thrown by tag-release command
-        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            self.new_version])
+        self.assertRaises(
+            Stop, main, ["tag-release", "--no-ask", self.new_version])
 
     def testInvalidTag(self):
         """Test invalid tag reference name"""
 
         # Test Stop is thrown by tag-release command
-        self.assertRaises(Stop, main, ["tag-release", "--no-ask",
-            self.new_version + ".."])
+        self.assertRaises(
+            Stop, main, ["tag-release", "--no-ask", self.new_version + ".."])
 
 if __name__ == '__main__':
     unittest.main()
