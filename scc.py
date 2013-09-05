@@ -2390,7 +2390,15 @@ command.
                 raise Exception("can't split on ##: " + line)
             if "See gh-" in rest or "n/a" in rest:
                 continue
-            elif write:
+
+            pr_number = line.rsplit('Merge pull request #')[1].split()[0]
+            origin = self.main_repo.origin
+            pr = PullRequest(origin, origin.get_pull(int(pr_number)))
+
+            if pr.parse_comments('rebased'):
+                continue
+
+            if write:
                 print >>f, line
             else:
                 print line
