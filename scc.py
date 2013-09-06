@@ -842,10 +842,18 @@ class GitRepository(object):
         """Execute merge --ff-only against the current base"""
         self.dbg("## Merging base to ensure closed PRs are included.")
         p = subprocess.Popen(
+            ["git", "log", "--oneline", "--first-parent",
+             "HEAD..%s/%s" % (remote, base)],
+            stdout=subprocess.PIPE).communicate()[0].rstrip("/n")
+        merge_log = p.rstrip("/n")
+
+        p = subprocess.Popen(
             ["git", "merge", "--ff-only", "%s/%s" % (remote, base)],
-            stdout=subprocess.PIPE).communicate()[0]
-        self.dbg(p.rstrip("/n"))
-        return p.rstrip("/n").split("\n")[0]
+            stdout=subprocess.PIPE).communicate()[0].rstrip("/n")
+        msg = p.rstrip("/n").split("\n")[0] + "\n"
+        msg = msg + merge_log
+        self.dbg(msg)
+        return msg
 
     def rebase(self, newbase, upstream, sha1):
         self.call_info("git", "rebase", "--onto",
@@ -1133,8 +1141,10 @@ class GitRepository(object):
 
         if not info:
             if top_message is None:
-                top_message = "%s\n\n%s" \
-                    % (commit_id, merge_msg + merge_msg_footer)
+                top_message = commit_id
+
+            commit_message = "%s\n\n%s" \
+                % (top_message, merge_msg + merge_msg_footer)
 
             if update_gitmodules:
                 submodule_paths = self.get_submodule_paths()
@@ -1152,7 +1162,7 @@ class GitRepository(object):
                                value=new_url)
 
             if self.has_local_changes():
-                self.call("git", "commit", "-a", "-n", "-m", top_message)
+                self.call("git", "commit", "-a", "-n", "-m", commit_message)
                 updated = True
         return updated, merge_msg
 
