@@ -851,9 +851,8 @@ class GitRepository(object):
             ["git", "merge", "--ff-only", "%s/%s" % (remote, base)],
             stdout=subprocess.PIPE).communicate()[0].rstrip("/n")
         msg = p.rstrip("/n").split("\n")[0] + "\n"
-        msg = msg + merge_log
         self.dbg(msg)
-        return msg
+        return msg, merge_log
 
     def rebase(self, newbase, upstream, sha1):
         self.call_info("git", "rebase", "--onto",
@@ -1099,8 +1098,20 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            merge_msg += self.fast_forward(filters["base"],
-                                           remote=self.remote) + "\n"
+            ff_msg, ff_log = self.fast_forward(filters["base"],
+                                               remote=self.remote)
+            merge_msg += ff_msg
+            # Scan the fast-forward log to produce a digest of the merged PRs
+            if ff_log:
+                merge_msg += "Merged PRs (fast-forward):\n"
+                pattern = r'Merge pull request #(\d+)'
+                for line in ff_log.split('\n'):
+                    s = re.search(pattern, line)
+                    if s is not None:
+                        pr = self.origin.get_pull(int(s.group(1)))
+                        merge_msg += str(PullRequest(self.origin, pr)) + '\n'
+            merge_msg += '\n'
+
             merge_msg += self.merge(comment, commit_id=commit_id,
                                     set_commit_status=set_commit_status)
             postsha1 = self.get_current_sha1()
