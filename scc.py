@@ -2332,11 +2332,15 @@ command.
                                write=args.write)
 
             if not args.no_check:
-                print "*"*100
-                print "Mismatching rebased PR comments"
-                print "*"*100
-                self.check(d1, d2)
-                self.check(d2, d1)
+                m = self.check(d1, d2)
+                if m:
+                    print "*"*100
+                    print "Mismatching rebased PR comments"
+                    print "*"*100
+
+                    for key in m.keys():
+                        print "  # PR %s: expected '%s' comment" % \
+                            (key, m[key])
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2456,32 +2460,38 @@ command.
         return pr_dict
 
     @staticmethod
-    def check(source_dict, target_dict):
+    def check(d1, d2):
+        """Find mismatching comments in rebased PRs"""
 
-        rc = 0
-        for source_key in source_dict.keys():
-            if source_dict[source_key] is None:
-                continue
+        def get_mismatch_dict(source_dict, target_dict):
 
-            source_values = [
-                x for x in source_dict[source_key]
-                if x.startswith('-to #') or x.startswith('-from #')]
-            for source_value in source_values:
-                if source_value.startswith('-to #'):
-                    target_key = source_value.rsplit('-to #')[1]
-                    target_value = '-from #%s' % source_key
-                else:
-                    target_key = source_value.rsplit('-from #')[1]
-                    target_value = '-to #%s' % source_key
+            mismatch_dict = {}
+            for source_key in source_dict.keys():
+                if source_dict[source_key] is None:
+                    continue
 
-                target_key = int(target_key.split()[0])
-                if target_dict[target_key] is None or \
-                   target_value not in target_dict[target_key]:
+                source_values = [
+                    x for x in source_dict[source_key]
+                    if x.startswith('-to #') or x.startswith('-from #')]
+                for source_value in source_values:
+                    if source_value.startswith('-to #'):
+                        target_key = source_value.rsplit('-to #')[1]
+                        target_value = '-from #%s' % source_key
+                    else:
+                        target_key = source_value.rsplit('-from #')[1]
+                        target_value = '-to #%s' % source_key
 
-                    print "  # PR %s: expected '%s' comment" % \
-                        (target_key, target_value)
-                    rc = 1
-        return rc
+                    target_key = int(target_key.split()[0])
+                    if target_key not in target_dict or \
+                       target_dict[target_key] is None or \
+                       target_value not in target_dict[target_key]:
+
+                        mismatch_dict[target_key] = target_value
+            return mismatch_dict
+
+        m = get_mismatch_dict(d1, d2)
+        m.update(get_mismatch_dict(d2, d1))
+        return m
 
 
 class UpdateSubmodules(GitRepoCommand):
