@@ -2484,7 +2484,8 @@ command.
                     target_key = int(target_key.split()[0])
                     if target_key not in target_dict or \
                        target_dict[target_key] is None or \
-                       target_value not in target_dict[target_key]:
+                       not any(x.startswith(target_value) for x
+                               in target_dict[target_key]):
 
                         if target_key in mismatch_dict:
                             mismatch_dict[target_key].append(target_value)
