@@ -2422,6 +2422,7 @@ command.
 
         # List PRs without seealso notes
         pr_list = []
+        merge_pattern = r"Merge pull request #(\d+)"
         out, err = popen.communicate()
         for line in out.split(end_marker):
             line = line.strip()
@@ -2434,8 +2435,10 @@ command.
             if "See gh-" in rest or "n/a" in rest:
                 continue
 
-            result = line.rsplit('Merge pull request #')[1]
-            pr_list.append(int(result.split()[0]))
+            match = re.search(merge_pattern, line)
+            print line
+            if match:
+                pr_list.append(int(match.group(1)))
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         pr_dict = dict.fromkeys(pr_list)
@@ -2470,18 +2473,20 @@ command.
                 if source_dict[source_key] is None:
                     continue
 
-                source_values = [
-                    x for x in source_dict[source_key]
-                    if x.startswith('-to #') or x.startswith('-from #')]
-                for source_value in source_values:
-                    if source_value.startswith('-to #'):
-                        target_key = source_value.rsplit('-to #')[1]
+                to_pattern = r"-to #(\d+)"
+                from_pattern = r"-from #(\d+)"
+                for source_value in source_dict[source_key]:
+                    match = re.match(to_pattern, source_value)
+                    if match:
                         target_value = '-from #%s' % source_key
                     else:
-                        target_key = source_value.rsplit('-from #')[1]
-                        target_value = '-to #%s' % source_key
+                        match = re.match(from_pattern, source_value)
+                        if match:
+                            target_value = '-to #%s' % source_key
+                        else:
+                            continue
 
-                    target_key = int(target_key.split()[0])
+                    target_key = int(match.group(1))
                     if target_key not in target_dict or \
                        target_dict[target_key] is None or \
                        not any(x.startswith(target_value) for x

@@ -101,6 +101,12 @@ class UnitTestCheck(MockTest):
         self.assertEqual(UnrebasedPRs.check(d1, d2), {})
         self.assertEqual(UnrebasedPRs.check(d2, d1), {})
 
+    def testTrailingPeriod(self):
+        d1 = {1: ['-to #2.']}
+        d2 = {2: ['-from #1.']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig()
