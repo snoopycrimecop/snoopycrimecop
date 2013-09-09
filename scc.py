@@ -2063,13 +2063,20 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     """ % template_args
 
                     gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    pr = gh_repo.open_pr(
+                    rebased_pr = gh_repo.open_pr(
                         title, body,
                         base=args.newbase, head="%s:%s" % (user, new_branch))
-                    print pr.html_url
+                    print rebased_pr.html_url
+
+                    # Add rebase comments
+                    pr.create_issue_comment('--rebased-to #%s' %
+                                            rebased_pr.number)
+                    rebased_pr.create_issue_comment('--rebased-from #%s' %
+                                                    pr.number)
+
                     # Reload in order to prevent mergeable being null.
                     time.sleep(0.5)
-                    pr = main_repo.origin.get_pull(pr.number)
+                    rebased_pr = main_repo.origin.get_pull(rebased_pr.number)
                     if not pr.mergeable:
                         print >> sys.stderr, "#"
                         print >> sys.stderr, "# WARNING: PR is NOT mergeable!"
