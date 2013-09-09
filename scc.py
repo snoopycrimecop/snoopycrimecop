@@ -2486,7 +2486,7 @@ command.
                        target_dict[target_key] is None or \
                        target_value not in target_dict[target_key]:
 
-                        if target_key in mismatch_dict.has_key:
+                        if target_key in mismatch_dict:
                             mismatch_dict[target_key].append(target_value)
                         else:
                             mismatch_dict[target_key] = [target_value]
