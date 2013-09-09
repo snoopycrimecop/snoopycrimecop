@@ -2301,6 +2301,9 @@ command.
         group.add_argument(
             '--write', action='store_true',
             help="Write PRs to files.")
+        group.add_argument(
+            '--no-check', action='store_true',
+            help="Do not check mismatching rebased PR comments.")
 
         self.parser.add_argument('a', help="First branch to compare")
         self.parser.add_argument('b', help="Second branch to compare")
@@ -2323,10 +2326,17 @@ command.
         if args.parse:
             self.parse(args.a, args.b)
         else:
-            self.list_prs(args.a, args.b, remote=args.remote,
-                          write=args.write)
-            self.list_prs(args.b, args.a, remote=args.remote,
-                          write=args.write)
+            d1 = self.list_prs(args.a, args.b, remote=args.remote,
+                               write=args.write)
+            d2 = self.list_prs(args.b, args.a, remote=args.remote,
+                               write=args.write)
+
+            if not args.no_check:
+                print "*"*100
+                print "Mismatching rebased PR comments"
+                print "*"*100
+                self.check(d1, d2)
+                self.check(d2, d1)
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2403,9 +2413,11 @@ command.
             f = open(fname, "w")
         else:
             print "*"*100
-            print "PRs on %s without note for %s" % (current, seealso)
+            print "PRs on %s without note/comment for %s" % (current, seealso)
             print "*"*100
 
+        # List PRs without seealso notes
+        pr_list = []
         out, err = popen.communicate()
         for line in out.split(end_marker):
             line = line.strip()
@@ -2418,22 +2430,58 @@ command.
             if "See gh-" in rest or "n/a" in rest:
                 continue
 
-            pr_number = line.rsplit('Merge pull request #')[1].split()[0]
+            result = line.rsplit('Merge pull request #')[1]
+            pr_list.append(int(result.split()[0]))
+
+        # Look into PR body/comment for rebase notes and fill match dictionary
+        pr_dict = dict.fromkeys(pr_list)
+        for pr_number in pr_list:
             origin = self.main_repo.origin
-            pr = PullRequest(origin, origin.get_pull(int(pr_number)))
+            pr = PullRequest(origin, origin.get_pull(pr_number))
 
             rebased_body = pr.parse_body(['rebased', 'no-rebase'])
             if rebased_body:
+                pr_dict[pr_number] = rebased_body
                 continue
             else:
                 rebased_comments = pr.parse_comments(['rebased', 'no-rebase'])
                 if rebased_comments:
+                    pr_dict[pr_number] = rebased_comments
                     continue
 
             if write:
-                print >>f, line
+                print >>f, pr
             else:
-                print line
+                print pr
+        return pr_dict
+
+    @staticmethod
+    def check(source_dict, target_dict):
+
+        rc = 0
+        for source_key in source_dict.keys():
+            if source_dict[source_key] is None:
+                continue
+
+            source_values = [
+                x for x in source_dict[source_key]
+                if x.startswith('-to #') or x.startswith('-from #')]
+            for source_value in source_values:
+                if source_value.startswith('-to #'):
+                    target_key = source_value.rsplit('-to #')[1]
+                    target_value = '-from #%s' % source_key
+                else:
+                    target_key = source_value.rsplit('-from #')[1]
+                    target_value = '-to #%s' % source_key
+
+                target_key = int(target_key.split()[0])
+                if target_dict[target_key] is None or \
+                   target_value not in target_dict[target_key]:
+
+                    print "  # PR %s: expected '%s' comment" % \
+                        (target_key, target_value)
+                    rc = 1
+        return rc
 
 
 class UpdateSubmodules(GitRepoCommand):
