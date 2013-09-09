@@ -2402,7 +2402,7 @@ command.
             origin = self.main_repo.origin
             pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
-            if pr.parse_comments('rebased'):
+            if pr.parse_comments('rebased') or pr.parse_comments('no-rebase'):
                 continue
 
             if write:
@@ -2461,6 +2461,7 @@ class UpdateSubmodules(GitRepoCommand):
                             base=args.base, head="%s:%s"
                             % (user, args.push))
                         self.log.info("New PR created: %s", pr.html_url)
+                        pr.create_issue_comment('--no-rebase')
                     else:
                         if IS_JENKINS_JOB:
                             msg = "Updated by build [%s#%s](%s)." % \
