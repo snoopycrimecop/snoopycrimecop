@@ -42,14 +42,52 @@ class UnitTestCheck(MockTest):
     def testMissingSourceComment(self):
         d1 = {1: ['-to #2']}
         d2 = {2: None}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: '-from #1'})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: '-from #1'})
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: ['-from #1']})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: ['-from #1']})
 
     def testMissingTargetComment(self):
         d1 = {1: ['-from #2']}
         d2 = {2: None}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: '-to #1'})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: '-to #1'})
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: ['-to #1']})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: ['-to #1']})
+
+    def testMultipleSources(self):
+        d1 = {1: ['-to #3'], 2: ['-to #3']}
+        d2 = {3: ['-from #1', '-from #2']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+
+    def testPartialMissingMultipleSources(self):
+        d1 = {1: ['-to #3'], 2: ['-to #3']}
+        d2 = {3: ['-from #1']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {3: ['-from #2']})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {3: ['-from #2']})
+
+    def testFullMissingMultipleSources(self):
+        d1 = {1: ['-to #3'], 2: ['-to #3']}
+        d2 = {3: None}
+        m = {3: ['-from #1', '-from #2']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), m)
+        self.assertEqual(UnrebasedPRs.check(d2, d1), m)
+
+    def testMultipleTargets(self):
+        d1 = {1: ['-from #3'], 2: ['-from #3']}
+        d2 = {3: ['-to #1', '-to #2']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+
+    def testPartialMissingMultipleTargets(self):
+        d1 = {1: ['-from #3'], 2: ['-from #3']}
+        d2 = {3: ['-to #1']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), {3: ['-to #2']})
+        self.assertEqual(UnrebasedPRs.check(d2, d1), {3: ['-to #2']})
+
+    def testFullMissingMultipleTargets(self):
+        d1 = {1: ['-from #3'], 2: ['-from #3']}
+        d2 = {3: None}
+        m = {3: ['-to #1', '-to #2']}
+        self.assertEqual(UnrebasedPRs.check(d1, d2), m)
+        self.assertEqual(UnrebasedPRs.check(d2, d1), m)
 
 if __name__ == '__main__':
     import logging

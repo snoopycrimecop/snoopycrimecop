@@ -2339,8 +2339,8 @@ command.
                     print "*"*100
 
                     for key in m.keys():
-                        print "  # PR %s: expected '%s' comment" % \
-                            (key, m[key])
+                        print "  # PR %s: expected '%s' comment(s)" % \
+                            (key, ", ".join(m[key]))
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2486,7 +2486,10 @@ command.
                        target_dict[target_key] is None or \
                        target_value not in target_dict[target_key]:
 
-                        mismatch_dict[target_key] = target_value
+                        if target_key in mismatch_dict.has_key:
+                            mismatch_dict[target_key].append(target_value)
+                        else:
+                            mismatch_dict[target_key] = [target_value]
             return mismatch_dict
 
         m = get_mismatch_dict(d1, d2)
