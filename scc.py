@@ -396,13 +396,34 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    def parse_body(self, argument):
+        found_comments = []
+        if isinstance(argument, list):
+            patterns = ["--%s" % a for a in argument]
+        else:
+             patterns = ["--%s" % argument]
+
+        lines = self.pull.body.splitlines()
+        for line in lines:
+            for pattern in patterns:
+                if line.startswith(pattern):
+                    found_comments.append(line.replace(pattern, ""))
+        return found_comments
+
+
     def parse_comments(self, argument):
         found_comments = []
+        if isinstance(argument, list):
+            patterns = ["--%s" % a for a in argument]
+        else:
+             patterns = ["--%s" % argument]
+
         for comment in self.get_comments():
             lines = comment.splitlines()
             for line in lines:
-                if line.startswith("--%s" % argument):
-                    found_comments.append(line.replace("--%s" % argument, ""))
+                for pattern in patterns:
+                    if line.startswith(pattern):
+                        found_comments.append(line.replace(pattern, ""))
         return found_comments
 
     def get_title(self):
@@ -2402,8 +2423,13 @@ command.
             origin = self.main_repo.origin
             pr = PullRequest(origin, origin.get_pull(int(pr_number)))
 
-            if pr.parse_comments('rebased') or pr.parse_comments('no-rebase'):
+            rebased_body = pr.parse_body(['rebased', 'no-rebase'])
+            if rebased_body:
                 continue
+            else:
+                rebased_comments = pr.parse_comments(['rebased', 'no-rebase'])
+                if rebased_comments:
+                   continue
 
             if write:
                 print >>f, line
