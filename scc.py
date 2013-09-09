@@ -401,7 +401,7 @@ class PullRequest(object):
         if isinstance(argument, list):
             patterns = ["--%s" % a for a in argument]
         else:
-             patterns = ["--%s" % argument]
+            patterns = ["--%s" % argument]
 
         lines = self.pull.body.splitlines()
         for line in lines:
@@ -410,13 +410,12 @@ class PullRequest(object):
                     found_comments.append(line.replace(pattern, ""))
         return found_comments
 
-
     def parse_comments(self, argument):
         found_comments = []
         if isinstance(argument, list):
             patterns = ["--%s" % a for a in argument]
         else:
-             patterns = ["--%s" % argument]
+            patterns = ["--%s" % argument]
 
         for comment in self.get_comments():
             lines = comment.splitlines()
@@ -2429,7 +2428,7 @@ command.
             else:
                 rebased_comments = pr.parse_comments(['rebased', 'no-rebase'])
                 if rebased_comments:
-                   continue
+                    continue
 
             if write:
                 print >>f, line
