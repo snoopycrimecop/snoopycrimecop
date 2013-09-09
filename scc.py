@@ -2436,7 +2436,6 @@ command.
                 continue
 
             match = re.search(merge_pattern, line)
-            print line
             if match:
                 pr_list.append(int(match.group(1)))
 
