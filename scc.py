@@ -2339,8 +2339,9 @@ command.
                     print "*"*100
 
                     for key in m.keys():
-                        print "  # PR %s: expected '%s' comment(s)" % \
-                            (key, ", ".join(m[key]))
+                        comments = ", ".join(['--rebased'+x for x in m[key]])
+                        print "  # PR %s: expected '%s' comment(s)" %  \
+                            (key, comments)
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
