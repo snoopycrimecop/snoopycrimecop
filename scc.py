@@ -2332,16 +2332,19 @@ command.
                                write=args.write)
 
             if not args.no_check:
-                m = self.check(d1, d2)
-                if m:
-                    print "*"*100
-                    print "Mismatching rebased PR comments"
-                    print "*"*100
+                [m1, m2] = self.check(d1, d2)
+                if not m1 and not m2:
+                    return
 
-                    for key in m.keys():
-                        comments = ", ".join(['--rebased'+x for x in m[key]])
-                        print "  # PR %s: expected '%s' comment(s)" %  \
-                            (key, comments)
+                m1.update(m2)  # Combine dictionaries
+                print "*"*100
+                print "Mismatching rebased PR comments"
+                print "*"*100
+
+                for key in m1.keys():
+                    comments = ", ".join(['--rebased'+x for x in m1[key]])
+                    print "  # PR %s: expected '%s' comment(s)" %  \
+                        (key, comments)
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2498,9 +2501,9 @@ command.
                             mismatch_dict[target_key] = [target_value]
             return mismatch_dict
 
-        m = get_mismatch_dict(d1, d2)
-        m.update(get_mismatch_dict(d2, d1))
-        return m
+        m1 = get_mismatch_dict(d2, d1)
+        m2 = get_mismatch_dict(d1, d2)
+        return m1, m2
 
 
 class UpdateSubmodules(GitRepoCommand):

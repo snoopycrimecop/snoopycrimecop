@@ -29,83 +29,85 @@ class UnitTestCheck(MockTest):
 
     def setUp(self):
         MockTest.setUp(self)
+        self.d1 = {}
+        self.d2 = {}
+        self.m1 = {}
+        self.m2 = {}
+
+    def runCheck(self):
+        self.assertEqual(UnrebasedPRs.check(self.d1, self.d2),
+                         (self.m1, self.m2))
+        self.assertEqual(UnrebasedPRs.check(self.d2, self.d1),
+                         (self.m2, self.m1))
 
     def testEmptyDictionaries(self):
-        self.assertEqual(UnrebasedPRs.check({}, {}), {})
+        self.runCheck()
 
     def testMatchingDictionaries(self):
-        d1 = {1: ['-to #2']}
-        d2 = {2: ['-from #1']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-to #2']}
+        self.d2 = {2: ['-from #1']}
+        self.runCheck()
 
     def testMissingSourceComment(self):
-        d1 = {1: ['-to #2']}
-        d2 = {2: None}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: ['-from #1']})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: ['-from #1']})
+        self.d1 = {1: ['-to #2']}
+        self.d2 = {2: None}
+        self.m2 = {2: ['-from #1']}
+        self.runCheck()
 
     def testMissingTargetComment(self):
-        d1 = {1: ['-from #2']}
-        d2 = {2: None}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {2: ['-to #1']})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {2: ['-to #1']})
+        self.d1 = {1: ['-from #2']}
+        self.d2 = {2: None}
+        self.m2 = {2: ['-to #1']}
+        self.runCheck()
 
     def testMultipleSources(self):
-        d1 = {1: ['-to #3'], 2: ['-to #3']}
-        d2 = {3: ['-from #1', '-from #2']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
+        self.d2 = {3: ['-from #1', '-from #2']}
+        self.runCheck()
 
     def testPartialMissingMultipleSources(self):
-        d1 = {1: ['-to #3'], 2: ['-to #3']}
-        d2 = {3: ['-from #1']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {3: ['-from #2']})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {3: ['-from #2']})
+        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
+        self.d2 = {3: ['-from #1']}
+        self.m2 = {3: ['-from #2']}
+        self.runCheck()
 
     def testFullMissingMultipleSources(self):
-        d1 = {1: ['-to #3'], 2: ['-to #3']}
-        d2 = {3: None}
-        m = {3: ['-from #1', '-from #2']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), m)
-        self.assertEqual(UnrebasedPRs.check(d2, d1), m)
+        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
+        self.d2 = {3: None}
+        self.m2 = {3: ['-from #1', '-from #2']}
+        self.runCheck()
 
     def testMultipleTargets(self):
-        d1 = {1: ['-from #3'], 2: ['-from #3']}
-        d2 = {3: ['-to #1', '-to #2']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
+        self.d2 = {3: ['-to #1', '-to #2']}
+        self.runCheck()
 
     def testPartialMissingMultipleTargets(self):
-        d1 = {1: ['-from #3'], 2: ['-from #3']}
-        d2 = {3: ['-to #1']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {3: ['-to #2']})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {3: ['-to #2']})
+        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
+        self.d2 = {3: ['-to #1']}
+        self.m2 = {3: ['-to #2']}
+        self.runCheck()
 
     def testFullMissingMultipleTargets(self):
-        d1 = {1: ['-from #3'], 2: ['-from #3']}
-        d2 = {3: None}
-        m = {3: ['-to #1', '-to #2']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), m)
-        self.assertEqual(UnrebasedPRs.check(d2, d1), m)
+        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
+        self.d2 = {3: None}
+        self.m2 = {3: ['-to #1', '-to #2']}
+        self.runCheck()
 
     def testTrailingWhitespace(self):
-        d1 = {1: ['-to #2']}
-        d2 = {2: ['-from #1 ']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-to #2']}
+        self.d2 = {2: ['-from #1 ']}
+        self.runCheck()
 
     def testTrailingComment(self):
-        d1 = {1: ['-to #2 comment on the source']}
-        d2 = {2: ['-from #1 comment on the target']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-to #2 comment on the source']}
+        self.d2 = {2: ['-from #1 comment on the target']}
+        self.runCheck()
 
     def testTrailingPeriod(self):
-        d1 = {1: ['-to #2.']}
-        d2 = {2: ['-from #1.']}
-        self.assertEqual(UnrebasedPRs.check(d1, d2), {})
-        self.assertEqual(UnrebasedPRs.check(d2, d1), {})
+        self.d1 = {1: ['-to #2.']}
+        self.d2 = {2: ['-from #1.']}
+        self.runCheck()
 
 if __name__ == '__main__':
     import logging
