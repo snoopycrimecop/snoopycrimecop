@@ -2487,11 +2487,11 @@ command.
             origin = self.main_repo.origin
             pr = PullRequest(origin, origin.get_pull(key))
 
-            if pr.pull.state == 'open':
+            if (pr.pull.state == 'open' or pr.pull.is_merged()) and \
+                    pr.get_base() == branch:
                 rebased_notes = pr.parse(['rebased', 'no-rebase'])
                 if rebased_notes:
                     pr_dict[key] = rebased_notes
-                    continue
 
         return pr_dict
 
