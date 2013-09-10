@@ -35,10 +35,10 @@ class UnitTestCheck(MockTest):
         self.m2 = {}
 
     def runCheck(self):
-        self.assertEqual(UnrebasedPRs.check(self.d1, self.d2),
-                         (self.m1, self.m2))
-        self.assertEqual(UnrebasedPRs.check(self.d2, self.d1),
-                         (self.m2, self.m1))
+        self.assertEqual(UnrebasedPRs.check_directed_links(self.d1, self.d2),
+                         self.m2)
+        self.assertEqual(UnrebasedPRs.check_directed_links(self.d2, self.d1),
+                         self.m1)
 
     def testEmptyDictionaries(self):
         self.runCheck()

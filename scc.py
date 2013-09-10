@@ -2344,25 +2344,16 @@ command.
                                write=args.write)
 
             if not args.no_check:
-                [m1, m2] = self.check(d1, d2)
-                if not m1 and not m2:
+                m = self.check_links(d1, d2, args.a, args.b)
+                if not m:
                     return
 
-                d1 = self.update_dictionary(d1, m1, args.a,
-                                            remote=args.remote)
-                d2 = self.update_dictionary(d2, m2, args.b,
-                                            remote=args.remote)
-                [m1, m2] = self.check(d1, d2)
-                if not m1 and not m2:
-                    return
-
-                m1.update(m2)  # Combine dictionaries
                 print "*"*100
                 print "Mismatching rebased PR comments"
                 print "*"*100
 
-                for key in m1.keys():
-                    comments = ", ".join(['--rebased'+x for x in m1[key]])
+                for key in m.keys():
+                    comments = ", ".join(['--rebased'+x for x in m[key]])
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
 
@@ -2465,8 +2456,8 @@ command.
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         pr_dict = dict.fromkeys(pr_list)
+        origin = self.main_repo.origin
         for pr_number in pr_list:
-            origin = self.main_repo.origin
             pr = PullRequest(origin, origin.get_pull(pr_number))
 
             rebased_notes = pr.parse(['rebased', 'no-rebase'])
@@ -2480,60 +2471,73 @@ command.
                 print pr
         return pr_dict
 
-    def update_dictionary(self, pr_dict, m_dict, branch, remote="origin"):
+    def check_links(self, d1, d2, branch1, branch2):
+        """Return a dictionary of PRs with missing comments"""
 
-        unfound_keys = [key for key in m_dict.keys() if not key in pr_dict]
-        for key in unfound_keys:
-            origin = self.main_repo.origin
-            pr = PullRequest(origin, origin.get_pull(key))
+        m1 = self.check_directed_links(d2, d1)
+        m2 = self.check_directed_links(d1, d2)
 
+        origin = self.main_repo.origin
+
+        def visit_pr(pr_number, branch):
+            pr = PullRequest(origin, origin.get_pull(pr_number))
             if (pr.pull.state == 'open' or pr.pull.is_merged()) and \
                     pr.get_base() == branch:
-                rebased_notes = pr.parse(['rebased', 'no-rebase'])
-                if rebased_notes:
-                    pr_dict[key] = rebased_notes
+                return pr.parse(['rebased', 'no-rebase'])
+            else:
+                return None
 
-        return pr_dict
+        # Ensure all nodes (PRs) are visited - handling chained links
+        while not all(x in d1.keys() for x in m1.keys()) or \
+                not all(x in d2.keys() for x in m2.keys()):
+
+            for pr_number in [key for key in m1.keys()
+                              if not key in d1.keys()]:
+                d1[pr_number] = visit_pr(pr_number, branch1)
+
+            for pr_number in [key for key in m2.keys()
+                              if not key in d2.keys()]:
+                d2[pr_number] = visit_pr(pr_number, branch2)
+
+            m1 = self.check_directed_links(d2, d1)
+            m2 = self.check_directed_links(d1, d2)
+
+        m1.update(m2)
+        return m1
 
     @staticmethod
-    def check(d1, d2):
+    def check_directed_links(source_dict, target_dict):
         """Find mismatching comments in rebased PRs"""
 
-        def get_mismatch_dict(source_dict, target_dict):
+        mismatch_dict = {}
+        for source_key in source_dict.keys():
+            if source_dict[source_key] is None:
+                continue
 
-            mismatch_dict = {}
-            for source_key in source_dict.keys():
-                if source_dict[source_key] is None:
-                    continue
-
-                to_pattern = r"-to #(\d+)"
-                from_pattern = r"-from #(\d+)"
-                for source_value in source_dict[source_key]:
-                    match = re.match(to_pattern, source_value)
+            to_pattern = r"-to #(\d+)"
+            from_pattern = r"-from #(\d+)"
+            for source_value in source_dict[source_key]:
+                match = re.match(to_pattern, source_value)
+                if match:
+                    target_value = '-from #%s' % source_key
+                else:
+                    match = re.match(from_pattern, source_value)
                     if match:
-                        target_value = '-from #%s' % source_key
+                        target_value = '-to #%s' % source_key
                     else:
-                        match = re.match(from_pattern, source_value)
-                        if match:
-                            target_value = '-to #%s' % source_key
-                        else:
-                            continue
+                        continue
 
-                    target_key = int(match.group(1))
-                    if target_key not in target_dict or \
-                       target_dict[target_key] is None or \
-                       not any(x.startswith(target_value) for x
-                               in target_dict[target_key]):
+                target_key = int(match.group(1))
+                if target_key not in target_dict or \
+                   target_dict[target_key] is None or \
+                   not any(x.startswith(target_value) for x
+                           in target_dict[target_key]):
 
-                        if target_key in mismatch_dict:
-                            mismatch_dict[target_key].append(target_value)
-                        else:
-                            mismatch_dict[target_key] = [target_value]
-            return mismatch_dict
-
-        m1 = get_mismatch_dict(d2, d1)
-        m2 = get_mismatch_dict(d1, d2)
-        return m1, m2
+                    if target_key in mismatch_dict:
+                        mismatch_dict[target_key].append(target_value)
+                    else:
+                        mismatch_dict[target_key] = [target_value]
+        return mismatch_dict
 
 
 class UpdateSubmodules(GitRepoCommand):
