@@ -396,6 +396,18 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    def parse(self, argument):
+
+        found_body_comments = self.parse_body(argument)
+        if found_body_comments:
+            return found_body_comments
+        else:
+            found_comments = self.parse_comments(argument)
+            if found_comments:
+                return found_comments
+            else:
+                return []
+
     def parse_body(self, argument):
         found_comments = []
         if isinstance(argument, list):
@@ -2336,6 +2348,14 @@ command.
                 if not m1 and not m2:
                     return
 
+                d1 = self.update_dictionary(d1, m1, args.a,
+                                            remote=args.remote)
+                d2 = self.update_dictionary(d2, m2, args.b,
+                                            remote=args.remote)
+                [m1, m2] = self.check(d1, d2)
+                if not m1 and not m2:
+                    return
+
                 m1.update(m2)  # Combine dictionaries
                 print "*"*100
                 print "Mismatching rebased PR comments"
@@ -2449,20 +2469,30 @@ command.
             origin = self.main_repo.origin
             pr = PullRequest(origin, origin.get_pull(pr_number))
 
-            rebased_body = pr.parse_body(['rebased', 'no-rebase'])
-            if rebased_body:
-                pr_dict[pr_number] = rebased_body
+            rebased_notes = pr.parse(['rebased', 'no-rebase'])
+            if rebased_notes:
+                pr_dict[pr_number] = rebased_notes
                 continue
-            else:
-                rebased_comments = pr.parse_comments(['rebased', 'no-rebase'])
-                if rebased_comments:
-                    pr_dict[pr_number] = rebased_comments
-                    continue
 
             if write:
                 print >>f, pr
             else:
                 print pr
+        return pr_dict
+
+    def update_dictionary(self, pr_dict, m_dict, branch, remote="origin"):
+
+        unfound_keys = [key for key in m_dict.keys() if not key in pr_dict]
+        for key in unfound_keys:
+            origin = self.main_repo.origin
+            pr = PullRequest(origin, origin.get_pull(key))
+
+            if pr.pull.state == 'open':
+                rebased_notes = pr.parse(['rebased', 'no-rebase'])
+                if rebased_notes:
+                    pr_dict[key] = rebased_notes
+                    continue
+
         return pr_dict
 
     @staticmethod
