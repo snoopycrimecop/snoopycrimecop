@@ -396,13 +396,45 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    def parse(self, argument):
+
+        found_body_comments = self.parse_body(argument)
+        if found_body_comments:
+            return found_body_comments
+        else:
+            found_comments = self.parse_comments(argument)
+            if found_comments:
+                return found_comments
+            else:
+                return []
+
+    def parse_body(self, argument):
+        found_comments = []
+        if isinstance(argument, list):
+            patterns = ["--%s" % a for a in argument]
+        else:
+            patterns = ["--%s" % argument]
+
+        lines = self.pull.body.splitlines()
+        for line in lines:
+            for pattern in patterns:
+                if line.startswith(pattern):
+                    found_comments.append(line.replace(pattern, ""))
+        return found_comments
+
     def parse_comments(self, argument):
         found_comments = []
+        if isinstance(argument, list):
+            patterns = ["--%s" % a for a in argument]
+        else:
+            patterns = ["--%s" % argument]
+
         for comment in self.get_comments():
             lines = comment.splitlines()
             for line in lines:
-                if line.startswith("--%s" % argument):
-                    found_comments.append(line.replace("--%s" % argument, ""))
+                for pattern in patterns:
+                    if line.startswith(pattern):
+                        found_comments.append(line.replace(pattern, ""))
         return found_comments
 
     def get_title(self):
@@ -875,6 +907,14 @@ class GitRepository(object):
         submodule_paths = submodule_paths.split("\n")[:-1]
 
         return submodule_paths
+
+    def merge_base(self, a, b):
+        """Return the first ancestor between two branches"""
+
+        self.cd(self.path)
+        mrg, err = self.call("git", "merge-base", a, b,
+                             stdout=subprocess.PIPE).communicate()
+        return mrg.strip()
 
     #
     # Higher level git commands
@@ -2055,13 +2095,20 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     """ % template_args
 
                     gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    pr = gh_repo.open_pr(
+                    rebased_pr = gh_repo.open_pr(
                         title, body,
                         base=args.newbase, head="%s:%s" % (user, new_branch))
-                    print pr.html_url
+                    print rebased_pr.html_url
+
+                    # Add rebase comments
+                    pr.create_issue_comment('--rebased-to #%s' %
+                                            rebased_pr.number)
+                    rebased_pr.create_issue_comment('--rebased-from #%s' %
+                                                    pr.number)
+
                     # Reload in order to prevent mergeable being null.
                     time.sleep(0.5)
-                    pr = main_repo.origin.get_pull(pr.number)
+                    rebased_pr = main_repo.origin.get_pull(rebased_pr.number)
                     if not pr.mergeable:
                         print >> sys.stderr, "#"
                         print >> sys.stderr, "# WARNING: PR is NOT mergeable!"
@@ -2246,7 +2293,7 @@ class TravisMerge(GitRepoCommand):
                     self.filters["include"]["pr"] = [pr]
 
 
-class UnrebasedPRs(Command):
+class UnrebasedPRs(GitRepoCommand):
     """Check that PRs in one branch have been merged to another.
 
 This makes use of git notes to detect links between PRs on two
@@ -2259,7 +2306,6 @@ command.
 
     def __init__(self, sub_parsers):
         super(UnrebasedPRs, self).__init__(sub_parsers)
-        self.add_token_args()
         group = self.parser.add_mutually_exclusive_group()
         group.add_argument(
             '--parse', action='store_true',
@@ -2267,33 +2313,53 @@ command.
         group.add_argument(
             '--write', action='store_true',
             help="Write PRs to files.")
+        group.add_argument(
+            '--no-check', action='store_true',
+            help="Do not check mismatching rebased PR comments.")
 
         self.parser.add_argument('a', help="First branch to compare")
         self.parser.add_argument('b', help="Second branch to compare")
-        self.add_remote_arg()
 
     def fname(self, branch):
         return "%s_prs.txt" % branch
 
     def __call__(self, args):
         super(UnrebasedPRs, self).__call__(args)
-        self.args = args
-        self.main_repo = GitRepository(path=self.cwd, gh=None)
+        self.login(args)
+
+        self.init_main_repo(args)
+
         try:
-            self.notes()
+            self.notes(args)
         finally:
             self.main_repo.cleanup()
 
-    def notes(self):
-        if self.args.parse:
-            self.parse()
+    def notes(self, args):
+        if args.parse:
+            self.parse(args.a, args.b)
         else:
-            self.list_prs(self.args.a, self.args.b)
-            self.list_prs(self.args.b, self.args.a)
+            d1 = self.list_prs(args.a, args.b, remote=args.remote,
+                               write=args.write)
+            d2 = self.list_prs(args.b, args.a, remote=args.remote,
+                               write=args.write)
 
-    def parse(self):
-        aname = self.fname(self.args.a)
-        bname = self.fname(self.args.b)
+            if not args.no_check:
+                m = self.check_links(d1, d2, args.a, args.b)
+                if not m:
+                    return
+
+                print "*"*100
+                print "Mismatching rebased PR comments"
+                print "*"*100
+
+                for key in m.keys():
+                    comments = ", ".join(['--rebased'+x for x in m[key]])
+                    print "  # PR %s: expected '%s' comment(s)" %  \
+                        (key, comments)
+
+    def parse(self, branch1, branch2):
+        aname = self.fname(branch1)
+        bname = self.fname(branch2)
         if not os.path.exists(aname) or not os.path.exists(bname):
             print 'Use --write to create files first'
 
@@ -2331,23 +2397,25 @@ command.
                     brest = e.line
 
             if aid and bid:
-                print fmt_gh % (self.args.b, bpr, self.args.b, bid, aid)
-                print fmt_gh % (self.args.a, apr, self.args.a, aid, bid)
+                print fmt_gh % (branch2, bpr, branch2, bid, aid)
+                print fmt_gh % (branch1, apr, branch1, aid, bid)
             elif aid:
-                print fmt_na % (self.args.b, brest, aid)
+                print fmt_na % (branch2, brest, aid)
             elif bid:
-                print fmt_na % (self.args.a, arest, bid)
+                print fmt_na % (branch1, arest, bid)
             else:
                 raise Exception("No IDs found for line %s!" % i)
 
-    def list_prs(self, current, seealso):
+    def list_prs(self, current, seealso, remote="origin", write=False):
         """
         Method for listing PRs while filtering out those which
         have a seealso note
         """
         git_notes_ref = "refs/notes/see_also/" + seealso
-        merge_base = self.merge_base()
-        merge_range = "%s...%s/%s" % (merge_base, self.args.remote, current)
+        merge_base = self.main_repo.merge_base(
+            "%s/%s" % (remote, current),
+            "%s/%s" % (remote, seealso))
+        merge_range = "%s...%s/%s" % (merge_base, remote, current)
         middle_marker = str(uuid.uuid4()).replace("-", "")
         end_marker = str(uuid.uuid4()).replace("-", "")
 
@@ -2357,16 +2425,19 @@ command.
             "--notes=%s" % git_notes_ref,
             "--first-parent", merge_range,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if self.args.write:
+        if write:
             fname = self.fname(current)
             if os.path.exists(fname):
                 raise Stop("File already exists: %s" % fname)
             f = open(fname, "w")
         else:
             print "*"*100
-            print "PRs on %s without note for %s" % (current, seealso)
+            print "PRs on %s without note/comment for %s" % (current, seealso)
             print "*"*100
 
+        # List PRs without seealso notes
+        pr_list = []
+        merge_pattern = r"Merge pull request #(\d+)"
         out, err = popen.communicate()
         for line in out.split(end_marker):
             line = line.strip()
@@ -2376,22 +2447,97 @@ command.
                 line, rest = line.split(middle_marker)
             except:
                 raise Exception("can't split on ##: " + line)
-            if "See gh-" in rest:
+            if "See gh-" in rest or "n/a" in rest:
                 continue
-            elif "n/a" in rest:
-                continue
-            elif self.args.write:
-                print >>f, line
-            else:
-                print line
 
-    def merge_base(self):
-        a = "%s/%s" % (self.args.remote, self.args.a)
-        b = "%s/%s" % (self.args.remote, self.args.b)
-        mrg, err = self.main_repo.call(
-            "git", "merge-base", a, b,
-            stdout=subprocess.PIPE).communicate()
-        return mrg.strip()
+            match = re.search(merge_pattern, line)
+            if match:
+                pr_list.append(int(match.group(1)))
+
+        # Look into PR body/comment for rebase notes and fill match dictionary
+        pr_dict = dict.fromkeys(pr_list)
+        origin = self.main_repo.origin
+        for pr_number in pr_list:
+            pr = PullRequest(origin, origin.get_pull(pr_number))
+
+            rebased_notes = pr.parse(['rebased', 'no-rebase'])
+            if rebased_notes:
+                pr_dict[pr_number] = rebased_notes
+                continue
+
+            if write:
+                print >>f, pr
+            else:
+                print pr
+        return pr_dict
+
+    def check_links(self, d1, d2, branch1, branch2):
+        """Return a dictionary of PRs with missing comments"""
+
+        m1 = self.check_directed_links(d2, d1)
+        m2 = self.check_directed_links(d1, d2)
+
+        origin = self.main_repo.origin
+
+        def visit_pr(pr_number, branch):
+            pr = PullRequest(origin, origin.get_pull(pr_number))
+            if (pr.pull.state == 'open' or pr.pull.is_merged()) and \
+                    pr.get_base() == branch:
+                return pr.parse(['rebased', 'no-rebase'])
+            else:
+                return None
+
+        # Ensure all nodes (PRs) are visited - handling chained links
+        while not all(x in d1.keys() for x in m1.keys()) or \
+                not all(x in d2.keys() for x in m2.keys()):
+
+            for pr_number in [key for key in m1.keys()
+                              if not key in d1.keys()]:
+                d1[pr_number] = visit_pr(pr_number, branch1)
+
+            for pr_number in [key for key in m2.keys()
+                              if not key in d2.keys()]:
+                d2[pr_number] = visit_pr(pr_number, branch2)
+
+            m1 = self.check_directed_links(d2, d1)
+            m2 = self.check_directed_links(d1, d2)
+
+        m1.update(m2)
+        return m1
+
+    @staticmethod
+    def check_directed_links(source_dict, target_dict):
+        """Find mismatching comments in rebased PRs"""
+
+        mismatch_dict = {}
+        for source_key in source_dict.keys():
+            if source_dict[source_key] is None:
+                continue
+
+            to_pattern = r"-to #(\d+)"
+            from_pattern = r"-from #(\d+)"
+            for source_value in source_dict[source_key]:
+                match = re.match(to_pattern, source_value)
+                if match:
+                    target_value = '-from #%s' % source_key
+                else:
+                    match = re.match(from_pattern, source_value)
+                    if match:
+                        target_value = '-to #%s' % source_key
+                    else:
+                        continue
+
+                target_key = int(match.group(1))
+                if target_key not in target_dict or \
+                   target_dict[target_key] is None or \
+                   not any(x.startswith(target_value) for x
+                           in target_dict[target_key]):
+
+                    if target_key in mismatch_dict:
+                        mismatch_dict[target_key].append(target_value)
+                    else:
+                        mismatch_dict[target_key] = [target_value]
+        return mismatch_dict
 
 
 class UpdateSubmodules(GitRepoCommand):
@@ -2433,7 +2579,8 @@ class UpdateSubmodules(GitRepoCommand):
                     if pr is None:
                         title = args.message
                         if IS_JENKINS_JOB:
-                            body = "Generated by build [%s#%s](%s)." % \
+                            body = "Generated by build [%s#%s](%s).\n\n" \
+                                "----\n--no-rebase" % \
                                 (JOB_NAME, BUILD_NUMBER, BUILD_URL)
                         else:
                             body = ""
