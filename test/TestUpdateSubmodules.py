@@ -25,11 +25,11 @@ from scc import main
 from Sandbox import SandboxTest
 
 
-class TestMerge(SandboxTest):
+class TestUpdateSubmodules(SandboxTest):
 
     def setUp(self):
 
-        super(TestMerge, self).setUp()
+        super(TestUpdateSubmodules, self).setUp()
         self.init_submodules()
         self.add_remote()
         self.branch = "dev_4_4"
@@ -79,7 +79,6 @@ class TestMerge(SandboxTest):
         self.assertEqual(prs[0].number, pr.number)
         self.sandbox.push_branch(":%s" % self.submodules_branch,
                                  remote=self.user)
-
 
 if __name__ == '__main__':
     import logging
