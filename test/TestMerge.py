@@ -21,7 +21,7 @@
 
 import unittest
 
-from scc import main, parsers, Merge, SetCommitStatus, TravisMerge
+from scc import main, parsers, Merge, SetCommitStatus, TravisMerge, Stop
 from Sandbox import SandboxTest
 from Mock import MockTest
 
@@ -344,6 +344,16 @@ class TestMerge(SandboxTest):
 
         main(["merge", "--no-ask", self.branch, "--push", self.merge_branch])
         self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
+
+    def testRemoteFailing(self):
+
+        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        self.assertRaises(Stop, main, ["merge", "--no-ask", self.branch])
+
+    def testRemotePassing(self):
+
+        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        main(["merge", "--no-ask", self.branch, "--remote", "gh"])
 
 
 if __name__ == '__main__':
