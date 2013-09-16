@@ -1591,6 +1591,9 @@ Usage:
                     raise Stop(3, "Unknown milestone: %s" %
                                args.milestone_name)
 
+            if not self.main_repo.has_local_tag(args.tag):
+                raise Stop(21, "Tag %s does not exist." % args.tag)
+
             o, e = self.main_repo.communicate(
                 "git", "log", "--oneline", "--first-parent",
                 "%s...%s" % (args.tag, args.head))
