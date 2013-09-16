@@ -31,5 +31,12 @@ class TestCheckMilestone(SandboxTest):
         self.assertRaises(Stop, main, ["check-milestone", "--no-ask",
                                        "v.0.0.0", "HEAD"])
 
+    def testNonExistingMilestone(self):
+        self.assertRaises(Stop, main, ["check-milestone", "--no-ask",
+                                       "v.1.0.0", "HEAD", "--set", "0.0.0"])
+
+    def testCheckMilestone(self):
+        main(["check-milestone", "--no-ask", "v.1.0.0", "v.1.1.1-TEST"])
+
 if __name__ == '__main__':
     unittest.main()
