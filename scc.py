@@ -415,6 +415,9 @@ class PullRequest(object):
         else:
             patterns = ["--%s" % argument]
 
+        if self.pull.body is None:
+            return found_comments
+
         lines = self.pull.body.splitlines()
         for line in lines:
             for pattern in patterns:
