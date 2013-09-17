@@ -2074,7 +2074,7 @@ class Rebase(Command):
             pr = main_repo.origin.get_pull(args.PR)
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
-        except:
+        except github.GithubException:
             raise Stop(19, 'Cannot find pull request %s' % args.PR)
 
         pr_head = pr.head.sha
