@@ -2470,7 +2470,6 @@ command.
 
         # List PRs without seealso notes
         pr_list = []
-        merge_pattern = r"Merge pull request #(\d+)"
         out, err = popen.communicate()
         for line in out.split(end_marker):
             line = line.strip()
@@ -2483,9 +2482,12 @@ command.
             if "See gh-" in rest or "n/a" in rest:
                 continue
 
-            match = re.search(merge_pattern, line)
-            if match:
-                pr_list.append(int(match.group(1)))
+            try:
+                sha1, num, rest = self.parse_pr(line)
+                pr_list.append(num)
+            except:
+                self.log.info("Unknown merge: %s", line)
+                continue
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         pr_dict = dict.fromkeys(pr_list)
