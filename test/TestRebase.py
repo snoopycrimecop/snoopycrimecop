@@ -68,12 +68,12 @@ class TestRebase(SandboxTest):
 
         # Rebase the PR locally
         main(["rebase",
-            "--no-fetch",
-            "--no-ask",
-            "--no-push",
-            "--no-pr",
-            str(self.pr.number),
-            self.target_base])
+              "--no-fetch",
+              "--no-ask",
+              "--no-push",
+              "--no-pr",
+              str(self.pr.number),
+              self.target_base])
 
     def testRebasePushOnly(self):
 
