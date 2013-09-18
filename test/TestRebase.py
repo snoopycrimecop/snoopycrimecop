@@ -21,7 +21,7 @@
 
 import unittest
 
-from scc import main
+from scc import main, Stop
 from Sandbox import SandboxTest
 
 
@@ -47,6 +47,11 @@ class TestRebase(SandboxTest):
         self.sandbox.push_branch(":%s" % self.source_branch, remote=self.user)
 
         super(TestRebase, self).tearDown()
+
+    def testUnfoundPR(self):
+
+        self.assertRaises(Stop, main, ["rebase", "--no-ask", "0",
+                                       self.target_base])
 
     def testLocalRebase(self):
 

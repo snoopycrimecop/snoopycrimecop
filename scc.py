@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2013 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -2075,9 +2075,13 @@ class Rebase(Command):
             old_branch = main_repo.get_current_sha1()
 
         # Remote information
-        pr = main_repo.origin.get_pull(args.PR)
-        self.log.info("PR %g: %s opened by %s against %s",
-                      args.PR, pr.title, pr.head.user.name, pr.base.ref)
+        try:
+            pr = main_repo.origin.get_pull(args.PR)
+            self.log.info("PR %g: %s opened by %s against %s",
+                          args.PR, pr.title, pr.head.user.name, pr.base.ref)
+        except github.GithubException:
+            raise Stop(19, 'Cannot find pull request %s' % args.PR)
+
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
