@@ -2130,8 +2130,7 @@ class Rebase(Command):
             try:
                 main_repo.rebase(remote_newbase, branching_sha1, pr_head)
             except:
-                raise Stop(20, "rebasing failed.\nFix conflicts and re-run "
-                           "with an additional --continue flag")
+                raise Stop(20, self.get_conflict_message(args))
 
         # Fail-fast if sha1 is the same as the new base
 
@@ -2194,6 +2193,20 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
             if args.delete:
                 main_repo.delete_local_branch(new_branch, force=True)
+
+    def get_conflict_message(self, args):
+        msg = 'Rebasing failed\nYou are now in detached HEAD mode\n\n'
+        msg += 'To keep on rebasing,\n'
+        msg += '1) check the output of "git status" and fix the conflicts\n'
+        msg += '2) re-add the conflicting files with "git add"\n'
+        msg += '3) run "git rebase --continue"\n'
+        msg += '4) repeat steps 1-3 until all conflicts are resolved\n'
+        msg += '4) run "scc rebase --continue %s %s"\n\n' \
+            % (args.PR, args.newbase)
+        msg += 'To stop rebasing,\n'
+        msg += '1) run "git rebase --abort"\n'
+        msg += '2) checkout the desired branch, e.g "git checkout master"'
+        return msg
 
 
 class Token(Command):
