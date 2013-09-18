@@ -52,6 +52,9 @@ class SandboxTest(unittest.TestCase):
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
 
+    def shortDescription(self):
+        return None
+
     def init_submodules(self):
         """
         Fetch submodules after cloning the repository
