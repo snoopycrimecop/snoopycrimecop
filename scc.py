@@ -753,12 +753,18 @@ class GitRepository(object):
             o = o[len(refsheads):]
         return o
 
+    def get_sha1(self, branch):
+        """Return the sha1 for the specified branch"""
+
+        self.cd(self.path)
+        self.dbg("Get sha1 of %s")
+        o, e = self.communicate("git", "rev-parse", branch)
+        return o.strip()
+
     def get_current_sha1(self):
         """Return the sha1 for the current commit"""
-        self.cd(self.path)
-        self.dbg("Get current sha1")
-        o, e = self.communicate("git", "rev-parse", "HEAD")
-        return o.strip()
+
+        return self.get_sha1('HEAD')
 
     def get_status(self):
         """Return the status of the git repository including its submodules"""
@@ -2110,27 +2116,35 @@ class Rebase(Command):
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
 
+        # Fail-fast if local branch exist with the target name
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
         if main_repo.has_local_branch(new_branch):
             raise Stop(18, 'Branch %s already exists in local Git repository'
                        % new_branch)
 
+        remote_newbase = "%s/%s" %  (args.remote, args.newbase)
         if not args._continue:
             branching_sha1 = main_repo.find_branching_point(
                 pr_head, "%s/%s" % (args.remote, pr.base.ref))
+
             try:
-                main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                                 branching_sha1, pr_head)
+                main_repo.rebase(remote_newbase, branching_sha1, pr_head)
             except:
                 raise Stop(20, "rebasing failed.\nFix conflicts and re-run "
                            "with an additional --continue flag")
 
+        # Fail-fast if sha1 is the same as the new base
+
+        if main_repo.get_current_sha1() == main_repo.get_sha1(remote_newbase):
+            raise Stop(22, "No new commits between the rebased branch and %s"
+                       % remote_newbase)
         main_repo.new_branch(new_branch)
         print >> sys.stderr, "# Created local branch %s" % new_branch
 
         if args.push or args.pr:
             try:
                 user = self.gh.get_login()
+                # Fail-fast if remote branch exist with the target name
                 if main_repo.has_remote_branch(new_branch, remote=user):
                     raise Stop(19, 'Branch %s already exists in %s remote'
                                % (new_branch, args.remote))
