@@ -51,9 +51,35 @@ class TestRebase(SandboxTest):
 
     def testUnfoundPR(self):
 
-        self.assertRaises(Stop, main, ["rebase", "--no-ask", "0",
-                                       self.target_base])
+        self.assertRaises(Stop, main,
+                          ["rebase", "--no-ask", "0", self.target_base])
 
+    def testExistingLocalBranch(self):
+
+        # Rebase the PR locally
+        self.sandbox.new_branch(self.target_branch)
+        self.assertRaises(Stop, main,
+                          ["rebase", "--no-ask", str(self.pr.number),
+                           self.target_base])
+
+    def testExistingRemoteBranch(self):
+
+        self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
+                                 remote=self.user)
+        self.assertRaises(Stop, main,
+                          ["rebase", "--no-ask", str(self.pr.number),
+                           self.target_base])
+        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
+
+    def testExistingRemoteBranch(self):
+
+        self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
+                                 remote=self.user)
+        self.assertRaises(Stop, main,
+                          ["rebase", "--no-ask", str(self.pr.number),
+                           self.target_base])
+        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
+        
     def testNoPush(self):
 
         # Rebase the PR locally
