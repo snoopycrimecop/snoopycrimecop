@@ -54,22 +54,31 @@ class TestRebase(SandboxTest):
         self.assertRaises(Stop, main, ["rebase", "--no-ask", "0",
                                        self.target_base])
 
-    def testLocalRebase(self):
+    def testNoPush(self):
 
         # Rebase the PR locally
         main(["rebase",
-              "--token=%s" % self.token,
               "--no-ask",
               "--no-push",
               "--no-pr",
               str(self.pr.number),
               self.target_base])
 
-    def testRebasePush(self):
+    def testNoFetch(self):
 
         # Rebase the PR locally
         main(["rebase",
-              "--token=%s" % self.token,
+            "--no-fetch",
+            "--no-ask",
+            "--no-push",
+            "--no-pr",
+            str(self.pr.number),
+            self.target_base])
+
+    def testRebasePushOnly(self):
+
+        # Rebase the PR locally
+        main(["rebase",
               "--no-ask",
               "--no-pr",
               str(self.pr.number),
@@ -79,7 +88,6 @@ class TestRebase(SandboxTest):
 
         # Rebase the PR and push to Github
         main(["rebase",
-              "--token=%s" % self.token,
               "--no-ask",
               str(self.pr.number),
               self.target_base])
