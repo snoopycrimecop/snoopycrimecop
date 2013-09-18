@@ -71,15 +71,11 @@ class TestRebase(SandboxTest):
                            self.target_base])
         self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
-    def testExistingRemoteBranch(self):
+    def testNoCommonCommits(self):
 
-        self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
-                                 remote=self.user)
-        self.assertRaises(Stop, main,
-                          ["rebase", "--no-ask", str(self.pr.number),
-                           self.target_base])
-        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
-        
+        self.assertRaises(Stop, main, ["rebase", "--no-ask", "79",
+                          self.target_base])
+
     def testNoPush(self):
 
         # Rebase the PR locally

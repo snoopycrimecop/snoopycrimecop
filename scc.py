@@ -2122,7 +2122,7 @@ class Rebase(Command):
             raise Stop(18, 'Branch %s already exists in local Git repository'
                        % new_branch)
 
-        remote_newbase = "%s/%s" %  (args.remote, args.newbase)
+        remote_newbase = "%s/%s" % (args.remote, args.newbase)
         if not args._continue:
             branching_sha1 = main_repo.find_branching_point(
                 pr_head, "%s/%s" % (args.remote, pr.base.ref))
