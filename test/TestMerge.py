@@ -19,12 +19,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import os
 import unittest
 
-from subprocess import Popen
-
-from scc import main, parsers, Merge, SetCommitStatus, TravisMerge
+from scc import main, parsers, Merge, SetCommitStatus, TravisMerge, Stop
 from Sandbox import SandboxTest
 from Mock import MockTest
 
@@ -327,27 +324,36 @@ class TestMerge(SandboxTest):
     def setUp(self):
 
         super(TestMerge, self).setUp()
+        self.init_submodules()
+        self.add_remote()
+        self.branch = "dev_4_4"
+        self.merge_branch = "merge/dev_4_4/test"
 
-        # Setup
-        self.user = self.gh.get_login()
+    def testMerge(self):
 
-        try:
-            p = Popen(["git", "submodule", "update", "--init"])
-            self.assertEquals(0, p.wait())
-        except:
-            os.chdir(self.path)
-            raise
+        main(["merge", "--no-ask", self.branch])
 
-    def test(self):
+    def testShallowMerge(self):
 
-        main(["merge", "--no-ask", "dev_4_4"])
+        pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
+        main(["merge", "--no-ask", "--shallow", self.branch])
+        post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
+        self.assertEqual(pre_merge, post_merge)
 
-    def testPush(self):
+    def testMergePush(self):
 
-        main(["merge", "--no-ask", "dev_4_4", "--push", "test"])
-        # This will clean the pushed branch
-        remote = "git@github.com:%s/" % (self.user) + "%s.git"
-        self.sandbox.rpush(":test", remote=remote)
+        main(["merge", "--no-ask", self.branch, "--push", self.merge_branch])
+        self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
+
+    def testRemoteFailing(self):
+
+        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        self.assertRaises(Stop, main, ["merge", "--no-ask", self.branch])
+
+    def testRemotePassing(self):
+
+        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        main(["merge", "--no-ask", self.branch, "--remote", "gh"])
 
 
 if __name__ == '__main__':

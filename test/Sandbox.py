@@ -97,14 +97,19 @@ class SandboxTest(unittest.TestCase):
         self.sandbox.get_status()
         return name
 
+    def add_remote(self):
+        """
+        Add the remote of the authenticated Github user
+        """
+        remote_url = "https://%s@github.com/%s/%s.git" \
+            % (self.token, self.user, self.sandbox.origin.name)
+        self.sandbox.add_remote(self.user, remote_url)
+
     def open_pr(self, branch, base):
         """
         Push a local branch and open a PR against the selected base
         """
-
-        remote_url = "https://%s@github.com/%s/%s.git" \
-            % (self.token, self.user, self.sandbox.origin.name)
-        self.sandbox.add_remote(self.user, remote_url)
+        self.add_remote()
         self.sandbox.push_branch(branch, remote=self.user)
         new_pr = self.sandbox.origin.open_pr(
             title="test %s" % branch,

@@ -25,24 +25,60 @@ from scc import main
 from Sandbox import SandboxTest
 
 
-class TestMerge(SandboxTest):
+class TestUpdateSubmodules(SandboxTest):
 
     def setUp(self):
 
-        super(TestMerge, self).setUp()
+        super(TestUpdateSubmodules, self).setUp()
         self.init_submodules()
-
-    def testPush(self):
-
-        self.sandbox.checkout_branch("dev_4_4")
+        self.add_remote()
+        self.branch = "dev_4_4"
+        self.sandbox.checkout_branch(self.branch)
         self.sandbox.reset()
+        self.submodules_branch = "merge/%s/submodules" % self.branch
 
-        submodule_branch = "merge/dev_4_4/submodules"
-        main(["update-submodules", "--no-ask", "dev_4_4", "--push",
-              submodule_branch])
-        remote = "git@github.com:%s/" % (self.user) + "%s.git"
-        self.sandbox.rpush(":%s" % submodule_branch, remote=remote)
+    def testMultipleUpdates(self):
 
+        main(["update-submodules", "--no-ask", self.branch])
+        p0 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
+                                      "HEAD")[0]
+        main(["update-submodules", "--no-ask", self.branch])
+        p1 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
+                                      "HEAD")[0]
+        self.assertEqual(p0, p1)
+
+    def testPushNoPR(self):
+
+        main(["update-submodules", "--no-ask", self.branch, "--push",
+              self.submodules_branch, "--no-pr"])
+        self.sandbox.push_branch(":%s" % self.submodules_branch,
+                                 remote=self.user)
+
+    def testPushOpenPR(self):
+
+        main(["update-submodules", "--no-ask", self.branch, "--push",
+              self.submodules_branch])
+        prs = list(self.sandbox.origin.get_pulls())
+        self.assertEquals(prs[0].head.user.login, self.user)
+        self.assertEquals(prs[0].head.ref, self.submodules_branch)
+        self.sandbox.push_branch(":%s" % self.submodules_branch,
+                                 remote=self.user)
+
+    def testPushUpdatePR(self):
+
+        main(["update-submodules", "--no-ask", self.branch, "--push",
+              self.submodules_branch])
+        prs = list(self.sandbox.origin.get_pulls())
+        pr = prs[0]
+
+        self.sandbox.checkout_branch(self.branch)
+        self.sandbox.reset()
+        main(["update-submodules", "--no-ask", self.branch, "--push",
+              self.submodules_branch])
+        prs = list(self.sandbox.origin.get_pulls())
+        self.assertEqual(prs[0].number, pr.number)
+        self.sandbox.push_branch(":%s" % self.submodules_branch,
+                                 remote=self.user)
 
 if __name__ == '__main__':
     import logging
