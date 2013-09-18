@@ -817,6 +817,11 @@ class GitRepository(object):
         self.dbg("Adding remote %s for %s...", name, url)
         self.call("git", "remote", "add", name, url)
 
+    def fetch(self, remote="origin"):
+        self.cd(self.path)
+        self.dbg("Fetching remote %s...", remote)
+        self.call("git", "fetch", remote)
+
     def push_branch(self, name, remote="origin", force=False):
         self.cd(self.path)
         self.dbg("Pushing branch %s to %s..." % (name, remote))
@@ -972,7 +977,7 @@ class GitRepository(object):
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
             self.call("git", "remote", "add", key, url)
-            self.call("git", "fetch", key)
+            self.fetch(key)
 
         conflicting_pulls = []
         merged_pulls = []
@@ -2045,6 +2050,9 @@ class Rebase(Command):
         self.parser.add_argument(
             '--continue', action="store_true", dest="_continue",
             help="Continue from a failed rebase")
+        self.parser.add_argument(
+            '--no-fetch', action='store_true',
+            help="Do not fetch the origin remote")
 
         self.parser.add_argument(
             'PR', type=int, help="The number of the pull request to rebase")
@@ -2058,6 +2066,8 @@ class Rebase(Command):
 
         main_repo = self.gh.git_repo(self.cwd)
         try:
+            if not args.no_fetch:
+                main_repo.fetch(args.remote)
             self.rebase(args, main_repo)
         finally:
             main_repo.cleanup()
@@ -2630,7 +2640,7 @@ class UpdateSubmodules(GitRepoCommand):
         for submodule in main_repo.submodules:
             submodule.cd(submodule.path)
             if not args.no_fetch:
-                submodule.call("git", "fetch", args.remote)
+                submodule.fetch(args.remote)
             #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
 
         # Create commit message using command arguments
