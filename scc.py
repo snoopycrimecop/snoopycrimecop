@@ -894,16 +894,30 @@ class GitRepository(object):
             self.dbg("%s has local changes", self)
             return True
 
-    def has_local_tag(self, tag):
+    def has_ref(self, ref):
         """Check for tag existence in the local Git repository"""
 
         self.cd(self.path)
         try:
-            self.call("git", "show-ref", "--verify", "--quiet",
-                      "refs/tags/%s" % tag)
+            self.call("git", "show-ref", "--verify", "--quiet", ref)
             return True
         except Exception:
             return False
+
+    def has_local_tag(self, tag):
+        """Check for tag existence in the local Git repository"""
+
+        return self.has_ref("refs/tags/%s" % tag)
+
+    def has_local_branch(self, branch):
+        """Check for branch existence in the local Git repository"""
+
+        return self.has_ref("refs/heads/%s" % branch)
+
+    def has_remote_branch(self, branch, remote="origin"):
+        """Check for branch existence in the local Git repository"""
+
+        return self.has_ref("refs/remotes/%s/%s" % (remote, branch))
 
     def is_valid_tag(self, tag):
         """Check the validity of a reference name for a tag"""
@@ -2090,11 +2104,16 @@ class Rebase(Command):
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
-            raise Stop(19, 'Cannot find pull request %s' % args.PR)
+            raise Stop(17, 'Cannot find pull request %s' % args.PR)
 
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
+
+        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
+        if main_repo.has_local_branch(new_branch):
+            raise Stop(18, 'Branch %s already exists in local Git repository'
+                       % new_branch)
 
         if not args._continue:
             branching_sha1 = main_repo.find_branching_point(
@@ -2106,15 +2125,17 @@ class Rebase(Command):
                 raise Stop(20, "rebasing failed.\nFix conflicts and re-run "
                            "with an additional --continue flag")
 
-        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
         main_repo.new_branch(new_branch)
         print >> sys.stderr, "# Created local branch %s" % new_branch
 
         if args.push or args.pr:
             try:
                 user = self.gh.get_login()
-                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
+                if main_repo.has_remote_branch(new_branch, remote=user):
+                    raise Stop(19, 'Branch %s already exists in %s remote'
+                               % (new_branch, args.remote))
 
+                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
                 main_repo.push_branch(new_branch, remote=remote)
                 print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
 
