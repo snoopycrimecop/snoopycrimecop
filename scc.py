@@ -509,7 +509,10 @@ class PullRequest(object):
 
     def get_last_status(self):
         """Return the last status of the Pull Request."""
-        return self.get_last_commit().get_statuses()[0]
+        try:
+            return self.get_last_commit().get_statuses()[0]
+        except IndexError:
+            return None
 
 
 class GitHubRepository(object):
