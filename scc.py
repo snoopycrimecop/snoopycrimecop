@@ -377,13 +377,12 @@ class LoggerWrapper(threading.Thread):
 
 
 class PullRequest(object):
-    def __init__(self, repo, pull):
+    def __init__(self, pull):
         """Register the Pull Request and its corresponding Issue"""
         self.log = logging.getLogger("scc.pr")
         self.dbg = self.log.debug
 
         self.pull = pull
-        self.issue = repo.get_issue(self.get_number())
         self.dbg("login = %s", self.get_login())
         self.dbg("labels = %s", self.get_labels())
         self.dbg("base = %s", self.get_base())
@@ -454,7 +453,11 @@ class PullRequest(object):
 
     def get_number(self):
         """Return the number of the Pull Request."""
-        return int(self.pull.issue_url.split("/")[-1])
+        return self.pull.number
+
+    def get_issue(self):
+        """Return the number of the Pull Request."""
+        return self.pull.base.repo.get_issue(self.get_number())
 
     def get_head_login(self):
         """Return the login of the branch where the changes are implemented."""
@@ -468,25 +471,30 @@ class PullRequest(object):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
 
+    def get_last_commit(self):
+        """Return the head commit of the Pull Request."""
+        return self.pull.base.repo.get_commit(self.get_sha())
+
     def get_base(self):
         """Return the branch against which the Pull Request is opened."""
         return self.pull.base.ref
 
     def get_labels(self):
         """Return the labels of the Pull Request."""
-        return [x.name for x in self.issue.labels]
+        return [x.name for x in self.get_issue().labels]
 
     def get_comments(self):
         """Return the labels of the Pull Request."""
-        if self.issue.comments:
-            return [comment.body for comment in self.issue.get_comments()]
+        if self.get_issue().comments:
+            return [comment.body for comment in
+                    self.get_issue().get_comments()]
         else:
             return []
 
     def create_comment(self, msg):
         """Add comment to Pull Request"""
 
-        self.issue.create_comment(msg)
+        self.get_issue().create_comment(msg)
 
     def edit_body(self, body):
         """Edit body of Pull Request"""
@@ -494,9 +502,14 @@ class PullRequest(object):
         self.pull.edit(body=body)
 
     def create_status(self, status, message, url):
-        self.pull.base.repo.get_commit(self.get_sha()).create_status(
+        """Add a status to the head of the Pull Request."""
+        self.get_last_commit().create_status(
             status, url or github.GithubObject.NotSet, message,
         )
+
+    def get_last_status(self):
+        """Return the last status of the Pull Request."""
+        return self.get_last_commit().get_statuses()[0]
 
 
 class GitHubRepository(object):
@@ -603,7 +616,7 @@ class GitHubRepository(object):
                  if (pull.base.ref == filters["base"])]
 
         for pull in pulls:
-            pullrequest = PullRequest(self, pull)
+            pullrequest = PullRequest(pull)
             pr_attributes = {}
             pr_attributes["label"] = [x.lower() for x in
                                       pullrequest.get_labels()]
@@ -1117,7 +1130,7 @@ class GitRepository(object):
                     s = re.search(pattern, line)
                     if s is not None:
                         pr = self.origin.get_pull(int(s.group(1)))
-                        merge_msg += str(PullRequest(self.origin, pr)) + '\n'
+                        merge_msg += str(PullRequest(pr)) + '\n'
             merge_msg += '\n'
 
             merge_msg += self.merge(comment, commit_id=commit_id,
@@ -1452,7 +1465,7 @@ class GitRepoCommand(Command):
         for pull in self.main_repo.origin.get_pulls():
             if pull.head.user.login == user and pull.head.ref == branch_name:
                 self.log.info("PR %s already opened", pull.number)
-                return PullRequest(self.main_repo.origin, pull)
+                return PullRequest(pull)
 
         return None
 
@@ -2289,8 +2302,7 @@ class TravisMerge(GitRepoCommand):
         args.reset = False
         self.init_main_repo(args)
 
-        origin = self.main_repo.origin
-        pr = PullRequest(origin, origin.get_pull(int(pr_number)))
+        pr = PullRequest(self.main_repo.origin.get_pull(int(pr_number)))
 
         # Parse comments for companion PRs inclusion in the Travis build
         self._parse_dependencies(pr.get_base(),
@@ -2491,9 +2503,8 @@ command.
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         pr_dict = dict.fromkeys(pr_list)
-        origin = self.main_repo.origin
         for pr_number in pr_list:
-            pr = PullRequest(origin, origin.get_pull(pr_number))
+            pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
 
             rebased_notes = pr.parse(['rebased', 'no-rebase'])
             if rebased_notes:
@@ -2512,10 +2523,8 @@ command.
         m1 = self.check_directed_links(d2, d1)
         m2 = self.check_directed_links(d1, d2)
 
-        origin = self.main_repo.origin
-
         def visit_pr(pr_number, branch):
-            pr = PullRequest(origin, origin.get_pull(pr_number))
+            pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
             if (pr.pull.state == 'open' or pr.pull.is_merged()) and \
                     pr.get_base() == branch:
                 return pr.parse(['rebased', 'no-rebase'])
