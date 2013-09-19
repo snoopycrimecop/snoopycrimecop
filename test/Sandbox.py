@@ -26,7 +26,7 @@ import unittest
 import tempfile
 
 from scc import get_github, get_token_or_user
-from subprocess import Popen
+from subprocess import Popen, PIPE
 
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
@@ -42,7 +42,8 @@ class SandboxTest(unittest.TestCase):
         self.path = tempfile.mkdtemp("", "sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
-            p = Popen(["git", "clone", sandbox_url, self.path])
+            p = Popen(["git", "clone", sandbox_url, self.path],
+                      stdout=PIPE, stderr=PIPE)
             self.assertEquals(0, p.wait())
             self.sandbox = self.gh.git_repo(self.path)
         except:
@@ -51,13 +52,17 @@ class SandboxTest(unittest.TestCase):
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
 
+    def shortDescription(self):
+        return None
+
     def init_submodules(self):
         """
         Fetch submodules after cloning the repository
         """
 
         try:
-            p = Popen(["git", "submodule", "update", "--init"])
+            p = Popen(["git", "submodule", "update", "--init"],
+                      stdout=PIPE, stderr=PIPE)
             self.assertEquals(0, p.wait())
         except:
             os.chdir(self.path)

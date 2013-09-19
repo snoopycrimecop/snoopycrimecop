@@ -415,6 +415,9 @@ class PullRequest(object):
         else:
             patterns = ["--%s" % argument]
 
+        if self.pull.body is None:
+            return found_comments
+
         lines = self.pull.body.splitlines()
         for line in lines:
             for pattern in patterns:
@@ -1560,7 +1563,7 @@ class FilteredPullRequestsCommand(GitRepoCommand):
                                   " ".join(self.filters[ftype][key]))
 
 
-class CheckMilestone(Command):
+class CheckMilestone(GitRepoCommand):
     """Check all merged PRs for a set milestone
 
 Find all GitHub-merged PRs between head and tag, i.e.
@@ -1574,7 +1577,6 @@ Usage:
 
     def __init__(self, sub_parsers):
         super(CheckMilestone, self).__init__(sub_parsers)
-        self.add_token_args()
         self.parser.add_argument('tag', help="Start tag for searching")
         self.parser.add_argument('head', help="Branch to use check")
         self.parser.add_argument('--set', help="Milestone to use if unset",
@@ -1583,31 +1585,22 @@ Usage:
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
-        main_repo = self.gh.git_repo(self.cwd)
+        self.init_main_repo(args)
         try:
 
             if args.milestone_name:
-                milestone = None
-
-                for state in ("open", "closed"):
-
-                    milestones = main_repo.origin.get_milestones(state=state)
-                    for m in milestones:
-                        if m.title == args.milestone_name:
-                            milestone = m
-                            break
-
-                    if milestone:
-                        break
-
+                milestone = self.get_milestone(args.milestone_name)
                 if not milestone:
-                    raise Stop(3, "Unknown milestone: %s"
-                               % args.milestone_name)
+                    raise Stop(3, "Unknown milestone: %s" %
+                               args.milestone_name)
 
-            p = main_repo.call("git", "log", "--oneline", "--first-parent",
-                               "%s...%s" % (args.tag, args.head),
-                               stdout=subprocess.PIPE)
-            o, e = p.communicate()
+            if not self.main_repo.has_local_tag(args.tag):
+                raise Stop(21, "Tag %s does not exist." % args.tag)
+
+            o, e = self.main_repo.communicate(
+                "git", "log", "--oneline", "--first-parent",
+                "%s...%s" % (args.tag, args.head))
+
             for line in o.split("\n"):
                 if line.split():
                     try:
@@ -1615,7 +1608,7 @@ Usage:
                     except:
                         self.log.info("Unknown merge: %s", line)
                         continue
-                    pr = main_repo.origin.get_issue(num)
+                    pr = self.main_repo.origin.get_issue(num)
                     if pr.milestone:
                         self.log.debug("PR %s in milestone %s",
                                        pr.number, pr.milestone.title)
@@ -1633,7 +1626,17 @@ Usage:
                             print "No milestone for PR %s ('%s')" \
                                 % (pr.number, line)
         finally:
-            main_repo.cleanup()
+            self.main_repo.cleanup()
+
+    def get_milestone(self, name):
+
+        for state in ("open", "closed"):
+            milestones = self.main_repo.origin.get_milestones(state=state)
+            for m in milestones:
+                if m.title == name:
+                    return m
+
+        return None
 
 
 class AlreadyMerged(Command):
@@ -2467,7 +2470,6 @@ command.
 
         # List PRs without seealso notes
         pr_list = []
-        merge_pattern = r"Merge pull request #(\d+)"
         out, err = popen.communicate()
         for line in out.split(end_marker):
             line = line.strip()
@@ -2480,9 +2482,12 @@ command.
             if "See gh-" in rest or "n/a" in rest:
                 continue
 
-            match = re.search(merge_pattern, line)
-            if match:
-                pr_list.append(int(match.group(1)))
+            try:
+                sha1, num, rest = self.parse_pr(line)
+                pr_list.append(num)
+            except:
+                self.log.info("Unknown merge: %s", line)
+                continue
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         pr_dict = dict.fromkeys(pr_list)
