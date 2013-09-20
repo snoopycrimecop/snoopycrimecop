@@ -43,6 +43,10 @@ class TestRebase(SandboxTest):
         self.assertRaises(Stop, main, ["rebase", "--no-ask", "79",
                           self.target_base])
 
+    def testBadObject(self):
+
+        self.assertRaises(Stop, main, ["rebase", "--no-ask", "112",
+                          self.target_base])
 
 class TestRebaseNewBranch(SandboxTest):
 
