@@ -35,7 +35,6 @@ Environment variables:
 import re
 import os
 import sys
-import time
 import uuid
 import subprocess
 import logging
@@ -904,7 +903,7 @@ class GitRepository(object):
             return True
 
     def has_ref(self, ref):
-        """Check for tag existence in the local Git repository"""
+        """Check for reference existence in the local Git repository"""
 
         self.cd(self.path)
         try:
@@ -2111,11 +2110,17 @@ class Rebase(Command):
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
-            raise Stop(17, 'Cannot find pull request %s' % args.PR)
+            raise Stop(16, 'Cannot find pull request %s' % args.PR)
 
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
+
+        # Fail-fast if bad object
+        if not main_repo.has_ref(pr_head):
+            raise Stop(17, 'Commit %s does not exists in local Git '
+                       'repository. Fetch this remote first: %s'
+                       % (pr_head, pr.head.user.login))
 
         # Fail-fast if local branch exist with the target name
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
