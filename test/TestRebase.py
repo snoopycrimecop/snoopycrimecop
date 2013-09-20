@@ -31,6 +31,24 @@ class TestRebase(SandboxTest):
     def setUp(self):
 
         super(TestRebase, self).setUp()
+        self.target_base = "develop"
+
+    def testUnfoundPR(self):
+
+        self.assertRaises(Stop, main,
+                          ["rebase", "--no-ask", "0", self.target_base])
+
+    def testNoCommonCommits(self):
+
+        self.assertRaises(Stop, main, ["rebase", "--no-ask", "79",
+                          self.target_base])
+
+
+class TestRebaseNewBranch(SandboxTest):
+
+    def setUp(self):
+
+        super(TestRebaseNewBranch, self).setUp()
 
         # Open first PR against dev_4_4 branch
         self.source_base = "dev_4_4"
@@ -47,14 +65,9 @@ class TestRebase(SandboxTest):
         # Clean the initial branch. This will close the inital PRs
         self.sandbox.push_branch(":%s" % self.source_branch, remote=self.user)
 
-        super(TestRebase, self).tearDown()
+        super(TestRebaseNewBranch, self).tearDown()
 
-    def testUnfoundPR(self):
-
-        self.assertRaises(Stop, main,
-                          ["rebase", "--no-ask", "0", self.target_base])
-
-    def testExistingLocalBranch(self):
+    def testPushExistingLocalBranch(self):
 
         # Rebase the PR locally
         self.sandbox.new_branch(self.target_branch)
@@ -62,7 +75,7 @@ class TestRebase(SandboxTest):
                           ["rebase", "--no-ask", str(self.pr.number),
                            self.target_base])
 
-    def testExistingRemoteBranch(self):
+    def testPushExistingRemoteBranch(self):
 
         self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
                                  remote=self.user)
@@ -71,12 +84,7 @@ class TestRebase(SandboxTest):
                            self.target_base])
         self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
-    def testNoCommonCommits(self):
-
-        self.assertRaises(Stop, main, ["rebase", "--no-ask", "79",
-                          self.target_base])
-
-    def testNoPush(self):
+    def testPushLocalRebase(self):
 
         # Rebase the PR locally
         main(["rebase",
@@ -86,7 +94,7 @@ class TestRebase(SandboxTest):
               str(self.pr.number),
               self.target_base])
 
-    def testNoFetch(self):
+    def testPushNoFetch(self):
 
         # Rebase the PR locally
         main(["rebase",
@@ -97,7 +105,7 @@ class TestRebase(SandboxTest):
               str(self.pr.number),
               self.target_base])
 
-    def testRebasePushOnly(self):
+    def testPushRebaseNoPr(self):
 
         # Rebase the PR locally
         main(["rebase",
@@ -106,7 +114,7 @@ class TestRebase(SandboxTest):
               str(self.pr.number),
               self.target_base])
 
-    def testRebasePushPR(self):
+    def testPushFullRebase(self):
 
         # Rebase the PR and push to Github
         main(["rebase",
@@ -158,7 +166,7 @@ class TestConflictingRebase(SandboxTest):
 
         super(TestConflictingRebase, self).tearDown()
 
-    def testRebaseContinuePush(self):
+    def testPushRebaseContinue(self):
 
         # Rebase the PR locally
         self.assertRaises(Stop, main, ["rebase",
