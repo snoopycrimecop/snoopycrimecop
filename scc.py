@@ -395,6 +395,9 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    def __getattr__(self, key):
+        return getattr(self.pull, key)
+
     def parse(self, argument):
 
         found_body_comments = self.parse_body(argument)
