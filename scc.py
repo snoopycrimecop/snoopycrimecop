@@ -2181,14 +2181,6 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     rebased_pr.create_issue_comment('--rebased-from #%s' %
                                                     pr.number)
 
-                    # Reload in order to prevent mergeable being null.
-                    time.sleep(0.5)
-                    rebased_pr = main_repo.origin.get_pull(rebased_pr.number)
-                    if not pr.mergeable:
-                        print >> sys.stderr, "#"
-                        print >> sys.stderr, "# WARNING: PR is NOT mergeable!"
-                        print >> sys.stderr, "#"
-
             finally:
                 main_repo.checkout_branch(old_branch)
 
