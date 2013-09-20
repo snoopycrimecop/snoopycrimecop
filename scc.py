@@ -1385,7 +1385,7 @@ class Command(object):
             help="Token to use rather than from config files")
         self.parser.add_argument(
             "--no-ask", action='store_true',
-            help="Don't ask for a password if token usage fails")
+            help="Do not ask for a password if token usage fails")
 
     def __call__(self, args):
         self.configure_logging(args)
@@ -2056,23 +2056,21 @@ class Rebase(Command):
         super(Rebase, self).__init__(sub_parsers)
         self.add_token_args()
 
+        self.add_remote_arg()
+        self.parser.add_argument(
+            '--no-fetch', action='store_true',
+            help="Do not fetch the origin remote")
         for name, help in (
                 ('pr', 'Skip creating a PR.'),
-                ('push', 'Skip pushing github'),
+                ('push', 'Skip pushing to Github'),
                 ('delete', 'Skip deleting local branch')):
 
             self.parser.add_argument(
                 '--no-%s' % name, action='store_false',
                 dest=name, default=True, help=help)
-
-        self.add_remote_arg()
-
         self.parser.add_argument(
             '--continue', action="store_true", dest="_continue",
             help="Continue from a failed rebase")
-        self.parser.add_argument(
-            '--no-fetch', action='store_true',
-            help="Do not fetch the origin remote")
 
         self.parser.add_argument(
             'PR', type=int, help="The number of the pull request to rebase")
