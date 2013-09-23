@@ -35,7 +35,6 @@ Environment variables:
 import re
 import os
 import sys
-import time
 import uuid
 import subprocess
 import logging
@@ -775,12 +774,18 @@ class GitRepository(object):
             o = o[len(refsheads):]
         return o
 
+    def get_sha1(self, branch):
+        """Return the sha1 for the specified branch"""
+
+        self.cd(self.path)
+        self.dbg("Get sha1 of %s")
+        o, e = self.communicate("git", "rev-parse", branch)
+        return o.strip()
+
     def get_current_sha1(self):
         """Return the sha1 for the current commit"""
-        self.cd(self.path)
-        self.dbg("Get current sha1")
-        o, e = self.communicate("git", "rev-parse", "HEAD")
-        return o.strip()
+
+        return self.get_sha1('HEAD')
 
     def get_status(self):
         """Return the status of the git repository including its submodules"""
@@ -838,6 +843,11 @@ class GitRepository(object):
             url = "git@github.com:%s/%s.git" % (name, repo_name)
         self.dbg("Adding remote %s for %s...", name, url)
         self.call("git", "remote", "add", name, url)
+
+    def fetch(self, remote="origin"):
+        self.cd(self.path)
+        self.dbg("Fetching remote %s...", remote)
+        self.call("git", "fetch", remote)
 
     def push_branch(self, name, remote="origin", force=False):
         self.cd(self.path)
@@ -911,13 +921,37 @@ class GitRepository(object):
             self.dbg("%s has local changes", self)
             return True
 
-    def has_local_tag(self, tag):
-        """Check for tag existence in the local Git repository"""
+    def has_ref(self, ref):
+        """Check for reference existence in the local Git repository"""
 
         self.cd(self.path)
         try:
-            self.call("git", "show-ref", "--verify", "--quiet",
-                      "refs/tags/%s" % tag)
+            self.call("git", "show-ref", "--verify", "--quiet", ref)
+            return True
+        except Exception:
+            return False
+
+    def has_local_tag(self, tag):
+        """Check for tag existence in the local Git repository"""
+
+        return self.has_ref("refs/tags/%s" % tag)
+
+    def has_local_branch(self, branch):
+        """Check for branch existence in the local Git repository"""
+
+        return self.has_ref("refs/heads/%s" % branch)
+
+    def has_remote_branch(self, branch, remote="origin"):
+        """Check for branch existence in the local Git repository"""
+
+        return self.has_ref("refs/remotes/%s/%s" % (remote, branch))
+
+    def has_local_object(self, commit):
+        """Check for object existence in the local Git repository"""
+
+        self.cd(self.path)
+        try:
+            self.call("git", "cat-file", "-e", commit)
             return True
         except Exception:
             return False
@@ -994,7 +1028,7 @@ class GitRepository(object):
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.remotes().items():
             self.call("git", "remote", "add", key, url)
-            self.call("git", "fetch", key)
+            self.fetch(key)
 
         conflicting_pulls = []
         merged_pulls = []
@@ -1382,7 +1416,7 @@ class Command(object):
             help="Token to use rather than from config files")
         self.parser.add_argument(
             "--no-ask", action='store_true',
-            help="Don't ask for a password if token usage fails")
+            help="Do not ask for a password if token usage fails")
 
     def __call__(self, args):
         self.configure_logging(args)
@@ -1403,7 +1437,7 @@ class Command(object):
         self.log_level += args.quiet * 10
         self.log_level -= args.verbose * 10
 
-        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-5.5s""" \
+        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-6.6s""" \
             """%(message)s"""
         logging.basicConfig(level=self.log_level, format=log_format)
         logging.getLogger('github').setLevel(logging.INFO)
@@ -2053,17 +2087,18 @@ class Rebase(Command):
         super(Rebase, self).__init__(sub_parsers)
         self.add_token_args()
 
+        self.add_remote_arg()
+        self.parser.add_argument(
+            '--no-fetch', action='store_true',
+            help="Do not fetch the origin remote")
         for name, help in (
                 ('pr', 'Skip creating a PR.'),
-                ('push', 'Skip pushing github'),
+                ('push', 'Skip pushing to Github'),
                 ('delete', 'Skip deleting local branch')):
 
             self.parser.add_argument(
                 '--no-%s' % name, action='store_false',
                 dest=name, default=True, help=help)
-
-        self.add_remote_arg()
-
         self.parser.add_argument(
             '--continue', action="store_true", dest="_continue",
             help="Continue from a failed rebase")
@@ -2080,6 +2115,8 @@ class Rebase(Command):
 
         main_repo = self.gh.git_repo(self.cwd)
         try:
+            if not args.no_fetch:
+                main_repo.fetch(args.remote)
             self.rebase(args, main_repo)
         finally:
             main_repo.cleanup()
@@ -2102,31 +2139,51 @@ class Rebase(Command):
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
-            raise Stop(19, 'Cannot find pull request %s' % args.PR)
+            raise Stop(16, 'Cannot find pull request %s' % args.PR)
 
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
         self.log.info("Merged: %s", pr.is_merged())
 
+        # Fail-fast if bad object
+        if not main_repo.has_local_object(pr_head):
+            raise Stop(17, 'Commit %s does not exists in local Git '
+                       'repository. Fetch this remote first: %s'
+                       % (pr_head, pr.head.user.login))
+
+        # Fail-fast if local branch exist with the target name
+        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
+        if main_repo.has_local_branch(new_branch):
+            raise Stop(18, 'Branch %s already exists in local Git repository'
+                       % new_branch)
+
+        remote_newbase = "%s/%s" % (args.remote, args.newbase)
         if not args._continue:
             branching_sha1 = main_repo.find_branching_point(
                 pr_head, "%s/%s" % (args.remote, pr.base.ref))
-            try:
-                main_repo.rebase("%s/%s" % (args.remote, args.newbase),
-                                 branching_sha1, pr_head)
-            except:
-                raise Stop(20, "rebasing failed.\nFix conflicts and re-run "
-                           "with an additional --continue flag")
 
-        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
+            try:
+                main_repo.rebase(remote_newbase, branching_sha1, pr_head)
+            except:
+                raise Stop(20, self.get_conflict_message(args))
+
+        # Fail-fast if sha1 is the same as the new base
+
+        if main_repo.get_current_sha1() == main_repo.get_sha1(remote_newbase):
+            raise Stop(22, "No new commits between the rebased branch and %s"
+                       % remote_newbase)
         main_repo.new_branch(new_branch)
         print >> sys.stderr, "# Created local branch %s" % new_branch
 
         if args.push or args.pr:
             try:
                 user = self.gh.get_login()
-                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
+                # Fail-fast if remote branch exist with the target name
+                if main_repo.has_remote_branch(new_branch, remote=user):
+                    raise Stop(19, 'Branch %s already exists in %s remote'
+                               % (new_branch, args.remote))
 
+                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
                 main_repo.push_branch(new_branch, remote=remote)
                 print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
 
@@ -2158,19 +2215,25 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     rebased_pr.create_issue_comment('--rebased-from #%s' %
                                                     pr.number)
 
-                    # Reload in order to prevent mergeable being null.
-                    time.sleep(0.5)
-                    rebased_pr = main_repo.origin.get_pull(rebased_pr.number)
-                    if not pr.mergeable:
-                        print >> sys.stderr, "#"
-                        print >> sys.stderr, "# WARNING: PR is NOT mergeable!"
-                        print >> sys.stderr, "#"
-
             finally:
                 main_repo.checkout_branch(old_branch)
 
             if args.delete:
                 main_repo.delete_local_branch(new_branch, force=True)
+
+    def get_conflict_message(self, args):
+        msg = 'Rebasing failed\nYou are now in detached HEAD mode\n\n'
+        msg += 'To keep on rebasing,\n'
+        msg += '1) check the output of "git status" and fix the conflicts\n'
+        msg += '2) re-add the conflicting files with "git add"\n'
+        msg += '3) run "git rebase --continue"\n'
+        msg += '4) repeat steps 1-3 until all conflicts are resolved\n'
+        msg += '4) run "scc rebase --continue %s %s"\n\n' \
+            % (args.PR, args.newbase)
+        msg += 'To stop rebasing,\n'
+        msg += '1) run "git rebase --abort"\n'
+        msg += '2) checkout the desired branch, e.g "git checkout master"'
+        return msg
 
 
 class Token(Command):
@@ -2650,7 +2713,7 @@ class UpdateSubmodules(GitRepoCommand):
         for submodule in main_repo.submodules:
             submodule.cd(submodule.path)
             if not args.no_fetch:
-                submodule.call("git", "fetch", args.remote)
+                submodule.fetch(args.remote)
             #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
 
         # Create commit message using command arguments
