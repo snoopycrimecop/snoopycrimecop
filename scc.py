@@ -927,6 +927,16 @@ class GitRepository(object):
 
         return self.has_ref("refs/remotes/%s/%s" % (remote, branch))
 
+    def has_local_object(self, commit):
+        """Check for object existence in the local Git repository"""
+
+        self.cd(self.path)
+        try:
+            self.call("git", "cat-file", "-e", commit)
+            return True
+        except Exception:
+            return False
+
     def is_valid_tag(self, tag):
         """Check the validity of a reference name for a tag"""
 
@@ -2117,7 +2127,7 @@ class Rebase(Command):
         self.log.info("Merged: %s", pr.is_merged())
 
         # Fail-fast if bad object
-        if not main_repo.has_ref(pr_head):
+        if not main_repo.has_local_object(pr_head):
             raise Stop(17, 'Commit %s does not exists in local Git '
                        'repository. Fetch this remote first: %s'
                        % (pr_head, pr.head.user.login))
