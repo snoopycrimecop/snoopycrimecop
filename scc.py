@@ -640,6 +640,12 @@ class GitHubRepository(object):
                                action="Exclude"):
                 continue
 
+            # Filter PRs by status if the status filter is on
+            if "status" in filters and filters["status"] is True:
+                status = pullrequest.get_last_status()
+                if status is None or status.state == "success":
+                    continue
+
             self.dbg(pullrequest)
             self.candidate_pulls.append(pullrequest)
 
@@ -1543,6 +1549,10 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             '--exclude', '-E', type=str, action='append',
             default=DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
+        self.parser.add_argument(
+            '--check-commit-status', '-S', action='store_true',
+            help='Check success/failure status on latest commits to include '
+            ' PRs in the merge.')
 
     def _log_parse_filters(self, args, default_user):
         self.log.info("%s on PR based on %s opened by %s",
@@ -1615,6 +1625,10 @@ class FilteredPullRequestsCommand(GitRepoCommand):
                     self.log.info("%s PR%s: %s", action, descr[key],
                                   " ".join(self.filters[ftype][key]))
 
+        self.filters["status"] = args.check_commit_status
+        if args.check_commit_status:
+            self.log.info('Excluding PR with no status or unsuccessful'
+            ' status')
 
 class CheckMilestone(GitRepoCommand):
     """Check all merged PRs for a set milestone
