@@ -118,7 +118,8 @@ class SandboxTest(unittest.TestCase):
         self.sandbox.push_branch(branch, remote=self.user)
         new_pr = self.sandbox.origin.open_pr(
             title="test %s" % branch,
-            description="This is a call to SandboxTest.open_pr",
+            description="This is a call to Sandbox.open_pr by %s"
+            % self.id()[9:],
             base=base,
             head="%s:%s" % (self.user, branch))
 
