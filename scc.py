@@ -512,7 +512,7 @@ class PullRequest(object):
     def get_last_status(self):
         """Return the last status of the Pull Request."""
         try:
-            return self.get_last_commit().get_statuses()[0]
+            return self.get_last_commit().get_statuses().reversed[0]
         except IndexError:
             return None
 
@@ -643,7 +643,7 @@ class GitHubRepository(object):
             # Filter PRs by status if the status filter is on
             if "status" in filters and filters["status"] is True:
                 status = pullrequest.get_last_status()
-                if status is None or status.state == "success":
+                if status is None or status.state != "success":
                     continue
 
             self.dbg(pullrequest)

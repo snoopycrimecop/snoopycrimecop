@@ -77,6 +77,32 @@ class TestMerge(SandboxTest):
         main(["merge", "--no-ask", self.base, "--remote", "gh"])
         self.assertTrue(self.isMerged())
 
+    def testStatus(self):
+
+        import github.GithubObject
+        commit = self.pr.base.repo.get_commit(self.pr.head.sha);
+        # no status
+        main(["merge", "--no-ask", "-S", self.base])
+        self.assertFalse(self.isMerged())
+
+        # pending state
+        commit.create_status("pending", github.GithubObject.NotSet,
+                             "Pending state test")
+        main(["merge", "--no-ask", "-S", self.base])
+        self.assertFalse(self.isMerged())
+
+        # failure state
+        commit.create_status("failure", github.GithubObject.NotSet,
+                             "Failure state test")
+        main(["merge", "--no-ask", "-S", self.base])
+        self.assertFalse(self.isMerged())
+
+        # success state
+        commit.create_status("success", github.GithubObject.NotSet,
+                             "Success state test")
+        main(["merge", "--no-ask", "-S", self.base])
+        self.assertTrue(self.isMerged())
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig()
