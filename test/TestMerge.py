@@ -92,7 +92,7 @@ class UnitTestFilteredPullRequestsCommand(object):
     def get_default_filters(self):
         include_default = {'pr': None, 'user': None, 'label': ['include']}
         exclude_default = {'pr': None, 'user': None, 'label': ['exclude']}
-        return {'base': self.base, 'default': 'org',
+        return {'base': self.base, 'default': 'org', 'status': False,
                 'include': include_default, 'exclude': exclude_default}
 
     def parse_filters(self, args):
@@ -218,6 +218,15 @@ class UnitTestFilteredPullRequestsCommand(object):
         self.filters["exclude"]["user"] = ["snoopycrimecop"]
         self.assertEqual(self.command.filters, self.filters)
 
+    def testCheckCommitStatus1(self):
+        self.parse_filters(["-S"])
+        self.filters["status"] = True
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testCheckCommitStatus2(self):
+        self.parse_filters(["--check-commit-status"])
+        self.filters["status"] = True
+        self.assertEqual(self.command.filters, self.filters)
 
 class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
 
