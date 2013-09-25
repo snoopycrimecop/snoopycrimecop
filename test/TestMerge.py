@@ -335,36 +335,51 @@ class TestMerge(SandboxTest):
 
         super(TestMerge, self).setUp()
         self.init_submodules()
-        self.add_remote()
-        self.branch = "dev_4_4"
+        self.base = "dev_4_4"
         self.merge_branch = "merge/dev_4_4/test"
+        self.branch = self.fake_branch(head=self.base)
+        self.pr = self.open_pr(self.branch, self.base)
+        self.sandbox.checkout_branch(self.base)
+        self.assertFalse(self.isMerged())
+
+    def isMerged(self, ref='HEAD'):
+        revlist, o = self.sandbox.communicate("git", "rev-list", ref)
+        return self.pr.head.sha in revlist.splitlines()
+
+    def tearDown(self):
+        # Clean the initial branch. This will close the inital PRs
+        self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
+        super(TestMerge, self).tearDown()
 
     def testMerge(self):
 
-        main(["merge", "--no-ask", self.branch])
+        main(["merge", "--no-ask", self.base])
+        self.assertTrue(self.isMerged())
 
     def testShallowMerge(self):
 
         pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
-        main(["merge", "--no-ask", "--shallow", self.branch])
+        main(["merge", "--no-ask", "--shallow", self.base])
+        self.assertTrue(self.isMerged())
         post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
         self.assertEqual(pre_merge, post_merge)
 
     def testMergePush(self):
 
-        main(["merge", "--no-ask", self.branch, "--push", self.merge_branch])
+        main(["merge", "--no-ask", self.base, "--push", self.merge_branch])
+        self.sandbox.fetch(self.user)
+        self.assertTrue(self.isMerged("%s/%s"
+                                      % (self.user, self.merge_branch)))
         self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
 
-    def testRemoteFailing(self):
+    def testRemote(self):
 
         self.sandbox.call("git", "remote", "rename", "origin", "gh")
-        self.assertRaises(Stop, main, ["merge", "--no-ask", self.branch])
-
-    def testRemotePassing(self):
-
-        self.sandbox.call("git", "remote", "rename", "origin", "gh")
-        main(["merge", "--no-ask", self.branch, "--remote", "gh"])
-
+        # scc merge without --remote should fail
+        self.assertRaises(Stop, main, ["merge", "--no-ask", self.base])
+        # scc merge with --remote setup should pass
+        main(["merge", "--no-ask", self.base, "--remote", "gh"])
+        self.assertTrue(self.isMerged())
 
 if __name__ == '__main__':
     import logging
