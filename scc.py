@@ -1628,7 +1628,8 @@ class FilteredPullRequestsCommand(GitRepoCommand):
         self.filters["status"] = args.check_commit_status
         if args.check_commit_status:
             self.log.info('Excluding PR with no status or unsuccessful'
-            ' status')
+                          ' status')
+
 
 class CheckMilestone(GitRepoCommand):
     """Check all merged PRs for a set milestone

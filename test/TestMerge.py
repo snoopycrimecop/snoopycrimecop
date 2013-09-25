@@ -228,6 +228,7 @@ class UnitTestFilteredPullRequestsCommand(object):
         self.filters["status"] = True
         self.assertEqual(self.command.filters, self.filters)
 
+
 class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
 
     def setUp(self):
