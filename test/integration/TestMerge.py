@@ -80,7 +80,7 @@ class TestMerge(SandboxTest):
     def testStatus(self):
 
         import github.GithubObject
-        commit = self.pr.base.repo.get_commit(self.pr.head.sha);
+        commit = self.pr.base.repo.get_commit(self.pr.head.sha)
         # no status
         main(["merge", "--no-ask", "-S", self.base])
         self.assertFalse(self.isMerged())
