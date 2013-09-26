@@ -475,7 +475,7 @@ class PullRequest(object):
 
     def get_last_commit(self):
         """Return the head commit of the Pull Request."""
-        return self.pull.base.repo.get_commit(self.get_sha())
+        return self.pull.head.repo.get_commit(self.get_sha())
 
     def get_base(self):
         """Return the branch against which the Pull Request is opened."""
