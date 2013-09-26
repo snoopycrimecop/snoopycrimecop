@@ -610,15 +610,17 @@ class GitHubRepository(object):
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
+        msg = ""
 
         # Fail fast if default is none and no include filter is specified
         no_include = all(v is None for v in filters["include"].values())
         if filters["default"] == 'none' and no_include:
-            return
+            return msg
 
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls()
                  if (pull.base.ref == filters["base"])]
+        status_excluded_pulls = []
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
@@ -644,13 +646,20 @@ class GitHubRepository(object):
             if "status" in filters and filters["status"] is True:
                 status = pullrequest.get_last_status()
                 if status is None or status.state != "success":
+                    status_excluded_pulls.append(pullrequest)
                     continue
 
             self.dbg(pullrequest)
             self.candidate_pulls.append(pullrequest)
 
+        if status_excluded_pulls:
+            msg += "Status-excluded PRs:\n"
+            for status_excluded_pull in status_excluded_pulls:
+                msg += str(status_excluded_pull) + "\n"
+
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
+        return msg
 
 
 class GitRepository(object):
@@ -1121,7 +1130,7 @@ class GitRepository(object):
 
         msg = ""
         msg += str(self.origin) + "\n"
-        self.origin.find_candidates(filters)
+        msg += self.origin.find_candidates(filters)
         if info:
             msg += self.origin.merge_info()
         else:
@@ -1158,7 +1167,7 @@ class GitRepository(object):
         updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
-        self.origin.find_candidates(filters)
+        merge_msg += self.origin.find_candidates(filters)
         if info:
             merge_msg += self.origin.merge_info()
         else:
