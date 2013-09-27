@@ -10,5 +10,5 @@ before_install:
 install: python scc.py -h
 before_script: python scc.py travis-merge
 script:
-  - flake8 scc.py test
+  - flake8 scc test
   - nosetests -v -d test/unit
