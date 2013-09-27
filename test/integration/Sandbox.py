@@ -25,7 +25,7 @@ import shutil
 import unittest
 import tempfile
 
-from scc import get_github, get_token_or_user
+from scc.git import get_github, get_token_or_user
 from subprocess import Popen, PIPE
 
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"

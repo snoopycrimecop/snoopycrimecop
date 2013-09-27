@@ -21,7 +21,8 @@
 
 import unittest
 
-from scc import main, Stop
+from scc.framework import main, Stop
+from scc.git import Rebase
 from Sandbox import SandboxTest
 from subprocess import Popen
 
@@ -72,60 +73,43 @@ class TestRebaseNewBranch(SandboxTest):
 
         super(TestRebaseNewBranch, self).tearDown()
 
+    def rebase(self, *args):
+        args = ["rebase", "--no-ask", str(self.pr.number),
+                self.target_base] + list(args)
+        main(args=args, items=[(Rebase.NAME, Rebase)])
+
     def testPushExistingLocalBranch(self):
 
         # Rebase the PR locally
         self.sandbox.new_branch(self.target_branch)
-        self.assertRaises(Stop, main,
-                          ["rebase", "--no-ask", str(self.pr.number),
-                           self.target_base])
+        self.assertRaises(Stop, self.rebase)
 
     def testPushExistingRemoteBranch(self):
 
         self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
                                  remote=self.user)
-        self.assertRaises(Stop, main,
-                          ["rebase", "--no-ask", str(self.pr.number),
-                           self.target_base])
+        self.assertRaises(Stop, self.rebase)
         self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
     def testPushLocalRebase(self):
 
         # Rebase the PR locally
-        main(["rebase",
-              "--no-ask",
-              "--no-push",
-              "--no-pr",
-              str(self.pr.number),
-              self.target_base])
+        self.rebase("--no-push", "--no-pr")
 
     def testPushNoFetch(self):
 
         # Rebase the PR locally
-        main(["rebase",
-              "--no-fetch",
-              "--no-ask",
-              "--no-push",
-              "--no-pr",
-              str(self.pr.number),
-              self.target_base])
+        self.rebase("--no-fetch", "--no-push", "--no-pr")
 
     def testPushRebaseNoPr(self):
 
         # Rebase the PR locally
-        main(["rebase",
-              "--no-ask",
-              "--no-pr",
-              str(self.pr.number),
-              self.target_base])
+        self.rebase("--no-pr")
 
     def testPushFullRebase(self):
 
         # Rebase the PR and push to Github
-        main(["rebase",
-              "--no-ask",
-              str(self.pr.number),
-              self.target_base])
+        self.rebase()
 
         # Check the last opened PR is the rebased one
         prs = list(self.sandbox.origin.get_pulls())

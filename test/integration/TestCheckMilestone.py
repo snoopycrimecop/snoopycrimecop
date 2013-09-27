@@ -21,22 +21,26 @@
 
 import unittest
 
-from scc import main, Stop
+from scc.framework import main, Stop
+from scc.git import CheckMilestone
 from Sandbox import SandboxTest
 
 
 class TestCheckMilestone(SandboxTest):
 
+    def check_milestone(self, *args):
+        args = ["check-milestone", "--no-ask"] + list(args)
+        main(args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
+
     def testNonExistingTag(self):
-        self.assertRaises(Stop, main, ["check-milestone", "--no-ask",
-                                       "v.0.0.0", "HEAD"])
+        self.assertRaises(Stop, self.check_milestone, "v.0.0.0", "HEAD")
 
     def testNonExistingMilestone(self):
-        self.assertRaises(Stop, main, ["check-milestone", "--no-ask",
-                                       "v.1.0.0", "HEAD", "--set", "0.0.0"])
+        self.assertRaises(Stop, self.check_milestone, "v.1.0.0", "HEAD",
+                          "--set", "0.0.0")
 
     def testCheckMilestone(self):
-        main(["check-milestone", "--no-ask", "v.1.0.0", "v.1.1.1-TEST"])
+        self.check_milestone("v.1.0.0", "v.1.1.1-TEST")
 
 if __name__ == '__main__':
     unittest.main()
