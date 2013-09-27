@@ -28,13 +28,17 @@ from scc.version import get_git_version
 
 
 VERSION = get_git_version()
+DATA_FILES = [('.', ['LICENSE.txt', 'README.rst', 'requirements.txt',
+               'RELEASE-VERSION'])]
+ZIP_SAFE = False
 
 LONG_DESCRIPTION = open("README.rst", "r").read()
 
 CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Environment :: Console",
                "Intended Audience :: Developers",
-               "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+               "License :: OSI Approved :: GNU General Public License v2"
+               " (GPLv2)",
                "Operating System :: OS Independent",
                "Programming Language :: Python",
                "Topic :: Software Development :: Version Control"]
@@ -49,12 +53,11 @@ setup(name='scc',
       url='https://github.com/openmicroscopy/snoopycrimecop',
 
       # More complex variables
-      packages = ['scc'],
-      install_requires = ['PyGithub', 'argparse'],
-      entry_points = { 'console_scripts': ['scc = scc:entry_point'] },
-      data_files = [('.', ['LICENSE.txt', 'RELEASE-VERSION', 'README.rst',
-                           'requirements.txt', 'scc_version.py'])],
-      zip_safe = False,  # For reading RELEASE-VERSION
+      packages=['scc'],
+      install_requires=['PyGithub', 'argparse'],
+      entry_points={'console_scripts': ['scc = scc.main:entry_point']},
+      data_files=DATA_FILES,
+      zip_safe=ZIP_SAFE,
 
       # Using global variables
       long_description=LONG_DESCRIPTION,
