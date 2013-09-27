@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2013 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -21,8 +21,7 @@
 
 import unittest
 
-from scc import main, parsers, Merge, SetCommitStatus, TravisMerge, Stop
-from Sandbox import SandboxTest
+from scc import parsers, Merge, SetCommitStatus, TravisMerge
 from Mock import MockTest
 
 
@@ -92,7 +91,7 @@ class UnitTestFilteredPullRequestsCommand(object):
     def get_default_filters(self):
         include_default = {'pr': None, 'user': None, 'label': ['include']}
         exclude_default = {'pr': None, 'user': None, 'label': ['exclude']}
-        return {'base': self.base, 'default': 'org',
+        return {'base': self.base, 'default': 'org', 'status': False,
                 'include': include_default, 'exclude': exclude_default}
 
     def parse_filters(self, args):
@@ -218,6 +217,16 @@ class UnitTestFilteredPullRequestsCommand(object):
         self.filters["exclude"]["user"] = ["snoopycrimecop"]
         self.assertEqual(self.command.filters, self.filters)
 
+    def testCheckCommitStatus1(self):
+        self.parse_filters(["-S"])
+        self.filters["status"] = True
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testCheckCommitStatus2(self):
+        self.parse_filters(["--check-commit-status"])
+        self.filters["status"] = True
+        self.assertEqual(self.command.filters, self.filters)
+
 
 class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
 
@@ -317,43 +326,6 @@ class UnitTestTravisMerge(MockTest):
         self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
         self.filters["include"]["pr"] = ['21', '22', 'ome/scripts21']
         self.assertEqual(self.command.filters, self.filters)
-
-
-class TestMerge(SandboxTest):
-
-    def setUp(self):
-
-        super(TestMerge, self).setUp()
-        self.init_submodules()
-        self.add_remote()
-        self.branch = "dev_4_4"
-        self.merge_branch = "merge/dev_4_4/test"
-
-    def testMerge(self):
-
-        main(["merge", "--no-ask", self.branch])
-
-    def testShallowMerge(self):
-
-        pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
-        main(["merge", "--no-ask", "--shallow", self.branch])
-        post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
-        self.assertEqual(pre_merge, post_merge)
-
-    def testMergePush(self):
-
-        main(["merge", "--no-ask", self.branch, "--push", self.merge_branch])
-        self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
-
-    def testRemoteFailing(self):
-
-        self.sandbox.call("git", "remote", "rename", "origin", "gh")
-        self.assertRaises(Stop, main, ["merge", "--no-ask", self.branch])
-
-    def testRemotePassing(self):
-
-        self.sandbox.call("git", "remote", "rename", "origin", "gh")
-        main(["merge", "--no-ask", self.branch, "--remote", "gh"])
 
 
 if __name__ == '__main__':

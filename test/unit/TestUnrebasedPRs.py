@@ -21,8 +21,7 @@
 
 import unittest
 
-from scc import UnrebasedPRs, main
-from Sandbox import SandboxTest
+from scc import UnrebasedPRs
 
 
 class UnitTestCheck(unittest.TestCase):
@@ -108,16 +107,6 @@ class UnitTestCheck(unittest.TestCase):
         self.d2 = {2: ['-from #1.']}
         self.runCheck()
 
-
-class TestUnrebasedPRs(SandboxTest):
-
-    def setUp(self):
-        super(TestUnrebasedPRs, self).setUp()
-        self.branch1 = "dev_4_4"
-        self.branch2 = "develop"
-
-    def testUnrebasedPRs(self):
-        main(["unrebased-prs", self.branch1, self.branch2])
 
 if __name__ == '__main__':
     import logging
