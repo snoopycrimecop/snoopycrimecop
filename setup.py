@@ -24,7 +24,7 @@ SCC distribution script
 """
 
 from setuptools import setup
-from scc_version import get_git_version
+from scc.version import get_git_version
 
 
 VERSION = get_git_version()
@@ -49,7 +49,7 @@ setup(name='scc',
       url='https://github.com/openmicroscopy/snoopycrimecop',
 
       # More complex variables
-      py_modules = ['scc'],
+      packages = ['scc'],
       install_requires = ['PyGithub', 'argparse'],
       entry_points = { 'console_scripts': ['scc = scc:entry_point'] },
       data_files = [('.', ['LICENSE.txt', 'RELEASE-VERSION', 'README.rst',
