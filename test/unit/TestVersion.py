@@ -23,8 +23,8 @@ import sys
 import unittest
 from StringIO import StringIO
 
-from scc import main
-from scc_version import call_git_describe
+from scc.framework import main
+from scc.version import call_git_describe, Version
 
 
 class TestVersion(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestVersion(unittest.TestCase):
         super(TestVersion, self).tearDown()
 
     def testVersion(self):
-        main(["version"])
+        main(["version"], items=[("version", Version)])
         self.assertEquals(self.output.getvalue().rstrip(),
                           call_git_describe())
 

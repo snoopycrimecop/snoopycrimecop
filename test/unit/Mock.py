@@ -24,8 +24,8 @@ import unittest
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 
-from scc import GHManager
-from scc import GitHubRepository
+from scc.git import GHManager
+from scc.git import GitHubRepository
 
 from mox import Mox
 

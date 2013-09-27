@@ -21,7 +21,8 @@
 
 import unittest
 
-from scc import parsers, Merge, SetCommitStatus, TravisMerge
+from scc.framework import parsers
+from scc.git import Merge, SetCommitStatus, TravisMerge
 from Mock import MockTest
 
 
