@@ -28,9 +28,11 @@ will be presented to the user.
 import sys
 
 from framework import main, Stop
-from git import MergeCommand
-from deploy import DeployCommand
-from version import VersionCommand
+from git import AlreadyMerged, CheckMilestone, Label, Merge, Rebase, \
+    SetCommitStatus, TagRelease, Token, TravisMerge, UnrebasedPRs, \
+    UpdateSubmodules
+from deploy import Deploy
+from version import Version
 
 
 def entry_point():
@@ -40,9 +42,20 @@ def entry_point():
     """
     try:
         main(items=[
-            ("merge", MergeCommand),
-            ("deploy", DeployCommand),
-            ('version', VersionCommand)])
+            (AlreadyMerged.NAME, AlreadyMerged),
+            (CheckMilestone.NAME, CheckMilestone),
+            (Deploy.NAME, Deploy),
+            (Label.NAME, Label),
+            (Merge.NAME, Merge),
+            (Rebase.NAME, Rebase),
+            (Token.NAME, Token),
+            (SetCommitStatus.NAME, SetCommitStatus),
+            (TagRelease.NAME, TagRelease),
+            (TravisMerge.NAME, TravisMerge),
+            (Version.NAME, Version),
+            (UnrebasedPRs.NAME, UnrebasedPRs),
+            (UpdateSubmodules.NAME, UpdateSubmodules),
+            ])
     except Stop, stop:
         print stop,
         sys.exit(stop.rc)

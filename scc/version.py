@@ -104,17 +104,17 @@ def get_git_version(abbrev=4):
     return version
 
 
-class VersionCommand(Command):
+class Version(Command):
     """Find which version of scc is being used"""
 
     NAME = "version"
 
     def __init__(self, sub_parsers):
-        super(VersionCommand, self).__init__(sub_parsers)
+        super(Version, self).__init__(sub_parsers)
         # No token args
 
     def __call__(self, args):
-        super(VersionCommand, self).__call__(args)
+        super(Version, self).__call__(args)
 
         try:
             # If this file has been downloaded in isolation,

@@ -1827,7 +1827,7 @@ class Label(GithubCommand):
                 print label.name
 
 
-class MergeCommand(FilteredPullRequestsCommand):
+class Merge(FilteredPullRequestsCommand):
     """
     Merge Pull Requests opened against a specific base branch.
 
@@ -1842,7 +1842,7 @@ class MergeCommand(FilteredPullRequestsCommand):
     NAME = "merge"
 
     def __init__(self, sub_parsers):
-        super(MergeCommand, self).__init__(sub_parsers)
+        super(Merge, self).__init__(sub_parsers)
         self.parser.add_argument(
             '--comment', action='store_true',
             help='Add comment to conflicting PR')
@@ -1853,7 +1853,7 @@ class MergeCommand(FilteredPullRequestsCommand):
         self.add_new_commit_args()
 
     def __call__(self, args):
-        super(MergeCommand, self).__call__(args)
+        super(Merge, self).__call__(args)
         self.login(args)
 
         self.init_main_repo(args)

@@ -24,7 +24,7 @@ import sys
 from framework import Command, Stop
 
 
-class DeployCommand(Command):
+class Deploy(Command):
     """
     Deploy an update to a website using the "symlink swapping" strategy.
     See https://gist.github.com/3807742.
@@ -33,7 +33,7 @@ class DeployCommand(Command):
     NAME = "deploy"
 
     def __init__(self, sub_parsers):
-        super(DeployCommand, self).__init__(sub_parsers)
+        super(Deploy, self).__init__(sub_parsers)
 
         self.parser.add_argument(
             '--init', action='store_true',
@@ -43,7 +43,7 @@ class DeployCommand(Command):
             help="The folder to be deployed/updated")
 
     def __call__(self, args):
-        super(DeployCommand, self).__call__(args)
+        super(Deploy, self).__call__(args)
 
         self.folder = args.folder
         self.live_folder = self.folder + ".live"
