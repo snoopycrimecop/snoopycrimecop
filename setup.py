@@ -28,8 +28,6 @@ from scc.version import get_git_version
 
 
 VERSION = get_git_version()
-DATA_FILES = [('.', ['LICENSE.txt', 'README.rst', 'requirements.txt',
-               'RELEASE-VERSION'])]
 ZIP_SAFE = False
 
 LONG_DESCRIPTION = open("README.rst", "r").read()
@@ -54,9 +52,9 @@ setup(name='scc',
 
       # More complex variables
       packages=['scc'],
+      package_data={'scc': 'RELEASE_VERSION'},
       install_requires=['PyGithub', 'argparse'],
       entry_points={'console_scripts': ['scc = scc.main:entry_point']},
-      data_files=DATA_FILES,
       zip_safe=ZIP_SAFE,
 
       # Using global variables
