@@ -52,7 +52,7 @@ setup(name='scc',
 
       # More complex variables
       packages=['scc'],
-      package_data={'scc': ['RELEASE_VERSION']},
+      include_package_data=True,
       install_requires=['PyGithub', 'argparse'],
       entry_points={'console_scripts': ['scc = scc.main:entry_point']},
       zip_safe=ZIP_SAFE,
