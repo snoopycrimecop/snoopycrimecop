@@ -7,8 +7,10 @@ before_install:
   - "pip install -r requirements.txt --use-mirrors"
   - "pip install -r dev_requirements.txt --use-mirrors"
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors argparse; fi
-install: python scc/main.py -h
-before_script: python scc/main.py travis-merge
+install:
+  - python setup.py sdist install
+  - scc -h
+before_script: scc travis-merge
 script:
   - flake8 scc test
   - nosetests -v -d test/unit
