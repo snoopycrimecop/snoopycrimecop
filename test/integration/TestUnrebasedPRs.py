@@ -34,7 +34,7 @@ class TestUnrebasedPRs(SandboxTest):
         self.branch2 = "develop"
 
     def unrebased_prs(self, *args):
-        args = ["unrebased-prs", self.branch, self.branch2] + list(args)
+        args = ["unrebased-prs", self.branch1, self.branch2] + list(args)
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
     def testUnrebasedPRs(self):

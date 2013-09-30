@@ -27,42 +27,55 @@ from Sandbox import SandboxTest
 from subprocess import Popen
 
 
-class TestRebase(SandboxTest):
+class RebaseTest(SandboxTest):
 
     def setUp(self):
 
-        super(TestRebase, self).setUp()
+        super(RebaseTest, self).setUp()
+        self.source_base = "dev_4_4"
         self.target_base = "develop"
+
+    def rebase(self, *args):
+        args = ["rebase", "--no-ask", str(self.pr.number),
+                self.target_base] + list(args)
+        main(args=args, items=[(Rebase.NAME, Rebase)])
+
+
+class MockPR(object):
+
+    def __init__(self, number):
+        self.number = number
+
+
+class TestRebaseStop(RebaseTest):
 
     def testUnfoundPR(self):
 
-        self.assertRaises(Stop, main,
-                          ["rebase", "--no-ask", "0", self.target_base])
+        self.pr = MockPR(0)
+        self.assertRaises(Stop, self.rebase)
 
     def testNoCommonCommits(self):
 
-        self.assertRaises(Stop, main, ["rebase", "--no-ask", "79",
-                          self.target_base])
+        self.pr = MockPR(79)
+        self.assertRaises(Stop, self.rebase)
 
     def testBadObject(self):
 
-        self.assertRaises(Stop, main, ["rebase", "--no-ask", "112",
-                          self.target_base])
+        self.pr = MockPR(112)
+        self.assertRaises(Stop, self.rebase)
 
 
-class TestRebaseNewBranch(SandboxTest):
+class TestRebaseNewBranch(RebaseTest):
 
     def setUp(self):
 
         super(TestRebaseNewBranch, self).setUp()
 
         # Open first PR against dev_4_4 branch
-        self.source_base = "dev_4_4"
         self.source_branch = self.fake_branch(head=self.source_base)
         self.pr = self.open_pr(self.source_branch, self.source_base)
 
         # Define target branch for rebasing PR
-        self.target_base = "develop"
         self.target_branch = "rebased/%s/%s" \
             % (self.target_base, self.source_branch)
 
@@ -120,14 +133,13 @@ class TestRebaseNewBranch(SandboxTest):
         self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
 
-class TestConflictingRebase(SandboxTest):
+class TestConflictingRebase(RebaseTest):
 
     def setUp(self):
 
         super(TestConflictingRebase, self).setUp()
 
         # Open first PR against dev_4_4 branch
-        self.source_base = "dev_4_4"
         self.source_branch = 'readme'
         self.filename = 'README.md'
 
@@ -144,7 +156,6 @@ class TestConflictingRebase(SandboxTest):
         self.pr = self.open_pr(self.source_branch, self.source_base)
 
         # Define target branch for rebasing PR
-        self.target_base = "develop"
         self.target_branch = "rebased/%s/%s" \
             % (self.target_base, self.source_branch)
 
@@ -158,10 +169,7 @@ class TestConflictingRebase(SandboxTest):
     def testPushRebaseContinue(self):
 
         # Rebase the PR locally
-        self.assertRaises(Stop, main, ["rebase",
-                                       "--no-ask",
-                                       str(self.pr.number),
-                                       self.target_base])
+        self.assertRaises(Stop, self.rebase)
 
         f = open(self.filename, "w")
         f.write("hi")
@@ -171,11 +179,7 @@ class TestConflictingRebase(SandboxTest):
         p = Popen(["git", "rebase", "--continue"])
         self.assertEquals(0, p.wait())
 
-        main(["rebase",
-              "--no-ask",
-              "--continue",
-              str(self.pr.number),
-              self.target_base])
+        self.rebase("--continue")
 
         # Clean the rebased branch
         self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
