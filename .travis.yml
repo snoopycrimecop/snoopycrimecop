@@ -10,6 +10,7 @@ before_install:
 install:
   - python setup.py sdist install
   - scc -h
+before_script: scc travis-merge
 script:
   - flake8 scc test
   - nosetests -v -d test/unit
