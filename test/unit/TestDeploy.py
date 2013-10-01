@@ -23,7 +23,8 @@ import os
 import shutil
 import unittest
 
-from scc import main, Stop
+from scc.framework import main, Stop
+from scc.deploy import Deploy
 
 
 class TestDeploy(unittest.TestCase):
@@ -48,6 +49,10 @@ class TestDeploy(unittest.TestCase):
         open(newfile, "w")
         self.newtargetfile = os.path.join(self.live_folder, "b")
 
+    def deploy(self, *args):
+        args = ["deploy"] + list(args)
+        main(args=args, items=[("deploy", Deploy)])
+
     def createBrokenSymlink(self, folder):
 
         # Create broken symboic link
@@ -68,14 +73,14 @@ class TestDeploy(unittest.TestCase):
                     shutil.rmtree(path)
 
     def testDeployInitInvalidFolder(self):
-        self.assertRaises(Stop,  main, ["deploy", "--init", "invalid_folder"])
+        self.assertRaises(Stop,  self.deploy, "--init", "invalid_folder")
 
     def testDeployInitExistingLiveFolder(self):
         os.mkdir(self.live_folder)
-        self.assertRaises(Stop,  main, ["deploy", "--init", self.folder])
+        self.assertRaises(Stop,  self.deploy, "--init", self.folder)
 
     def testDeployInit(self):
-        main(["deploy", "--init", self.folder])
+        self.deploy("--init", self.folder)
         self.assertTrue(os.path.isdir(self.live_folder))
         self.assertTrue(os.path.islink(self.folder))
         self.assertTrue(os.path.isfile(self.oldtargetfile))
@@ -88,24 +93,24 @@ class TestDeploy(unittest.TestCase):
         self.assertFalse(os.path.exists(targetlink))
 
     def testDeployNoInit(self):
-        self.assertRaises(Stop,  main, ["deploy", self.folder])
+        self.assertRaises(Stop,  self.deploy, self.folder)
 
     def testDeployWrongInit(self):
         os.mkdir(self.live_folder)
-        self.assertRaises(Stop,  main, ["deploy", self.folder])
+        self.assertRaises(Stop,  self.deploy, self.folder)
 
     def testDeployInvalidFolder(self):
         self.testDeployInit()
-        self.assertRaises(Stop,  main, ["deploy", "invalid_folder"])
+        self.assertRaises(Stop,  self.deploy, "invalid_folder")
 
     def testDeployMissingTmpFolder(self):
         self.testDeployInit()
         shutil.rmtree(self.tmp_folder)
-        self.assertRaises(Stop,  main, ["deploy", self.folder])
+        self.assertRaises(Stop,  self.deploy, self.folder)
 
     def testDeploy(self):
         self.testDeployInit()
-        main(["deploy", self.folder])
+        self.deploy(self.folder)
         self.assertFalse(os.path.exists(self.tmp_folder))
         self.assertFalse(os.path.exists(self.oldtargetfile))
         self.assertFalse(os.path.exists(self.oldtargetdir))

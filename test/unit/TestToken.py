@@ -21,7 +21,8 @@
 
 import unittest
 
-from scc import parsers, Token
+from scc.framework import parsers
+from scc.git import Token
 from Mock import MockTest
 
 

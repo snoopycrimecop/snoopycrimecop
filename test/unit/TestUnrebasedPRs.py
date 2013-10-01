@@ -21,7 +21,7 @@
 
 import unittest
 
-from scc import UnrebasedPRs
+from scc.git import UnrebasedPRs
 
 
 class UnitTestCheck(unittest.TestCase):

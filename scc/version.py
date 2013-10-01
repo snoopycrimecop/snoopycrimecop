@@ -35,6 +35,9 @@ __all__ = ("get_git_version")
 
 from subprocess import Popen, PIPE
 from os import path
+from framework import Command
+
+version_file = path.join(path.dirname(__file__), "RELEASE-VERSION")
 
 
 def call_git_describe(abbrev=4):
@@ -51,9 +54,7 @@ def call_git_describe(abbrev=4):
 
 def read_release_version():
     try:
-        parent = path.dirname(__file__)
-        filename = path.join(parent, "RELEASE-VERSION")
-        f = open(filename, "r")
+        f = open(version_file, "r")
 
         try:
             version = f.readlines()[0]
@@ -67,7 +68,7 @@ def read_release_version():
 
 
 def write_release_version(version):
-    f = open("RELEASE-VERSION", "w")
+    f = open(version_file, "w")
     f.write("%s\n" % version)
     f.close()
 
@@ -102,6 +103,26 @@ def get_git_version(abbrev=4):
 
     return version
 
+
+class Version(Command):
+    """Find which version of scc is being used"""
+
+    NAME = "version"
+
+    def __init__(self, sub_parsers):
+        super(Version, self).__init__(sub_parsers)
+        # No token args
+
+    def __call__(self, args):
+        super(Version, self).__call__(args)
+
+        try:
+            # If this file has been downloaded in isolation,
+            # then scc_version will not be present.
+            version = get_git_version()
+        except:
+            version = "unknown"
+        print version
 
 if __name__ == "__main__":
     print get_git_version()

@@ -21,7 +21,8 @@
 
 import unittest
 
-from scc import main, Stop
+from scc.framework import main, Stop
+from scc.git import Merge
 from Sandbox import SandboxTest
 
 
@@ -47,22 +48,26 @@ class TestMerge(SandboxTest):
         self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
         super(TestMerge, self).tearDown()
 
+    def merge(self, *args):
+        args = ["merge", "--no-ask", self.base] + list(args)
+        main(args=args, items=[(Merge.NAME, Merge)])
+
     def testMerge(self):
 
-        main(["merge", "--no-ask", self.base])
+        self.merge()
         self.assertTrue(self.isMerged())
 
     def testShallowMerge(self):
 
         pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
-        main(["merge", "--no-ask", "--shallow", self.base])
+        self.merge("--shallow")
         self.assertTrue(self.isMerged())
         post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
         self.assertEqual(pre_merge, post_merge)
 
     def testMergePush(self):
 
-        main(["merge", "--no-ask", self.base, "--push", self.merge_branch])
+        self.merge("--push", self.merge_branch)
         self.sandbox.fetch(self.user)
         self.assertTrue(self.isMerged("%s/%s"
                                       % (self.user, self.merge_branch)))
@@ -72,9 +77,9 @@ class TestMerge(SandboxTest):
 
         self.sandbox.call("git", "remote", "rename", "origin", "gh")
         # scc merge without --remote should fail
-        self.assertRaises(Stop, main, ["merge", "--no-ask", self.base])
+        self.assertRaises(Stop, self.merge)
         # scc merge with --remote setup should pass
-        main(["merge", "--no-ask", self.base, "--remote", "gh"])
+        self.merge("--remote", "gh")
         self.assertTrue(self.isMerged())
 
     def testStatus(self):
@@ -82,22 +87,22 @@ class TestMerge(SandboxTest):
         from github.GithubObject import NotSet
         commit = self.pr.head.repo.get_commit(self.pr.head.sha)
         # no status
-        main(["merge", "--no-ask", "-S", self.base])
+        self.merge("-S")
         self.assertFalse(self.isMerged())
 
         # pending state
         commit.create_status("pending", NotSet, "Pending state test")
-        main(["merge", "--no-ask", "-S", self.base])
+        self.merge("-S")
         self.assertFalse(self.isMerged())
 
         # failure state
         commit.create_status("failure", NotSet, "Failure state test")
-        main(["merge", "--no-ask", "-S", self.base])
+        self.merge("-S")
         self.assertFalse(self.isMerged())
 
         # success state
         commit.create_status("success", NotSet, "Success state test")
-        main(["merge", "--no-ask", "-S", self.base])
+        self.merge("-S")
         self.assertTrue(self.isMerged())
 
 if __name__ == '__main__':

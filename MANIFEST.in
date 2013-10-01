@@ -1,5 +1,4 @@
 include LICENSE.txt
 include README.rst
 include requirements.txt
-include scc_version.py
-include RELEASE-VERSION
+include scc/RELEASE-VERSION

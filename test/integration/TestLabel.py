@@ -23,7 +23,8 @@ import sys
 import unittest
 from StringIO import StringIO
 
-from scc import main
+from scc.framework import main
+from scc.git import Label
 from Sandbox import SandboxTest
 
 
@@ -48,18 +49,22 @@ class TestLabel(SandboxTest):
         labels = self.sandbox.origin.get_issue(issue).get_labels()
         return "\n".join([x.name for x in labels])
 
+    def label(self, *args):
+        args = ["label", "--no-ask"] + list(args)
+        main(args=args, items=[(Label.NAME, Label)])
+
     def testAvailable(self):
-        main(["label", "--no-ask", "--available"])
+        self.label("--available")
         self.assertEquals(self.output.getvalue().rstrip(),
                           self.get_repo_labels())
 
     def testListLabels(self):
-        main(["label", "--no-ask", "--list", "1"])
+        self.label("--list", "1")
         self.assertEquals(self.output.getvalue().rstrip(),
                           self.get_issue_labels(1))
 
     def testListNoLabel(self):
-        main(["label", "--no-ask", "--list", "2"])
+        self.label("--list", "2")
         self.assertEquals(self.output.getvalue(),
                           self.get_issue_labels(2))
 

@@ -24,7 +24,7 @@ With that, it is possible to execute scc:
 
 ::
 
-    $ python scc.py
+    $ python scc/main.py -h
 
 scc installation
 -----------------

@@ -21,7 +21,8 @@
 
 import unittest
 
-from scc import main
+from scc.framework import main
+from scc.git import UpdateSubmodules
 from Sandbox import SandboxTest
 
 
@@ -37,27 +38,29 @@ class TestUpdateSubmodules(SandboxTest):
         self.sandbox.reset()
         self.submodules_branch = "merge/%s/submodules" % self.branch
 
+    def update_submodules(self, *args):
+        args = ["update-submodules", "--no-ask", self.branch] + list(args)
+        main(args=args, items=[(UpdateSubmodules.NAME, UpdateSubmodules)])
+
     def testMultipleUpdates(self):
 
-        main(["update-submodules", "--no-ask", self.branch])
+        self.update_submodules()
         p0 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
                                       "HEAD")[0]
-        main(["update-submodules", "--no-ask", self.branch])
+        self.update_submodules()
         p1 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
                                       "HEAD")[0]
         self.assertEqual(p0, p1)
 
     def testPushNoPR(self):
 
-        main(["update-submodules", "--no-ask", self.branch, "--push",
-              self.submodules_branch, "--no-pr"])
+        self.update_submodules("--push", self.submodules_branch, "--no-pr")
         self.sandbox.push_branch(":%s" % self.submodules_branch,
                                  remote=self.user)
 
     def testPushOpenPR(self):
 
-        main(["update-submodules", "--no-ask", self.branch, "--push",
-              self.submodules_branch])
+        self.update_submodules("--push", self.submodules_branch)
         prs = list(self.sandbox.origin.get_pulls())
         self.assertEquals(prs[0].head.user.login, self.user)
         self.assertEquals(prs[0].head.ref, self.submodules_branch)
@@ -66,15 +69,13 @@ class TestUpdateSubmodules(SandboxTest):
 
     def testPushUpdatePR(self):
 
-        main(["update-submodules", "--no-ask", self.branch, "--push",
-              self.submodules_branch])
+        self.update_submodules("--push", self.submodules_branch)
         prs = list(self.sandbox.origin.get_pulls())
         pr = prs[0]
 
         self.sandbox.checkout_branch(self.branch)
         self.sandbox.reset()
-        main(["update-submodules", "--no-ask", self.branch, "--push",
-              self.submodules_branch])
+        self.update_submodules("--push", self.submodules_branch)
         prs = list(self.sandbox.origin.get_pulls())
         self.assertEqual(prs[0].number, pr.number)
         self.sandbox.push_branch(":%s" % self.submodules_branch,

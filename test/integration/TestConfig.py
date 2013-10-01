@@ -22,7 +22,7 @@
 import os
 import unittest
 
-from scc import get_token_or_user, get_github, Stop
+from scc.git import get_token_or_user, get_github, Stop
 from Sandbox import SandboxTest
 
 

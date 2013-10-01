@@ -19,18 +19,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-"""
-
-Git management script for the Open Microscopy Environment (OME)
-This script is used to simplify various branching workflows
-by wrapping both local git and Github access.
-
-See the documentation on each Command subclass for specifics.
-
-Environment variables:
-    SCC_DEBUG_LEVEL     default: logging.INFO
-
-"""
 
 import re
 import os
@@ -40,14 +28,7 @@ import subprocess
 import logging
 import threading
 import difflib
-
-argparse_loaded = True
-try:
-    import argparse
-except ImportError:
-    print >> sys.stderr, \
-        "Module argparse missing. Install via 'pip install argparse'"
-    argparse_loaded = False
+from framework import Command, Stop
 
 github_loaded = True
 try:
@@ -62,13 +43,6 @@ except ImportError, ie:
     print >> sys.stderr, \
         "Module github missing. Install via 'pip install PyGithub'"
     github_loaded = False
-
-SCC_DEBUG_LEVEL = logging.INFO
-if "SCC_DEBUG_LEVEL" in os.environ:
-    try:
-        SCC_DEBUG_LEVEL = int(os.environ.get("SCC_DEBUG_LEVEL"))
-    except:
-        SCC_DEBUG_LEVEL = 10  # Assume poorly formatted means "debug"
 
 # Read Jenkins environment variables
 jenkins_envvar = ["JOB_NAME", "BUILD_NUMBER", "BUILD_URL"]
@@ -1342,18 +1316,6 @@ class GitRepository(object):
 #
 
 
-class Stop(Exception):
-    """
-    Exception which specifies that the current execution has finished.
-    This is useful when an appropriate user error message has been
-    printed and it's not necessary to print a full stacktrace.
-    """
-
-    def __init__(self, rc, *args, **kwargs):
-        self.rc = rc
-        super(Stop, self).__init__(*args, **kwargs)
-
-
 class UnknownMerge(Exception):
     """
     Exception which specifies that the given commit
@@ -1365,43 +1327,35 @@ class UnknownMerge(Exception):
         super(UnknownMerge, self).__init__()
 
 
-#
-# What follows are the commands which are available from the command-line.
-# Alphabetically listed please.
-#
-
-class Command(object):
+class GithubCommand(Command):
     """
-    Base type. At the moment just a marker class which
-    signifies that a subclass is a CLI command. Subclasses
-    should register themselves with the parser during
-    instantiation. Note: Command.__call__ implementations
-    are responsible for calling cleanup()
+    Abstract class for commands acting on a git repository
     """
 
     NAME = "abstract"
 
     def __init__(self, sub_parsers):
-        self.log = logging.getLogger("scc.%s" % self.NAME)
-        self.log_level = SCC_DEBUG_LEVEL
-
-        help = self.__doc__.lstrip()
-        self.parser = sub_parsers.add_parser(
-            self.NAME, help=help, description=help)
-        if not hasattr(self, "_configure"):
-            self.parser.set_defaults(func=self.__call__)
-
-        self.parser.add_argument(
-            "-v", "--verbose", action="count", default=0,
-            help="Increase the logging level by multiples of 10")
-        self.parser.add_argument(
-            "-q", "--quiet", action="count", default=0,
-            help="Decrease the logging level by multiples of 10")
+        super(GithubCommand, self).__init__(sub_parsers)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
                                      "Merge\spull\srequest\s.(\d+)\s(.*)$")
         self.commit_pattern = re.compile(sha1_chars + "(.*)$")
+
+    def configure_logging(self, args):
+        super(GithubCommand, self).configure_logging(args)
+        logging.getLogger('github').setLevel(logging.INFO)
+
+    def login(self, args):
+        if args.token:
+            token = args.token
+        else:
+            token = get_token_or_user()
+        if token is None and not args.no_ask:
+            print "# github.token and github.user not found."
+            print "# See `%s token` for simpifying use." % sys.argv[0]
+            token = raw_input("Username or token: ").strip()
+        self.gh = get_github(token, dont_ask=args.no_ask)
 
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
@@ -1433,35 +1387,8 @@ class Command(object):
             "--no-ask", action='store_true',
             help="Do not ask for a password if token usage fails")
 
-    def __call__(self, args):
-        self.configure_logging(args)
-        self.cwd = os.path.abspath(os.getcwd())
 
-    def login(self, args):
-        if args.token:
-            token = args.token
-        else:
-            token = get_token_or_user()
-        if token is None and not args.no_ask:
-            print "# github.token and github.user not found."
-            print "# See `%s token` for simpifying use." % sys.argv[0]
-            token = raw_input("Username or token: ").strip()
-        self.gh = get_github(token, dont_ask=args.no_ask)
-
-    def configure_logging(self, args):
-        self.log_level += args.quiet * 10
-        self.log_level -= args.verbose * 10
-
-        log_format = """%(asctime)s [%(name)12.12s] %(levelname)-6.6s""" \
-            """%(message)s"""
-        logging.basicConfig(level=self.log_level, format=log_format)
-        logging.getLogger('github').setLevel(logging.INFO)
-
-        self.log = logging.getLogger('scc.%s' % self.NAME)
-        self.dbg = self.log.debug
-
-
-class GitRepoCommand(Command):
+class GitRepoCommand(GithubCommand):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1716,7 +1643,7 @@ Usage:
         return None
 
 
-class AlreadyMerged(Command):
+class AlreadyMerged(GithubCommand):
     """Detect branches local & remote which are already merged"""
 
     NAME = "already-merged"
@@ -1768,7 +1695,7 @@ class AlreadyMerged(Command):
             print input
 
 
-class CleanSandbox(Command):
+class CleanSandbox(GithubCommand):
     """Cleans snoopys-sandbox repo after testing
 
 Removes all branches from your fork of snoopys-sandbox
@@ -1808,118 +1735,7 @@ Removes all branches from your fork of snoopys-sandbox
                 raise Exception("Not possible!")
 
 
-class Deploy(Command):
-    """
-    Deploy an update to a website using the "symlink swapping" strategy.
-    See https://gist.github.com/3807742.
-    """
-
-    NAME = "deploy"
-
-    def __init__(self, sub_parsers):
-        super(Deploy, self).__init__(sub_parsers)
-
-        self.parser.add_argument(
-            '--init', action='store_true',
-            help='Prepare a folder with content for "symlink swapping"')
-        self.parser.add_argument(
-            'folder', type=str,
-            help="The folder to be deployed/updated")
-
-    def __call__(self, args):
-        super(Deploy, self).__call__(args)
-
-        self.folder = args.folder
-        self.live_folder = self.folder + ".live"
-        self.tmp_folder = self.folder + ".tmp"
-
-        if args.init:
-            self.doc_init()
-        else:
-            self.doc_deploy()
-
-    def doc_init(self):
-        """
-        Set up the symlink swapping structure to use the deployment script.
-        """
-
-        if not os.path.exists(self.folder):
-            raise Stop(5, "The following path does not exist: %s. "
-                       "Copy some contents to this folder and run"
-                       " scc deploy --init again." % self.folder)
-
-        if os.path.exists(self.live_folder):
-            raise Stop(5, "The following path already exists: %s. "
-                       "Run the scc deploy command without the --init"
-                       " argument." % self.live_folder)
-
-        self.copytree(self.folder, self.live_folder)
-        self.rmtree(self.folder)
-        self.symlink(self.live_folder, self.folder)
-
-    def doc_deploy(self):
-        """
-        Deploy a new content using symlink swapping.
-
-        Two symlinks get replaced during the lifetime of the script. Both
-        operations are atomic.
-        """
-
-        if not os.path.exists(self.live_folder):
-            raise Stop(5, "The following path does not exist: %s. "
-                       "Pass --init to the scc deploy command to initialize "
-                       "the symlink swapping." % self.live_folder)
-
-        if not os.path.islink(self.folder):
-            raise Stop(5, "The following path is not a symlink: %s. "
-                       "Pass --init to the scc deploy command to initialize "
-                       "the symlink swapping." % self.folder)
-
-        if not os.path.exists(self.tmp_folder):
-            raise Stop(5, "The following path does not exist: %s. "
-                       "Copy the new content to be deployed to this folder "
-                       "and  run scc deploy again." % self.tmp_folder)
-
-        self.symlink(self.tmp_folder, self.folder)
-        self.rmtree(self.live_folder)
-
-        self.copytree(self.tmp_folder, self.live_folder)
-        self.symlink(self.live_folder, self.folder)
-
-        self.rmtree(self.tmp_folder)
-
-    def copytree(self, src, dst):
-        import shutil
-        self.dbg("Copying %s/* to %s/*", src, dst)
-        try:
-            shutil.copytree(src, dst)
-        except shutil.Error, e:
-            for src, dst, error in e.args[0]:
-                if os.path.islink(src):
-                    print >> sys.stderr, "Could not copy symbolic link %s" \
-                        % src
-                else:
-                    print >> sys.stderr, "Could not copy %s" % src
-
-    def rmtree(self, src):
-        import shutil
-        self.dbg("Removing %s folder", src)
-        shutil.rmtree(src)
-
-    def symlink(self, src, link):
-
-        if os.path.islink(link):
-            self.dbg("Replacing symbolic link %s to point to %s", link, src)
-            new = link + ".new"
-            os.symlink(src, new)
-            os.rename(new, link)
-        else:
-            self.dbg("Creating a symbolic link named %s pointing to %s",
-                     link, src)
-            os.symlink(src, link)
-
-
-class Label(Command):
+class Label(GithubCommand):
     """
     Query/add/remove labels from Github issues.
     """
@@ -2090,7 +1906,7 @@ class Merge(FilteredPullRequestsCommand):
                       action, args.base, default_user)
 
 
-class Rebase(Command):
+class Rebase(GithubCommand):
     """Rebase Pull Requests opened against a specific base branch.
 
         The workflow currently is:
@@ -2260,7 +2076,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         return msg
 
 
-class Token(Command):
+class Token(GithubCommand):
     """Utility functions to manipulate local and remote Github tokens"""
 
     NAME = "token"
@@ -2843,107 +2659,3 @@ class TagRelease(GitRepoCommand):
         import re
         pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
         return re.match(pattern, args.version) is not None
-
-
-class Version(Command):
-    """Find which version of scc is being used"""
-
-    NAME = "version"
-
-    def __init__(self, sub_parsers):
-        super(Version, self).__init__(sub_parsers)
-        # No token args
-
-    def __call__(self, args):
-        super(Version, self).__call__(args)
-        # No login
-        self.configure_logging(args)
-
-        try:
-            # If this file has been downloaded in isolation,
-            # then scc_version will not be present.
-            from scc_version import get_git_version
-            version = get_git_version()
-        except:
-            version = "unknown"
-        print version
-
-
-def parsers():
-
-    class HelpFormatter(argparse.RawTextHelpFormatter):
-        """
-        argparse.HelpFormatter subclass which cleans up our usage, preventing
-        very long lines in subcommands.
-
-        Borrowed from omero/cli.py
-        Defined inside of parsers() in case argparse is not installed.
-        """
-
-        def __init__(self, prog, indent_increment=2, max_help_position=40,
-                     width=None):
-            argparse.RawTextHelpFormatter.__init__(
-                self, prog, indent_increment, max_help_position, width)
-            self._action_max_length = 20
-
-        def _split_lines(self, text, width):
-            return [text.splitlines()[0]]
-
-        class _Section(argparse.RawTextHelpFormatter._Section):
-
-            def __init__(self, formatter, parent, heading=None):
-                #if heading:
-                #    heading = "\n%s\n%s" % ("=" * 40, heading)
-                argparse.RawTextHelpFormatter._Section.__init__(
-                    self, formatter, parent, heading)
-
-    scc_parser = argparse.ArgumentParser(
-        description='Snoopy Crime Cop Script',
-        formatter_class=HelpFormatter)
-    sub_parsers = scc_parser.add_subparsers(title="Subcommands")
-
-    return scc_parser, sub_parsers
-
-
-def main(args=None):
-    """
-    Reusable entry point. Arguments are parsed
-    via the argparse-subcommands configured via
-    each Command class found in globals(). Stop
-    exceptions are propagated to callers.
-    """
-
-    if not argparse_loaded or not github_loaded:
-        raise Stop(2, "Missing required module")
-    if args is None:
-        args = sys.argv[1:]
-
-    scc_parser, sub_parsers = parsers()
-
-    for name, MyCommand in sorted(globals().items()):
-        if not isinstance(MyCommand, type):
-            continue
-        if not issubclass(MyCommand, Command):
-            continue
-        if MyCommand.NAME == "abstract":
-            continue
-        MyCommand(sub_parsers)
-
-    ns = scc_parser.parse_args(args)
-    ns.func(ns)
-
-
-def entry_point():
-    """
-    External entry point which calls main() and
-    if Stop is raised, calls sys.exit()
-    """
-    try:
-        main()
-    except Stop, stop:
-        print stop,
-        sys.exit(stop.rc)
-
-
-if __name__ == "__main__":
-    entry_point()
