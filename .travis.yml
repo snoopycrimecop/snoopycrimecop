@@ -15,6 +15,6 @@ before_script:
   - python scc/main.py travis-merge
   - python scc/main.py -h
 script:
-  - flake8 scc test
+  - flake8 -v scc test
   - nosetests -v -d test/unit
   - python setup.py sdist install
