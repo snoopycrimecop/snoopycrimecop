@@ -92,16 +92,19 @@ class TestMerge(SandboxTest):
 
         # pending state
         commit.create_status("pending", NotSet, "Pending state test")
+        self.assertEqual(commit.get_statuses()[0].state, "pending")
         self.merge("-S")
         self.assertFalse(self.isMerged())
 
         # failure state
         commit.create_status("failure", NotSet, "Failure state test")
+        self.assertEqual(commit.get_statuses()[0].state, "failure")
         self.merge("-S")
         self.assertFalse(self.isMerged())
 
         # success state
         commit.create_status("success", NotSet, "Success state test")
+        self.assertEqual(commit.get_statuses()[0].state, "success")
         self.merge("-S")
         self.assertTrue(self.isMerged())
 
