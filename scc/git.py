@@ -486,7 +486,7 @@ class PullRequest(object):
     def get_last_status(self):
         """Return the last status of the Pull Request."""
         try:
-            return self.get_last_commit().get_statuses().reversed[0]
+            return self.get_last_commit().get_statuses()[0]
         except IndexError:
             return None
 
