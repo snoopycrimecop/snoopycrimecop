@@ -223,12 +223,12 @@ class UnitTestFilteredPullRequestsCommand(object):
         self.filters["status"] = "none"
         self.assertEqual(self.command.filters, self.filters)
 
-    def testCheckCommitStatusNone(self):
+    def testCheckCommitStatusError(self):
         self.parse_filters(["-S", "no-error"])
         self.filters["status"] = "no-error"
         self.assertEqual(self.command.filters, self.filters)
 
-    def testCheckCommitStatus2(self):
+    def testCheckCommitStatusSuccessOnly(self):
         self.parse_filters(["-S", "success-only"])
         self.filters["status"] = "success-only"
         self.assertEqual(self.command.filters, self.filters)
