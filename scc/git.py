@@ -1341,6 +1341,7 @@ class GithubCommand(Command):
         self.pr_pattern = re.compile(sha1_chars +
                                      "Merge\spull\srequest\s.(\d+)\s(.*)$")
         self.commit_pattern = re.compile(sha1_chars + "(.*)$")
+        self.add_token_args()
 
     def configure_logging(self, args):
         super(GithubCommand, self).configure_logging(args)
@@ -1404,7 +1405,6 @@ class GitRepoCommand(GithubCommand):
             '--reset', action='store_true',
             help='Reset the current branch to its HEAD')
         self.add_remote_arg()
-        self.add_token_args()
 
     def init_main_repo(self, args):
         self.main_repo = self.gh.git_repo(self.cwd, remote=args.remote)
@@ -1643,6 +1643,41 @@ Usage:
         return None
 
 
+class CheckStatus(GithubCommand):
+    """
+    Check Github API status
+    """
+    NAME = "check-status"
+
+    def __init__(self, sub_parsers):
+        super(CheckStatus, self).__init__(sub_parsers)
+
+        self.parser.add_argument(
+            "-n", default=0,
+            help="Number of status messages to read from history. Default: 0")
+
+    def __call__(self, args):
+        super(CheckStatus, self).__call__(args)
+        self.login(args)
+
+        api_status = self.gh.get_api_status()
+
+        if args.n > 0:
+            if int(args.n) == 1:
+                messages = [self.gh.get_last_api_status_message()]
+            else:
+                messages = self.gh.get_api_status_messages()[0:int(args.n)-1]
+                messages.reverse()
+
+            for msg in messages:
+                print("%s (%s) %s" % (msg.created_on, msg.status,
+                      msg.body))
+
+        if api_status.status != "good":
+            raise Stop(1, "Github API state is %s as of %s"
+                       % (api_status.status, api_status.last_updated))
+
+
 class AlreadyMerged(GithubCommand):
     """Detect branches local & remote which are already merged"""
 
@@ -1650,7 +1685,6 @@ class AlreadyMerged(GithubCommand):
 
     def __init__(self, sub_parsers):
         super(AlreadyMerged, self).__init__(sub_parsers)
-        self.add_token_args()
 
         self.parser.add_argument(
             "target",
@@ -1705,7 +1739,6 @@ Removes all branches from your fork of snoopys-sandbox
 
     def __init__(self, sub_parsers):
         super(CleanSandbox, self).__init__(sub_parsers)
-        self.add_token_args()
 
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument(
@@ -1744,7 +1777,6 @@ class Label(GithubCommand):
 
     def __init__(self, sub_parsers):
         super(Label, self).__init__(sub_parsers)
-        self.add_token_args()
 
         self.parser.add_argument(
             'issue', nargs="*", type=int,
@@ -1925,7 +1957,6 @@ class Rebase(GithubCommand):
 
     def __init__(self, sub_parsers):
         super(Rebase, self).__init__(sub_parsers)
-        self.add_token_args()
 
         self.add_remote_arg()
         self.parser.add_argument(

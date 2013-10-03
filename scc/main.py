@@ -28,8 +28,8 @@ will be presented to the user.
 import sys
 
 from framework import main, Stop
-from git import AlreadyMerged, CheckMilestone, Label, Merge, Rebase, \
-    SetCommitStatus, TagRelease, Token, TravisMerge, UnrebasedPRs, \
+from git import AlreadyMerged, CheckMilestone, CheckStatus, Label, Merge, \
+    Rebase, SetCommitStatus, TagRelease, Token, TravisMerge, UnrebasedPRs, \
     UpdateSubmodules
 from deploy import Deploy
 from version import Version
@@ -44,6 +44,7 @@ def entry_point():
         main(items=[
             (AlreadyMerged.NAME, AlreadyMerged),
             (CheckMilestone.NAME, CheckMilestone),
+            (CheckStatus.NAME, CheckStatus),
             (Deploy.NAME, Deploy),
             (Label.NAME, Label),
             (Merge.NAME, Merge),
