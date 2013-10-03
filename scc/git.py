@@ -448,7 +448,8 @@ class PullRequest(object):
         return self.pull.head.sha
 
     def get_last_commit(self, ref="base"):
-        """Return the head commit of the Pull Request."""
+        """Return the head commit of the Pull Request.
+        """
         branch = getattr(self.pull, ref)
         return branch.repo.get_commit(self.get_sha())
 
@@ -478,9 +479,9 @@ class PullRequest(object):
 
         self.pull.edit(body=body)
 
-    def create_status(self, status, message, url):
+    def create_status(self, status, message, url, ref="base"):
         """Add a status to the head of the Pull Request."""
-        self.get_last_commit().create_status(
+        self.get_last_commit(ref).create_status(
             status, url or github.GithubObject.NotSet, message,
         )
 
