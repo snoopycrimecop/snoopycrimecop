@@ -359,7 +359,7 @@ class PullRequest(object):
         self.dbg("login = %s", self.get_login())
         self.dbg("labels = %s", self.get_labels())
         self.dbg("base = %s", self.get_base())
-        self.dbg("len(comments) = %s", len(self.get_comments()))
+        self.dbg("len(comments) = %s", self.get_issue().comments)
 
     def __contains__(self, key):
         return key in self.get_labels()
@@ -2379,15 +2379,6 @@ command.
             "--notes=%s" % git_notes_ref,
             "--first-parent", merge_range,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if write:
-            fname = self.fname(current)
-            if os.path.exists(fname):
-                raise Stop("File already exists: %s" % fname)
-            f = open(fname, "w")
-        else:
-            print "*"*100
-            print "PRs on %s without note/comment for %s" % (current, seealso)
-            print "*"*100
 
         # List PRs without seealso notes
         pr_list = []
@@ -2409,22 +2400,42 @@ command.
             except:
                 self.log.info("Unknown merge: %s", line)
                 continue
+        self.log.debug(
+            "Found %s first-parent PRs merged on %s without a see_also note"
+            " for %s" % (len(pr_list), current, seealso))
 
         # Look into PR body/comment for rebase notes and fill match dictionary
-        pr_dict = dict.fromkeys(pr_list)
+        unrebased_prs = []
+        rebased_dict = dict.fromkeys(pr_list)
         for pr_number in pr_list:
             pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
 
             rebased_notes = pr.parse(['rebased', 'no-rebase'])
             if rebased_notes:
-                pr_dict[pr_number] = rebased_notes
-                continue
-
-            if write:
-                print >>f, pr
+                rebased_dict[pr_number] = rebased_notes
             else:
-                print pr
-        return pr_dict
+                unrebased_prs.append(pr)
+
+        # Print list of unrebased PRs
+        if unrebased_prs:
+            self.log.debug("Found %s unrebased PRs from %s to %s"
+                           % (len(unrebased_prs), current, seealso))
+            if write:
+                fname = self.fname(current)
+                if os.path.exists(fname):
+                    raise Stop("File already exists: %s" % fname)
+                f = open(fname, "w")
+                for pr in unrebased_prs:
+                    print >>f, pr
+            else:
+                print "*"*100
+                print "PRs on %s without note/comment for %s" \
+                    % (current, seealso)
+                print "*"*100
+                for pr in unrebased_prs:
+                    print pr
+
+        return rebased_dict
 
     def check_links(self, d1, d2, branch1, branch2):
         """Return a dictionary of PRs with missing comments"""
