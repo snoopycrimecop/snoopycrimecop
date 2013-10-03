@@ -115,14 +115,14 @@ def git_config(name, user=False, local=False, value=None, config_file=None):
 
 def get_token(local=False):
     """
-    Get the Github API token.
+    Get the GitHub API token.
     """
     return git_config("github.token", local=local)
 
 
 def get_token_or_user(local=False):
     """
-    Get the Github API token or the Github user if undefined.
+    Get the GitHub API token or the GitHub user if undefined.
     """
     token = get_token(local=local)
     if not token:
@@ -132,8 +132,8 @@ def get_token_or_user(local=False):
 
 def get_github(login_or_token=None, password=None, **kwargs):
     """
-    Create a Github instance. Can be constructed using an OAuth2 token,
-    a Github login and password or anonymously.
+    Create a GitHub instance. Can be constructed using an OAuth2 token,
+    a GitHub login and password or anonymously.
     """
     return GHManager(login_or_token, password, **kwargs)
 
@@ -225,7 +225,7 @@ class GHManager(object):
 
     def gh_repo(self, reponame, username=None):
         """
-        Github repository are constructed by passing the user and the
+        GitHub repository are constructed by passing the user and the
         repository name as in https://github.com/username/reponame.git
         """
         if username is None:
@@ -641,7 +641,7 @@ class GitRepository(object):
     def __init__(self, gh, path, remote="origin"):
         """
         Register the git repository path, return the current status and
-        register the Github origin remote.
+        register the GitHub origin remote.
         """
 
         self.log = logging.getLogger("scc.git")
@@ -981,7 +981,7 @@ class GitRepository(object):
         """
         Return user and repository name of the specified remote.
 
-        Origin remote must be on Github, i.e. of type
+        Origin remote must be on GitHub, i.e. of type
         *github/user/repository.git
         """
         self.cd(self.path)
@@ -1319,7 +1319,7 @@ class GitRepository(object):
 class UnknownMerge(Exception):
     """
     Exception which specifies that the given commit
-    doesn't qualify as a Github-style merge.
+    doesn't qualify as a GitHub-style merge.
     """
 
     def __init__(self, line):
@@ -1422,11 +1422,11 @@ class GitRepoCommand(GithubCommand):
         self.parser.add_argument(
             '--push', type=str,
             help='Name of the branch to use to recursively push'
-            ' the merged branch to Github')
+            ' the merged branch to GitHub')
         self.parser.add_argument(
             '--update-gitmodules', action='store_true',
             help='Update submodule URLs to point at the forks'
-            ' of the Github user')
+            ' of the GitHub user')
         self.parser.add_argument('base', type=str)
 
     def push(self, args, main_repo):
@@ -1645,7 +1645,7 @@ Usage:
 
 class CheckStatus(GithubCommand):
     """
-    Check Github API status
+    Check GitHub API status
     """
     NAME = "check-status"
 
@@ -1674,7 +1674,7 @@ class CheckStatus(GithubCommand):
                       msg.body))
 
         if api_status.status != "good":
-            raise Stop(1, "Github API state is %s as of %s"
+            raise Stop(1, "GitHub API state is %s as of %s"
                        % (api_status.status, api_status.last_updated))
 
 
@@ -1770,7 +1770,7 @@ Removes all branches from your fork of snoopys-sandbox
 
 class Label(GithubCommand):
     """
-    Query/add/remove labels from Github issues.
+    Query/add/remove labels from GitHub issues.
     """
 
     NAME = "label"
@@ -1964,7 +1964,7 @@ class Rebase(GithubCommand):
             help="Do not fetch the origin remote")
         for name, help in (
                 ('pr', 'Skip creating a PR.'),
-                ('push', 'Skip pushing to Github'),
+                ('push', 'Skip pushing to GitHub'),
                 ('delete', 'Skip deleting local branch')):
 
             self.parser.add_argument(
@@ -2108,7 +2108,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
 
 class Token(GithubCommand):
-    """Utility functions to manipulate local and remote Github tokens"""
+    """Utility functions to manipulate local and remote GitHub tokens"""
 
     NAME = "token"
 
@@ -2120,11 +2120,11 @@ class Token(GithubCommand):
         self._configure(token_parsers)
 
     def _configure(self, sub_parsers):
-        help = "Print all known Github tokens and users"
+        help = "Print all known GitHub tokens and users"
         list = sub_parsers.add_parser("list", help=help, description=help)
         list.set_defaults(func=self.list)
 
-        help = """Create a new token and set the value of github token"""
+        help = """Create a new token and set the value of GitHub token"""
         desc = help + ". See http://developer.github.com/v3/oauth/" \
             "#create-a-new-authorization for more information."
         create = sub_parsers.add_parser("create", help=help, description=desc)
@@ -2142,7 +2142,7 @@ class Token(GithubCommand):
         set.add_argument('value', type=str, help="Value of the token to set")
         set.set_defaults(func=self.set)
 
-        help = "Get the github token"
+        help = "Get the GitHub token"
         get = sub_parsers.add_parser("get", help=help, description=help)
         get.set_defaults(func=self.get)
 
@@ -2164,7 +2164,7 @@ class Token(GithubCommand):
             help="Access token only in user configuration")
 
     def list(self, args):
-        """List existing github tokens and users"""
+        """List existing GitHub tokens and users"""
 
         super(Token, self).__call__(args)
         for key in ("github.token", "github.user"):
@@ -2176,7 +2176,7 @@ class Token(GithubCommand):
                     print "[%s] %s=%s" % (msg, key, rv)
 
     def create(self, args):
-        """Create a new github token"""
+        """Create a new GitHub token"""
 
         super(Token, self).__call__(args)
         user = git_config("github.user")
@@ -2191,7 +2191,7 @@ class Token(GithubCommand):
                        local=args.local, value=auth.token)
 
     def get(self, args):
-        """Get the value of the github token"""
+        """Get the value of the GitHub token"""
 
         super(Token, self).__call__(args)
         token = git_config("github.token",
@@ -2200,7 +2200,7 @@ class Token(GithubCommand):
             print token
 
     def set(self, args):
-        """Set the value of the github token"""
+        """Set the value of the GitHub token"""
 
         super(Token, self).__call__(args)
         git_config("github.token", user=args.user,
@@ -2213,7 +2213,7 @@ class TravisMerge(GitRepoCommand):
     Update submodules and merge Pull Requests in Travis CI jobs.
 
     Use the Travis environment variable to read the pull request number. Read
-    the base branch using the Github API.
+    the base branch using the GitHub API.
     """
 
     NAME = "travis-merge"
@@ -2660,7 +2660,7 @@ class TagRelease(GitRepoCommand):
             help='Tag message')
         self.parser.add_argument(
             '--push', action='store_true',
-            help='Push new tag to Github')
+            help='Push new tag to GitHub')
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
