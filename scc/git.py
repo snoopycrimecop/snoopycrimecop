@@ -2296,9 +2296,9 @@ command.
             self.parse(args.a, args.b)
         else:
             count1, dict1 = self.list_prs(args.a, args.b, remote=args.remote,
-                               write=args.write)
+                                          write=args.write)
             count2, dict2 = self.list_prs(args.b, args.a, remote=args.remote,
-                               write=args.write)
+                                          write=args.write)
             count = count1 + count2
             if not args.no_check:
                 m = self.check_links(dict1, dict2, args.a, args.b)
