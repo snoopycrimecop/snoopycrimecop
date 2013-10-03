@@ -2284,7 +2284,10 @@ command.
         self.init_main_repo(args)
 
         try:
-            self.notes(args)
+            count = self.notes(args)
+            print count
+            if count > 0:
+                raise Stop(count, 'Unrebased PRs found')
         finally:
             self.main_repo.cleanup()
 
@@ -2292,13 +2295,13 @@ command.
         if args.parse:
             self.parse(args.a, args.b)
         else:
-            d1 = self.list_prs(args.a, args.b, remote=args.remote,
+            count1, dict1 = self.list_prs(args.a, args.b, remote=args.remote,
                                write=args.write)
-            d2 = self.list_prs(args.b, args.a, remote=args.remote,
+            count2, dict2 = self.list_prs(args.b, args.a, remote=args.remote,
                                write=args.write)
-
+            count = count1 + count2
             if not args.no_check:
-                m = self.check_links(d1, d2, args.a, args.b)
+                m = self.check_links(dict1, dict2, args.a, args.b)
                 if not m:
                     return
 
@@ -2310,6 +2313,9 @@ command.
                     comments = ", ".join(['--rebased'+x for x in m[key]])
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
+                count += len(m.keys())
+            print count
+            return count
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2435,7 +2441,7 @@ command.
                 for pr in unrebased_prs:
                     print pr
 
-        return rebased_dict
+        return len(unrebased_prs), rebased_dict
 
     def check_links(self, d1, d2, branch1, branch2):
         """Return a dictionary of PRs with missing comments"""
