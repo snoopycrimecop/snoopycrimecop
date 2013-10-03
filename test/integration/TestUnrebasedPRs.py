@@ -21,7 +21,7 @@
 
 import unittest
 
-from scc.framework import main
+from scc.framework import main, Stop
 from scc.git import UnrebasedPRs
 from Sandbox import SandboxTest
 
@@ -31,14 +31,19 @@ class TestUnrebasedPRs(SandboxTest):
     def setUp(self):
         super(TestUnrebasedPRs, self).setUp()
         self.branch1 = "dev_4_4"
-        self.branch2 = "develop"
 
     def unrebased_prs(self, *args):
+        self.sandbox.checkout_branch("origin/" + self.branch1)
         args = ["unrebased-prs", self.branch1, self.branch2] + list(args)
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
-    def testUnrebasedPRs(self):
+    def testSelf(self):
+        self.branch2 = "dev_4_4"
         self.unrebased_prs()
+
+    def testStop(self):
+        self.branch2 = "dev_4_4~2"
+        self.assertRaises(Stop, self.unrebased_prs)
 
 if __name__ == '__main__':
     import logging
