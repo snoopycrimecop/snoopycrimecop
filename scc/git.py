@@ -2285,7 +2285,6 @@ command.
 
         try:
             count = self.notes(args)
-            print count
             if count > 0:
                 raise Stop(count, 'Unrebased PRs found')
         finally:
@@ -2303,7 +2302,7 @@ command.
             if not args.no_check:
                 m = self.check_links(dict1, dict2, args.a, args.b)
                 if not m:
-                    return
+                    return count
 
                 print "*"*100
                 print "Mismatching rebased PR comments"
@@ -2314,7 +2313,6 @@ command.
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
                 count += len(m.keys())
-            print count
             return count
 
     def parse(self, branch1, branch2):
