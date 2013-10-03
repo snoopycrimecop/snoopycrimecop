@@ -447,9 +447,10 @@ class PullRequest(object):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
 
-    def get_last_commit(self):
+    def get_last_commit(self, ref="base"):
         """Return the head commit of the Pull Request."""
-        return self.pull.head.repo.get_commit(self.get_sha())
+        branch = getattr(self.pull, ref)
+        return branch.repo.get_commit(self.get_sha())
 
     def get_base(self):
         """Return the branch against which the Pull Request is opened."""
@@ -483,10 +484,10 @@ class PullRequest(object):
             status, url or github.GithubObject.NotSet, message,
         )
 
-    def get_last_status(self):
+    def get_last_status(self, ref="base"):
         """Return the last status of the Pull Request."""
         try:
-            return self.get_last_commit().get_statuses()[0]
+            return self.get_last_commit(ref).get_statuses()[0]
         except IndexError:
             return None
 
