@@ -595,7 +595,7 @@ class GitHubRepository(object):
         # Loop over pull requests opened aainst base
         pulls = [pull for pull in self.get_pulls()
                  if (pull.base.ref == filters["base"])]
-        status_excluded_pulls = []
+        status_excluded_pulls = {}
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
@@ -618,10 +618,23 @@ class GitHubRepository(object):
                 continue
 
             # Filter PRs by status if the status filter is on
-            if "status" in filters and filters["status"] is True:
-                status = pullrequest.get_last_status()
-                if status is None or status.state != "success":
-                    status_excluded_pulls.append(pullrequest)
+            if "status" in filters and filters["status"] != "none":
+                status = pullrequest.get_last_status("base")
+                if status is None:
+                    # If no status on the base repo, fallback on the head repo
+                    status = pullrequest.get_last_status("head")
+
+                if status is None:
+                    state = ""
+                else:
+                    state = status.state
+
+                exclude_1 = (filters["status"] == "success-only") and \
+                    (state != "success")
+                exclude_2 = (filters["status"] == "no-error") and \
+                    (state in ["error", "failure"])
+                if exclude_1 or exclude_2:
+                    status_excluded_pulls[pullrequest] = state
                     continue
 
             self.dbg(pullrequest)
@@ -629,8 +642,8 @@ class GitHubRepository(object):
 
         if status_excluded_pulls:
             msg += "Status-excluded PRs:\n"
-            for status_excluded_pull in status_excluded_pulls:
-                msg += str(status_excluded_pull) + "\n"
+            for pull in status_excluded_pulls.keys():
+                msg += str(pull) + " (%s)" % status_excluded_pulls[pull] + "\n"
 
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
@@ -1564,9 +1577,11 @@ class FilteredPullRequestsCommand(GitRepoCommand):
                                   " ".join(self.filters[ftype][key]))
 
         self.filters["status"] = args.check_commit_status
-        if args.check_commit_status:
-            self.log.info('Excluding PR with no status or unsuccessful'
-                          ' status')
+        if args.check_commit_status != "none":
+            if args.check_commit_status == "success-only":
+                self.log.info('Excluding PR without successful status')
+            elif args.check_commit_status == "no-error":
+                self.log.info('Excluding PR with error or failure status')
 
 
 class CheckMilestone(GitRepoCommand):
