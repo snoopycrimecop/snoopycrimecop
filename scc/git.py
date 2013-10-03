@@ -1486,7 +1486,8 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             default=DefaultList(["exclude"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument(
-            '--check-commit-status', '-S', action='store_true',
+            '--check-commit-status', '-S', type=str,
+            choices=["none", "no-error", "success-only"], default="none",
             help='Check success/failure status on latest commits to include '
             ' PRs in the merge.')
 
