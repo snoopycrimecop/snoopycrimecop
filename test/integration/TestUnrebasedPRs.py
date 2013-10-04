@@ -30,6 +30,7 @@ class TestUnrebasedPRs(SandboxTest):
 
     def setUp(self):
         super(TestUnrebasedPRs, self).setUp()
+        self.init_submodules()
         self.branch1 = "dev_4_4"
 
     def unrebased_prs(self, *args):
@@ -38,12 +39,26 @@ class TestUnrebasedPRs(SandboxTest):
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
     def testSelf(self):
+        """Test unrebased-prs on same branch"""
+
         self.branch2 = "dev_4_4"
         self.unrebased_prs()
 
+    def testShallow(self):
+        """Test shallow unrebased-prs using last first-parent commit"""
+
+        self.branch2 = "dev_4_4~"
+        with self.assertRaises(Stop) as cm:
+            self.unrebased_prs("--shallow")
+        self.assertEqual(cm.exception.rc, 1)
+
     def testStop(self):
-        self.branch2 = "dev_4_4~2"
-        self.assertRaises(Stop, self.unrebased_prs)
+        """Test unrebased-prs using last first-parent commit"""
+
+        self.branch2 = "dev_4_4~"
+        with self.assertRaises(Stop) as cm:
+            self.unrebased_prs()
+        self.assertEqual(cm.exception.rc, 2)
 
 if __name__ == '__main__':
     import logging
