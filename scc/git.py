@@ -2284,9 +2284,11 @@ command.
         self.init_main_repo(args)
 
         try:
-            count = self.notes(args)
-            if count > 0:
-                raise Stop(count, 'Unrebased PRs found')
+            unrebased_count, mismatch_count = self.notes(args)
+            if unrebased_count + mismatch_count > 0:
+                raise Stop(unrebased_count + mismatch_count,
+                           'Found %s unrebased PR(s) and %s mismatching PR(s)'
+                           % (unrebased_count, mismatch_count))
         finally:
             self.main_repo.cleanup()
 
@@ -2294,26 +2296,32 @@ command.
         if args.parse:
             self.parse(args.a, args.b)
         else:
+            # List unrebased PRs
             count1, dict1 = self.list_prs(args.a, args.b, remote=args.remote,
                                           write=args.write)
             count2, dict2 = self.list_prs(args.b, args.a, remote=args.remote,
                                           write=args.write)
-            count = count1 + count2
+            unrebased_count = count1 + count2
+
             if not args.no_check:
+                # Check mismatching rebased PRs comment
                 m = self.check_links(dict1, dict2, args.a, args.b)
                 if not m:
-                    return count
+                    mismatch_count = 0
+                else:
+                    print "*"*100
+                    print "Mismatching rebased PR comments"
+                    print "*"*100
 
-                print "*"*100
-                print "Mismatching rebased PR comments"
-                print "*"*100
+                    for key in m.keys():
+                        comments = ", ".join(['--rebased'+x for x in m[key]])
+                        print "  # PR %s: expected '%s' comment(s)" %  \
+                            (key, comments)
+                    mismatch_count = len(m.keys)
+            else:
+                mismatch_count = 0
 
-                for key in m.keys():
-                    comments = ", ".join(['--rebased'+x for x in m[key]])
-                    print "  # PR %s: expected '%s' comment(s)" %  \
-                        (key, comments)
-                count += len(m.keys())
-            return count
+            return unrebased_count, mismatch_count
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
