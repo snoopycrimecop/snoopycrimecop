@@ -32,6 +32,7 @@ class TestMerge(SandboxTest):
 
         super(TestMerge, self).setUp()
         self.init_submodules()
+        self.remote = "origin"
         self.base = "dev_4_4"
         self.merge_branch = "merge/dev_4_4/test"
         self.branch = self.fake_branch(head=self.base)
@@ -49,7 +50,7 @@ class TestMerge(SandboxTest):
         super(TestMerge, self).tearDown()
 
     def merge(self, *args):
-        self.sandbox.checkout_branch("origin/" + self.base)
+        self.sandbox.checkout_branch(self.remote + "/" + self.base)
         args = ["merge", "--no-ask", self.base] + list(args)
         main(args=args, items=[(Merge.NAME, Merge)])
 
@@ -76,11 +77,14 @@ class TestMerge(SandboxTest):
 
     def testRemote(self):
 
-        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        self.sandbox.call("git", "remote", "rename", self.remote, "gh")
+        self.remote = "gh"
+
         # scc merge without --remote should fail
         self.assertRaises(Stop, self.merge)
+
         # scc merge with --remote setup should pass
-        self.merge("--remote", "gh")
+        self.merge("--remote", self.remote)
         self.assertTrue(self.isMerged())
 
     def create_status(self, state):
