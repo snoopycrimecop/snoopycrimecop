@@ -92,7 +92,7 @@ class UnitTestFilteredPullRequestsCommand(object):
     def get_default_filters(self):
         include_default = {'pr': None, 'user': None, 'label': ['include']}
         exclude_default = {'pr': None, 'user': None, 'label': ['exclude']}
-        return {'base': self.base, 'default': 'org', 'status': False,
+        return {'base': self.base, 'default': 'org', 'status': 'none',
                 'include': include_default, 'exclude': exclude_default}
 
     def parse_filters(self, args):
@@ -218,14 +218,19 @@ class UnitTestFilteredPullRequestsCommand(object):
         self.filters["exclude"]["user"] = ["snoopycrimecop"]
         self.assertEqual(self.command.filters, self.filters)
 
-    def testCheckCommitStatus1(self):
-        self.parse_filters(["-S"])
-        self.filters["status"] = True
+    def testCheckCommitStatusNone(self):
+        self.parse_filters(["-S", "none"])
+        self.filters["status"] = "none"
         self.assertEqual(self.command.filters, self.filters)
 
-    def testCheckCommitStatus2(self):
-        self.parse_filters(["--check-commit-status"])
-        self.filters["status"] = True
+    def testCheckCommitStatusError(self):
+        self.parse_filters(["-S", "no-error"])
+        self.filters["status"] = "no-error"
+        self.assertEqual(self.command.filters, self.filters)
+
+    def testCheckCommitStatusSuccessOnly(self):
+        self.parse_filters(["-S", "success-only"])
+        self.filters["status"] = "success-only"
         self.assertEqual(self.command.filters, self.filters)
 
 

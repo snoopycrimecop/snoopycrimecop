@@ -32,6 +32,7 @@ class TestMerge(SandboxTest):
 
         super(TestMerge, self).setUp()
         self.init_submodules()
+        self.remote = "origin"
         self.base = "dev_4_4"
         self.merge_branch = "merge/dev_4_4/test"
         self.branch = self.fake_branch(head=self.base)
@@ -49,6 +50,7 @@ class TestMerge(SandboxTest):
         super(TestMerge, self).tearDown()
 
     def merge(self, *args):
+        self.sandbox.checkout_branch(self.remote + "/" + self.base)
         args = ["merge", "--no-ask", self.base] + list(args)
         main(args=args, items=[(Merge.NAME, Merge)])
 
@@ -75,37 +77,100 @@ class TestMerge(SandboxTest):
 
     def testRemote(self):
 
-        self.sandbox.call("git", "remote", "rename", "origin", "gh")
+        self.sandbox.call("git", "remote", "rename", self.remote, "gh")
+        self.remote = "gh"
+
         # scc merge without --remote should fail
         self.assertRaises(Stop, self.merge)
+
         # scc merge with --remote setup should pass
-        self.merge("--remote", "gh")
+        self.merge("--remote", self.remote)
         self.assertTrue(self.isMerged())
 
-    def testStatus(self):
-
+    def create_status(self, state):
+        """Create status on the head repository of the Pull Request"""
         from github.GithubObject import NotSet
         commit = self.pr.head.repo.get_commit(self.pr.head.sha)
+        commit.create_status(
+            state, NotSet, state[0].upper() + state[1:] + " state test")
+        self.assertEqual(commit.get_statuses()[0].state, state)
+
+    def testStatusNone(self):
+
         # no status
-        self.merge("-S")
-        self.assertFalse(self.isMerged())
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
 
         # pending state
-        commit.create_status("pending", NotSet, "Pending state test")
-        self.assertEqual(commit.get_statuses()[0].state, "pending")
-        self.merge("-S")
-        self.assertFalse(self.isMerged())
+        self.create_status("pending")
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
+
+        # error state
+        self.create_status("error")
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
 
         # failure state
-        commit.create_status("failure", NotSet, "Failure state test")
-        self.assertEqual(commit.get_statuses()[0].state, "failure")
-        self.merge("-S")
+        self.create_status("failure")
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
+
+        # success state
+        self.create_status("success")
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
+
+    def testStatusNoError(self):
+
+        # no status
+        self.merge("-S", "no-error")
+        self.assertTrue(self.isMerged())
+
+        # pending state
+        self.create_status("pending")
+        self.merge("-S", "no-error")
+        self.assertTrue(self.isMerged())
+
+        # failure state
+        self.create_status("failure")
+        self.merge("-S", "no-error")
+        self.assertFalse(self.isMerged())
+
+        # error state
+        self.create_status("error")
+        self.merge("-S", "no-error")
         self.assertFalse(self.isMerged())
 
         # success state
-        commit.create_status("success", NotSet, "Success state test")
-        self.assertEqual(commit.get_statuses()[0].state, "success")
-        self.merge("-S")
+        self.create_status("success")
+        self.merge("-S", "none")
+        self.assertTrue(self.isMerged())
+
+    def testStatusSuccessOnly(self):
+
+        # no status
+        self.merge("-S", "success-only")
+        self.assertFalse(self.isMerged())
+
+        # pending state
+        self.create_status("pending")
+        self.merge("-S", "success-only")
+        self.assertFalse(self.isMerged())
+
+        # error state
+        self.create_status("error")
+        self.merge("-S", "success-only")
+        self.assertFalse(self.isMerged())
+
+        # failure state
+        self.create_status("failure")
+        self.merge("-S", "success-only")
+        self.assertFalse(self.isMerged())
+
+        # success state
+        self.create_status("success")
+        self.merge("-S", "success-only")
         self.assertTrue(self.isMerged())
 
 if __name__ == '__main__':
