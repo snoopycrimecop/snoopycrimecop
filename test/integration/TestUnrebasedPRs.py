@@ -21,7 +21,7 @@
 
 import unittest
 
-from scc.framework import main, Stop
+from scc.framework import main, Stop, parsers
 from scc.git import UnrebasedPRs
 from Sandbox import SandboxTest
 
@@ -54,7 +54,7 @@ class TestUnrebasedPRs(SandboxTest):
         except Stop, s:
             self.assertEqual(s.rc, 1)
 
-    def testStop(self):
+    def testRecursive(self):
         """Test unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
@@ -64,6 +64,23 @@ class TestUnrebasedPRs(SandboxTest):
         except Stop, s:
             self.assertEqual(s.rc, 2)
 
+    def testMismatch(self):
+        """Test unrebased-prs using last first-parent commit"""
+
+        parser, sub_parser = parsers()
+        command = UnrebasedPRs(sub_parser)
+        self.branch2 = "dev_4_4~"
+        o, e = self.sandbox.communicate(
+            "git", "log", "--oneline", "-n", "1", "origin/" + self.branch1)
+        sha1, num, rest = command.parse_pr(o.split("\n")[0])
+
+        pr = self.sandbox.origin.get_issue(num)
+        comment = pr.create_comment("--rebased-from #1")
+
+        try:
+            self.unrebased_prs("--shallow")
+        finally:
+            comment.delete()
 
 if __name__ == '__main__':
     import logging
