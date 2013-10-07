@@ -12,17 +12,18 @@ Dependencies
 ------------
 
 Direct dependencies of scc are:
+
 - `PyGithub`_
 - `argparse`_
 
 Installation
 ------------
 
-To install :program:`scc`, run::
+To install ``scc``, run::
 
  $ python setup.py install
 
-or using :program:`pip`, run::
+or using pip, run::
 
  $ pip install scc
 
@@ -106,6 +107,7 @@ https://github.com/openmicroscopy/snoopys-sandbox2 as sandbox repositories
 to test the scc commands.
 
 Running the integration test suite requires:
+
 - a GitHub account
 - a token-based GitHub connection, i.e. a global ``github.token`` stored under
   the global Git configuration file::
