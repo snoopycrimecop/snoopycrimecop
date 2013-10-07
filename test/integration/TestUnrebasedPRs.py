@@ -30,13 +30,23 @@ class TestUnrebasedPRs(SandboxTest):
 
     def setUp(self):
         super(TestUnrebasedPRs, self).setUp()
-        self.init_submodules()
         self.branch1 = "dev_4_4"
 
     def unrebased_prs(self, *args):
         self.sandbox.checkout_branch("origin/" + self.branch1)
         args = ["unrebased-prs", self.branch1, self.branch2] + list(args)
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
+
+    def create_comment(self, HEAD, target_pr):
+        parser, sub_parser = parsers()
+        command = UnrebasedPRs(sub_parser)
+        o, e = self.sandbox.communicate(
+            "git", "log", "--oneline", "-n", "1", HEAD)
+        sha1, num, rest = command.parse_pr(o.split("\n")[0])
+
+        pr = self.sandbox.origin.get_issue(num)
+        comment = pr.create_comment("--rebased-from #%s" % target_pr)
+        return comment
 
     def testSelf(self):
         """Test unrebased-prs on same branch"""
@@ -48,6 +58,7 @@ class TestUnrebasedPRs(SandboxTest):
         """Test shallow unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
+        self.init_submodules()
         try:
             self.unrebased_prs("--shallow")
             self.fail()
@@ -58,6 +69,7 @@ class TestUnrebasedPRs(SandboxTest):
         """Test unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
+        self.init_submodules()
         try:
             self.unrebased_prs()
             self.fail()
@@ -65,20 +77,32 @@ class TestUnrebasedPRs(SandboxTest):
             self.assertEqual(s.rc, 2)
 
     def testMismatch(self):
-        """Test unrebased-prs using last first-parent commit"""
+        """Test unrebased-prs mismatching PRs"""
 
-        parser, sub_parser = parsers()
-        command = UnrebasedPRs(sub_parser)
-        self.branch2 = "dev_4_4~"
-        o, e = self.sandbox.communicate(
-            "git", "log", "--oneline", "-n", "1", "origin/" + self.branch1)
-        sha1, num, rest = command.parse_pr(o.split("\n")[0])
-
-        pr = self.sandbox.origin.get_issue(num)
-        comment = pr.create_comment("--rebased-from #1")
+        self.branch2 = "dev_4_4~2"
+        comment = self.create_comment("origin/" + self.branch1, 1)
 
         try:
-            self.unrebased_prs("--shallow")
+            try:
+                self.unrebased_prs()
+                self.fail()
+            except Stop, s:
+                self.assertEqual(s.rc, 2)
+        finally:
+            comment.delete()
+
+    def testMismatchNoCheck(self):
+        """Test unrebased-prs mismatching PRs"""
+
+        self.branch2 = "dev_4_4~2"
+        comment = self.create_comment("origin/" + self.branch1, 1)
+
+        try:
+            try:
+                self.unrebased_prs("--no-check")
+                self.fail()
+            except Stop, s:
+                self.assertEqual(s.rc, 1)
         finally:
             comment.delete()
 
