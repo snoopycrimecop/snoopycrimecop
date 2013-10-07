@@ -48,17 +48,22 @@ class TestUnrebasedPRs(SandboxTest):
         """Test shallow unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
-        with self.assertRaises(Stop) as cm:
+        try:
             self.unrebased_prs("--shallow")
-        self.assertEqual(cm.exception.rc, 1)
+            self.fail()
+        except Stop, s:
+            self.assertEqual(s.rc, 1)
 
     def testStop(self):
         """Test unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
-        with self.assertRaises(Stop) as cm:
+        try:
             self.unrebased_prs()
-        self.assertEqual(cm.exception.rc, 2)
+            self.fail()
+        except Stop, s:
+            self.assertEqual(s.rc, 2)
+
 
 if __name__ == '__main__':
     import logging
