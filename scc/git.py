@@ -2326,7 +2326,7 @@ command.
                     comments = ", ".join(['--rebased'+x for x in m[key]])
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
-                mismatch_count = len(m.keys)
+                mismatch_count = len(m.keys())
         else:
             mismatch_count = 0
 
