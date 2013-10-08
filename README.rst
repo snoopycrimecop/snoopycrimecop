@@ -56,7 +56,7 @@ Running tests
 -------------
 
 The tests are located under the `test` directory. It is required to install
-`mox`_ as listed in `dev_requirements`.
+`mox`_ and `restview`_ as listed in `dev_requirements`.
 
 Unit tests
 ^^^^^^^^^^
@@ -102,9 +102,6 @@ Integration tests are run daily on the OME Continuous Integration
 infrastructure under the SCC-self-merge_ job using the token-authenticated
 `snoopycrimecop user <https://github.com/snoopycrimecop>`_
 
-.. _snoopys-sandbox: https://github.com/openmicroscopy/snoopys-sandbox
-.. _snoopys-sandbox2: https://github.com/openmicroscopy/snoopys-sandbox2
-
 License
 -------
 
@@ -122,6 +119,9 @@ Copyright
 .. _pep8: https://pypi.python.org/pypi/pep8
 .. _flake8: https://pypi.python.org/pypi/flake8
 .. _mox: https://pypi.python.org/pypi/mox
+.. _restview: https://pypi.python.org/pypi/restview
+.. _snoopys-sandbox: https://github.com/openmicroscopy/snoopys-sandbox
+.. _snoopys-sandbox2: https://github.com/openmicroscopy/snoopys-sandbox2
 .. _Travis: http://travis-ci.org/openmicroscopy/snoopycrimecop
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
