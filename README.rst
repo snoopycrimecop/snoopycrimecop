@@ -1,40 +1,111 @@
 Snoopy Crime Copy (SCC)
 =======================
 
-The scc command provides tools for simplifying the git(hub) workflow.
-
 |Build Status|
 
-Getting Started
----------------
+Introduction
+------------
 
-Under Python 2.7, the only requirement is `PyGithub`_.
+The scc command provides tools for simplifying the Git(Hub) workflow.
 
-::
+Dependencies
+------------
 
-    $ pip install pygithub
+Direct dependencies of scc are:
 
-For Python 2.6, you will also need to install `argparse`_
+- `PyGithub`_
+- `argparse`_
 
-::
+Installation
+------------
 
-    $ pip install argparse
+To install ``scc``, run::
 
-With that, it is possible to execute scc:
+ $ python setup.py install
 
-::
+or using pip, run::
 
-    $ python scc/main.py -h
+ $ pip install scc
 
-scc installation
------------------
+To upgrade your pip installation, run::
 
-To install or update the latest release of scc, use pip
-install:
+ $ pip install -U scc
 
-::
+Usage
+-----
 
-    $ pip install -U scc
+The list of available commands can be listed with::
+
+  $ scc -h
+
+For each subcommand, additional help can be queried, e.g.::
+
+  $ scc merge -h
+
+Contributing
+------------
+
+PyGithub follows `PEP 8`_, the Style Guide for Python Code. Please check your
+code with pep8_ or flake8_, the Python style guide checkers, by running
+``flake8 -v scc/ test/`` or ``pep8 -v scc/ test``.
+
+.. _PEP 8: http://www.python.org/dev/peps/pep-0008/
+
+
+Running tests
+-------------
+
+The tests are located under the `test` directory. It is required to install
+`mox`_ as listed in `dev_requirements`.
+
+Unit tests
+^^^^^^^^^^
+
+Unit tests are stored under the `test/unit` folder and can be run by calling::
+
+  python test/unit
+
+or using nose_::
+
+  nosetests -v test/unit
+
+Unit tests are also run by the Travis_ build on every Pull Request opened
+against the main repository.
+
+Integration tests
+^^^^^^^^^^^^^^^^^
+
+Integration tests are stored under `test/integration`. Many integration tests
+use https://github.com/openmicroscopy/snoopys-sandbox and
+https://github.com/openmicroscopy/snoopys-sandbox2 as sandbox repositories
+to test the scc commands.
+
+Running the integration test suite requires:
+
+- a GitHub account
+- a token-based GitHub connection, i.e. a global ``github.token`` stored under
+  the global Git configuration file::
+
+    $ git config --global github.token xxxx
+
+- the user authenticated by the token defined above needs to own forks of the
+  `sandbox repository <snoopy-sandbox-fork>`_ and its
+  `submodule <snoopy-sandbox2-fork>`_
+
+Once this is set up, the integration tests can be run by calling::
+
+  python test/integration
+
+or using nose_::
+
+  nosetests -v test/integration
+
+Integration tests are run daily on the OME Continuous Integration
+infrastructure under the SCC-self-merge_ job using the token-authenticated
+`snoopycrimecop user <https://github.com/snoopycrimecop>`_
+
+.. _snoopy-sandbox-fork: https://github.com/openmicroscopy/snoopys-sandbox/fork
+.. _snoopy-sandbox2-fork: https://github.com/openmicroscopy/snoopys-sandbox2/fork
 
 License
 -------
@@ -46,8 +117,14 @@ Copyright
 
 2012-2013, The Open Microscopy Environment
 
+.. _SCC-self-merge: http://hudson.openmicroscopy.org.uk/view/Mgmt/job/SCC-self-merge/
 .. _PyGithub: https://github.com/jacquev6/PyGithub
 .. _argparse: http://pypi.python.org/pypi/argparse
+.. _nose: https://nose.readthedocs.org/en/latest/
+.. _pep8: https://pypi.python.org/pypi/pep8
+.. _flake8: https://pypi.python.org/pypi/flake8
+.. _mox: https://pypi.python.org/pypi/mox
+.. _Travis: http://travis-ci.org/openmicroscopy/snoopycrimecop
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
    :target: http://travis-ci.org/openmicroscopy/snoopycrimecop
