@@ -45,9 +45,9 @@ For each subcommand, additional help can be queried::
 Contributing
 ------------
 
-PyGithub follows `PEP 8`_ the Style Guide for Python Code. Please check your
-code with pep8 Python style guide checker, by running ``flake8 -v scc/ test/``
-or ``pep8 -v scc/ test``.
+PyGithub follows `PEP 8`_, the Style Guide for Python Code. Please check your
+code with pep8_ or flake8_, the Python style guide checkers, by running
+``flake8 -v scc/ test/`` or ``pep8 -v scc/ test``.
 
 .. _PEP 8: http://www.python.org/dev/peps/pep-0008/
 
@@ -56,7 +56,7 @@ Running tests
 -------------
 
 The tests are located under the `test` directory. It is required to install
-the dependencies listed in dev_requirements.
+`mox`_ as listed in `dev_requirements`.
 
 Unit tests
 ^^^^^^^^^^
@@ -73,7 +73,7 @@ Unit tests are also run by the Travis_ build on every Pull Request opened
 against the main repository.
 
 Integration tests
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 Integration tests are stored under `test/integration`. Many integration tests
 use https://github.com/openmicroscopy/snoopys-sandbox and
@@ -121,6 +121,9 @@ Copyright
 .. _PyGithub: https://github.com/jacquev6/PyGithub
 .. _argparse: http://pypi.python.org/pypi/argparse
 .. _nose: https://nose.readthedocs.org/en/latest/
+.. _pep8: https://pypi.python.org/pypi/pep8
+.. _flake8: https://pypi.python.org/pypi/flake8
+.. _mox: https://pypi.python.org/pypi/mox
 .. _Travis: http://travis-ci.org/openmicroscopy/snoopycrimecop
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
