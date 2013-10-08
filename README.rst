@@ -38,7 +38,7 @@ The list of available commands can be listed with::
 
   $ scc -h
 
-For each subcommand, additional help can be queried::
+For each subcommand, additional help can be queried, e.g.::
 
   $ scc merge -h
 
