@@ -359,7 +359,7 @@ class PullRequest(object):
         self.dbg("login = %s", self.get_login())
         self.dbg("labels = %s", self.get_labels())
         self.dbg("base = %s", self.get_base())
-        self.dbg("len(comments) = %s", len(self.get_comments()))
+        self.dbg("len(comments) = %s", self.get_issue().comments)
 
     def __contains__(self, key):
         return key in self.get_labels()
@@ -2330,27 +2330,43 @@ command.
         super(UnrebasedPRs, self).__call__(args)
         self.login(args)
 
+        if args.parse:
+            self.parse(args.a, args.b)
+            return
+
         self.init_main_repo(args)
 
         try:
-            self.notes(args)
+            print self.main_repo.origin
+            unrebased_count, mismatch_count = self.notes(self.main_repo, args)
+            for submodule in self.main_repo.submodules:
+                print submodule.origin
+                s_unrebased, s_mismatch = self.notes(submodule, args)
+                unrebased_count += s_unrebased
+                mismatch_count += s_mismatch
+
+            if unrebased_count + mismatch_count > 0:
+                raise Stop(unrebased_count + mismatch_count,
+                           'Found %s unrebased PR(s) and %s mismatching PR(s)'
+                           % (unrebased_count, mismatch_count))
         finally:
             self.main_repo.cleanup()
 
-    def notes(self, args):
-        if args.parse:
-            self.parse(args.a, args.b)
-        else:
-            d1 = self.list_prs(args.a, args.b, remote=args.remote,
-                               write=args.write)
-            d2 = self.list_prs(args.b, args.a, remote=args.remote,
-                               write=args.write)
+    def notes(self, repo, args):
 
-            if not args.no_check:
-                m = self.check_links(d1, d2, args.a, args.b)
-                if not m:
-                    return
+        # List unrebased PRs
+        count1, dict1 = self.list_prs(
+            repo, args.a, args.b, remote=args.remote, write=args.write)
+        count2, dict2 = self.list_prs(
+            repo, args.b, args.a, remote=args.remote, write=args.write)
+        unrebased_count = count1 + count2
 
+        if not args.no_check:
+            # Check mismatching rebased PRs comment
+            m = self.check_links(repo.origin, dict1, dict2, args.a, args.b)
+            if not m:
+                mismatch_count = 0
+            else:
                 print "*"*100
                 print "Mismatching rebased PR comments"
                 print "*"*100
@@ -2359,6 +2375,11 @@ command.
                     comments = ", ".join(['--rebased'+x for x in m[key]])
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
+                mismatch_count = len(m.keys())
+        else:
+            mismatch_count = 0
+
+        return unrebased_count, mismatch_count
 
     def parse(self, branch1, branch2):
         aname = self.fname(branch1)
@@ -2409,34 +2430,25 @@ command.
             else:
                 raise Exception("No IDs found for line %s!" % i)
 
-    def list_prs(self, current, seealso, remote="origin", write=False):
+    def list_prs(self, repo, current, seealso, remote="origin", write=False):
         """
         Method for listing PRs while filtering out those which
         have a seealso note
         """
         git_notes_ref = "refs/notes/see_also/" + seealso
-        merge_base = self.main_repo.merge_base(
+        merge_base = repo.merge_base(
             "%s/%s" % (remote, current),
             "%s/%s" % (remote, seealso))
         merge_range = "%s...%s/%s" % (merge_base, remote, current)
         middle_marker = str(uuid.uuid4()).replace("-", "")
         end_marker = str(uuid.uuid4()).replace("-", "")
 
-        popen = self.main_repo.call_no_wait(
+        popen = repo.call_no_wait(
             "git", "log",
             "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
             "--notes=%s" % git_notes_ref,
             "--first-parent", merge_range,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if write:
-            fname = self.fname(current)
-            if os.path.exists(fname):
-                raise Stop("File already exists: %s" % fname)
-            f = open(fname, "w")
-        else:
-            print "*"*100
-            print "PRs on %s without note/comment for %s" % (current, seealso)
-            print "*"*100
 
         # List PRs without seealso notes
         pr_list = []
@@ -2458,31 +2470,51 @@ command.
             except:
                 self.log.info("Unknown merge: %s", line)
                 continue
+        self.log.debug(
+            "Found %s first-parent PRs merged on %s without a see_also note"
+            " for %s" % (len(pr_list), current, seealso))
 
         # Look into PR body/comment for rebase notes and fill match dictionary
-        pr_dict = dict.fromkeys(pr_list)
+        unrebased_prs = []
+        rebased_dict = dict.fromkeys(pr_list)
         for pr_number in pr_list:
-            pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
+            pr = PullRequest(repo.origin.get_pull(pr_number))
 
             rebased_notes = pr.parse(['rebased', 'no-rebase'])
             if rebased_notes:
-                pr_dict[pr_number] = rebased_notes
-                continue
-
-            if write:
-                print >>f, pr
+                rebased_dict[pr_number] = rebased_notes
             else:
-                print pr
-        return pr_dict
+                unrebased_prs.append(pr)
 
-    def check_links(self, d1, d2, branch1, branch2):
+        # Print list of unrebased PRs
+        if unrebased_prs:
+            self.log.debug("Found %s unrebased PRs from %s to %s"
+                           % (len(unrebased_prs), current, seealso))
+            if write:
+                fname = self.fname(current)
+                if os.path.exists(fname):
+                    raise Stop("File already exists: %s" % fname)
+                f = open(fname, "w")
+                for pr in unrebased_prs:
+                    print >>f, pr
+            else:
+                print "*"*100
+                print "PRs on %s without note/comment for %s" \
+                    % (current, seealso)
+                print "*"*100
+                for pr in unrebased_prs:
+                    print pr
+
+        return len(unrebased_prs), rebased_dict
+
+    def check_links(self, gh_repo, d1, d2, branch1, branch2):
         """Return a dictionary of PRs with missing comments"""
 
         m1 = self.check_directed_links(d2, d1)
         m2 = self.check_directed_links(d1, d2)
 
-        def visit_pr(pr_number, branch):
-            pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
+        def visit_pr(gh_repo, pr_number, branch):
+            pr = PullRequest(gh_repo.get_pull(pr_number))
             if (pr.pull.state == 'open' or pr.pull.is_merged()) and \
                     pr.get_base() == branch:
                 return pr.parse(['rebased', 'no-rebase'])
@@ -2495,11 +2527,11 @@ command.
 
             for pr_number in [key for key in m1.keys()
                               if not key in d1.keys()]:
-                d1[pr_number] = visit_pr(pr_number, branch1)
+                d1[pr_number] = visit_pr(gh_repo, pr_number, branch1)
 
             for pr_number in [key for key in m2.keys()
                               if not key in d2.keys()]:
-                d2[pr_number] = visit_pr(pr_number, branch2)
+                d2[pr_number] = visit_pr(gh_repo, pr_number, branch2)
 
             m1 = self.check_directed_links(d2, d1)
             m2 = self.check_directed_links(d1, d2)
