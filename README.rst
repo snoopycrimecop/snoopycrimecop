@@ -37,32 +37,6 @@ Usage
 The list of available commands can be listed with::
 
   $ scc -h
-  usage: scc [-h]
-
-  {already-merged,check-milestone,clean-sandbox,deploy,label,merge,rebase,set-commit-status,tag-release,token,travis-merge,unrebased-prs,update-submodules,version}
-           ...
-
-  Snoopy Crime Cop Script
-
-  optional arguments:
-    -h, --help                            show this help message and exit
-
-  Subcommands:
-    {already-merged,check-milestone,clean-sandbox,deploy,label,merge,rebase,set-commit-status,tag-release,token,travis-merge,unrebased-prs,update-submodules,version}
-      already-merged                      Detect branches local & remote which are already merged
-      check-milestone                     Check all merged PRs for a set milestone
-      clean-sandbox                       Cleans snoopys-sandbox repo after testing
-      deploy                              Deploy an update to a website using the "symlink swapping" strategy.
-      label                               Query/add/remove labels from Github issues.
-      merge                               Merge Pull Requests opened against a specific base branch.
-      rebase                              Rebase Pull Requests opened against a specific base branch.
-      set-commit-status                   Set commit status on all pull requests with any of the given labels.
-      tag-release                         Tag a release recursively across submodules.
-      token                               Utility functions to manipulate local and remote Github tokens
-      travis-merge                        Update submodules and merge Pull Requests in Travis CI jobs.
-      unrebased-prs                       Check that PRs in one branch have been merged to another.
-      update-submodules                   Similar to the 'merge' command, but only updates submodule pointers.
-      version                             Find which version of scc is being used
 
 For each subcommand, additional help can be queried::
 
