@@ -260,6 +260,82 @@ class TestPullRequest(MoxTestBase):
         self.mox.ReplayAll()
         self.pr.create_status("mock-status", "mock-message", "mock-url")
 
+    # Body/comment Parsing
+    def test_parse_body_empty(self):
+        pattern = 'pattern'
+        self.pull.body = ""
+        self.assertEquals(self.pr.parse_body(pattern), [])
+
+    def test_parse_body_nomatch(self):
+        pattern = 'pattern'
+        nomatch = '-nomatch'
+        self.pull.body = "%s%s\n" % (pattern, nomatch)
+        self.assertEquals(self.pr.parse_body(pattern), [])
+
+    def test_parse_body_multimatch(self):
+        pattern = 'pattern'
+        match1 = '-match1'
+        match2 = '-match2'
+        self.pull.body = "--%s%s\n--%s%s" % (pattern, match1, pattern, match2)
+        self.assertEquals(self.pr.parse_body(pattern), [match1, match2])
+
+    def test_parse_body_multipattern(self):
+        pattern1 = 'pattern1'
+        match1 = '-match1'
+        pattern2 = 'pattern2'
+        match2 = '-match2'
+        self.pull.body = "--%s%s\n--%s%s" % (pattern1, match1, pattern2,
+                                             match2)
+        self.assertEquals(self.pr.parse_body(pattern1), [match1])
+        self.assertEquals(self.pr.parse_body(pattern2), [match2])
+        self.assertEquals(self.pr.parse_body([pattern1, pattern2]),
+                          [match1, match2])
+
+    def test_parse_comments_none(self):
+        self.create_issue()
+        pattern = 'pattern'
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse_comments(pattern), [])
+
+    def test_parse_comments_single(self):
+        pattern = 'pattern'
+        match = '-match1'
+        self.create_issue()
+        self.create_comment("--%s%s\n" % (pattern, match))
+        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+        self.issue.get_comments().AndReturn(self.comments)
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse_comments(pattern), [match])
+
+    def test_parse_comments_single_multipattern(self):
+        pattern1 = 'pattern1'
+        match1 = '-match1'
+        pattern2 = 'pattern2'
+        match2 = '-match2'
+        self.create_issue()
+        self.create_comment("--%s%s\n--%s%s\n" % (pattern1, match1, pattern2,
+                                                  match2))
+        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+        self.issue.get_comments().AndReturn(self.comments)
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse_comments([pattern1, pattern2]),
+                          [match1, match2])
+
+    def test_parse_comments_multiple(self):
+        pattern1 = 'pattern1'
+        match1 = '-match1'
+        pattern2 = 'pattern2'
+        match2 = '-match2'
+        self.create_issue()
+        self.create_comment("--%s%s\n" % (pattern1, match1))
+        self.create_comment("--%s%s\n" % (pattern2, match2))
+        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+        self.issue.get_comments().AndReturn(self.comments)
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse_comments([pattern1, pattern2]),
+                          [match1, match2])
+
+
 if __name__ == '__main__':
     import logging
     import unittest
