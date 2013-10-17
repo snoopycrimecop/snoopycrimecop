@@ -335,6 +335,29 @@ class TestPullRequest(MoxTestBase):
         self.assertEquals(self.pr.parse_comments([pattern1, pattern2]),
                           [match1, match2])
 
+    def test_parse_empty(self):
+        pattern = 'pattern'
+        self.pull.body = ""
+        self.create_issue()
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse(pattern), [])
+
+    def test_parse_body_only(self):
+        pattern = 'pattern'
+        match = '-match'
+        self.pull.body = "--%s%s\n" % (pattern, match)
+        self.assertEquals(self.pr.parse(pattern), [match])
+
+    def test_parse_comment_only(self):
+        pattern = 'pattern'
+        match = '-match'
+        self.pull.body = ""
+        self.create_issue()
+        self.create_comment("--%s%s\n" % (pattern, match))
+        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+        self.issue.get_comments().AndReturn(self.comments)
+        self.mox.ReplayAll()
+        self.assertEquals(self.pr.parse(pattern), [match])
 
 if __name__ == '__main__':
     import logging
