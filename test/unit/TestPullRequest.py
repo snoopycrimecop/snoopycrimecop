@@ -70,6 +70,7 @@ class TestPullRequest(MoxTestBase):
     def create_issue(self):
         self.pull.number = 0
         self.issue = self.mox.CreateMock(Issue)
+        self.issue.comments = 0
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
 
     def create_label(self, name="mock-label"):
@@ -80,6 +81,7 @@ class TestPullRequest(MoxTestBase):
     def create_comment(self, body="mock-comment"):
         comment = self.mox.CreateMock(IssueComment)
         comment.body = body
+        self.issue.comments += 1
         self.comments.append(comment)
 
     def create_commit(self, repo):
@@ -154,14 +156,12 @@ class TestPullRequest(MoxTestBase):
     # Comment tests
     def test_get_comments_none(self):
         self.create_issue()
-        self.issue.comments = 0
         self.mox.ReplayAll()
         self.assertEquals(self.pr.get_comments(), [])
 
     def test_get_comments_single(self):
         self.create_issue()
         self.create_comment()
-        self.issue.comments = 1
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
@@ -171,7 +171,6 @@ class TestPullRequest(MoxTestBase):
         self.create_issue()
         self.create_comment("mock-comment")
         self.create_comment("mock-comment")
-        self.issue.comments = 2
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
