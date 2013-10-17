@@ -19,37 +19,30 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
-
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 
 from scc.git import GHManager
 from scc.git import GitHubRepository
 
-from mox import Mox
+from mox import MoxTestBase
 
 
-class MockTest(unittest.TestCase):
+class MockTest(MoxTestBase):
 
     def setUp(self):
 
+        super(MockTest, self).setUp()
         # Mocks
-        self.mox = Mox()
         self.gh = self.mox.CreateMock(GHManager)
         self.user = self.mox.CreateMock(AuthenticatedUser)
         self.org = self.mox.CreateMock(AuthenticatedUser)
         self.repo = self.mox.CreateMock(Repository)
         self.repo.organization = None
 
+        self.user.login = "test"
         self.gh.get_user("mock").AndReturn(self.user)
         self.user.get_repo("mock").AndReturn(self.repo)
         self.mox.ReplayAll()
 
         self.gh_repo = GitHubRepository(self.gh, "mock", "mock")
-
-    def tearDown(self):
-        try:
-            self.mox.VerifyAll()
-        finally:
-            self.mox.UnsetStubs()
