@@ -44,6 +44,7 @@ class TestPullRequest(MoxTestBase):
         self.base = self.mox.CreateMock(PullRequestPart)
         self.base.repo = self.base_repo
         self.base.user = self.base_user
+        self.base.ref = "mock-base-ref"
 
         # Create head of PullRequest
         self.head_user = self.mox.CreateMock(AuthenticatedUser)
@@ -51,15 +52,20 @@ class TestPullRequest(MoxTestBase):
         self.head = self.mox.CreateMock(PullRequestPart)
         self.head.repo = self.head_repo
         self.head.user = self.head_user
+        self.base.ref = "mock-head-ref"
 
         # Create owner of PullRequest
         self.pr_user = self.mox.CreateMock(AuthenticatedUser)
+        self.pr_user.login = "mock-user"
 
         # Create PullRequest and set user, base, head and properties
         self.pull = self.mox.CreateMock(PullRequest)
         self.pull.user = self.pr_user
         self.pull.base = self.base
         self.pull.head = self.head
+        self.pull.title = "mock-title"
+        self.pull.body = ""
+        self.pull.number = 0
 
         # Initialize
         self.comments = []
@@ -68,7 +74,6 @@ class TestPullRequest(MoxTestBase):
         self.pr = scc.git.PullRequest(self.pull)
 
     def create_issue(self):
-        self.pull.number = 0
         self.issue = self.mox.CreateMock(Issue)
         self.issue.comments = 0
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
@@ -94,20 +99,29 @@ class TestPullRequest(MoxTestBase):
         status.state = state
         self.statuses.append(status)
 
+    def get_unicode(self):
+        return u"  # PR %s %s '%s'" % (
+            self.pull.number, self.pr_user.login, self.pull.title)
+
     def test_get_user(self):
         self.assertEquals(self.pr.get_user(), self.pr_user)
 
     def test_get_title(self):
-        self.pull.title = "mock-title"
         self.assertEquals(self.pr.get_title(), self.pull.title)
 
-    def test_repr(self):
-        self.pull.number = 0
-        self.pr_user.login = "mock-user"
-        self.pull.title = "mock-title"
-        repr_str = "  # PR %s %s '%s'" % (
-            self.pull.number, self.pr_user.login, self.pull.title)
-        self.assertEquals(str(self.pr), repr_str)
+    def test_str(self):
+        self.assertEquals(unicode(self.pr), self.get_unicode())
+        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
+
+    def test_str_unicode_title(self):
+        self.pull.title = u"£unicode"
+        self.assertEquals(unicode(self.pr), self.get_unicode())
+        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
+
+    def test_str_unicode_user(self):
+        self.pr_user.login = u"£user"
+        self.assertEquals(unicode(self.pr), self.get_unicode())
+        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
 
     def test_edit_body(self):
         self.pull.edit("new_body")
@@ -115,11 +129,9 @@ class TestPullRequest(MoxTestBase):
         self.pr.edit("new_body")
 
     def test_get_login(self):
-        self.pr_user.login = "mock-user"
         self.assertEquals(self.pr.get_login(), self.pr_user.login)
 
     def test_get_number(self):
-        self.pull.number = 0
         self.assertEquals(self.pr.get_number(), self.pull.number)
 
     def test_get_issue(self):
@@ -128,7 +140,6 @@ class TestPullRequest(MoxTestBase):
         self.assertEquals(self.pr.get_issue(), self.issue)
 
     def test_get_base(self):
-        self.base.ref = "mock-ref"
         self.assertEquals(self.pr.get_base(), self.base.ref)
 
     # Label tests
@@ -263,7 +274,6 @@ class TestPullRequest(MoxTestBase):
     # Body/comment Parsing
     def test_parse_body_empty(self):
         pattern = 'pattern'
-        self.pull.body = ""
         self.assertEquals(self.pr.parse_body(pattern), [])
 
     def test_parse_body_nomatch(self):
@@ -337,7 +347,6 @@ class TestPullRequest(MoxTestBase):
 
     def test_parse_empty(self):
         pattern = 'pattern'
-        self.pull.body = ""
         self.create_issue()
         self.mox.ReplayAll()
         self.assertEquals(self.pr.parse(pattern), [])
@@ -351,7 +360,6 @@ class TestPullRequest(MoxTestBase):
     def test_parse_comment_only(self):
         pattern = 'pattern'
         match = '-match'
-        self.pull.body = ""
         self.create_issue()
         self.create_comment("--%s%s\n" % (pattern, match))
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
