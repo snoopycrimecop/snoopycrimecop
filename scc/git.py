@@ -356,10 +356,6 @@ class PullRequest(object):
         self.dbg = self.log.debug
 
         self.pull = pull
-        self.dbg("login = %s", self.get_login())
-        self.dbg("labels = %s", self.get_labels())
-        self.dbg("base = %s", self.get_base())
-        self.dbg("len(comments) = %s", self.get_issue().comments)
 
     def __contains__(self, key):
         return key in self.get_labels()
