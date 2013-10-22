@@ -988,6 +988,15 @@ class GitRepository(object):
                              stdout=subprocess.PIPE).communicate()
         return mrg.strip()
 
+    def list_remotes(self):
+        """Return a list of existing remotes"""
+
+        remotes = self.call("git", "remote",
+                            stdout=subprocess.PIPE).communicate()[0]
+        remotes = remotes.split("\n")[:-1]
+
+        return remotes
+
     #
     # Higher level git commands
     #
