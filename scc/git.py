@@ -1039,7 +1039,7 @@ class GitRepository(object):
               set_commit_status=False):
         """Merge candidate pull requests."""
         self.dbg("## Unique users: %s", self.unique_logins())
-        for key, url in self.remotes().items():
+        for key, url in self.get_merge_remotes().items():
             self.call("git", "remote", "add", key, url)
             self.fetch(key)
 
@@ -1289,7 +1289,7 @@ class GitRepository(object):
             unique_logins.add(pull.get_head_login())
         return unique_logins
 
-    def remotes(self):
+    def get_merge_remotes(self):
         """Return remotes associated to unique login."""
         remotes = {}
         for user in self.unique_logins():
@@ -1316,9 +1316,12 @@ class GitRepository(object):
         """Remove remote branches created for merging."""
         self.cd(self.path)
         if self.gh:  # no gh implies no connection
-            for key in self.remotes().keys():
+            remotes = self.list_remotes()
+            merge_remotes = [x for x in self.get_merge_remotes().keys()
+                             if x in remotes]
+            for merge_remote in merge_remotes:
                 try:
-                    self.call("git", "remote", "rm", key)
+                    self.call("git", "remote", "rm", merge_remote)
                 except Exception:
                     self.log.error("Failed to remove", key, exc_info=1)
 
