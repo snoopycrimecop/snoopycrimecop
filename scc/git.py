@@ -57,6 +57,30 @@ if IS_JENKINS_JOB:
 #
 
 
+def retry_on_error(retries=3):
+    """
+    Decorator for handling Github server errors
+
+    :keyword retries:
+        Number of attempts before giving up (default to 3)
+    """
+
+    def decorator(func):
+        log = logging.getLogger("scc.gh")
+
+        def wrapper(*args, **kwargs):
+            for num in range(retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except github.GithubException, e:
+                    if e.status != 502 or num >= retries:
+                        raise
+                    log.debug("Received %s, retrying", e.data)
+                    continue
+        return wrapper
+    return decorator
+
+
 def hash_object(filename):
     """
     Returns the sha1 for this file using the
@@ -199,11 +223,13 @@ class GHManager(object):
             self.create_instance()
 
     def get_login(self):
-        return self.github.get_user().login
+        return self.get_user().login
 
+    @retry_on_error(retries=3)
     def get_user(self, *args):
         return self.github.get_user(*args)
 
+    @retry_on_error(retries=3)
     def get_organization(self, *args):
         return self.github.get_organization(*args)
 
