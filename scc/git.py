@@ -241,6 +241,7 @@ class GHManager(object):
         self.github = github.Github(*args, user_agent=self.user_agent,
                                     **kwargs)
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
@@ -393,6 +394,7 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
@@ -456,8 +458,9 @@ class PullRequest(object):
         """Return the number of the Pull Request."""
         return self.pull.number
 
+    @retry_on_error(retries=3)
     def get_issue(self):
-        """Return the number of the Pull Request."""
+        """Return the issue corresponding to the Pull Request."""
         return self.pull.base.repo.get_issue(self.get_number())
 
     def get_head_login(self):
@@ -541,6 +544,7 @@ class GitHubRepository(object):
     def __repr__(self):
         return "Repository: %s/%s" % (self.user_name, self.repo_name)
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
