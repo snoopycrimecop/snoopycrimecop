@@ -233,6 +233,7 @@ class GHManager(object):
     def get_organization(self, *args):
         return self.github.get_organization(*args)
 
+    @retry_on_error(retries=3)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
