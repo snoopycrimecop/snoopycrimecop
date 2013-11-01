@@ -47,7 +47,11 @@ class SandboxTest(unittest.TestCase):
             self.assertEquals(0, p.wait())
             self.sandbox = self.gh.git_repo(self.path)
         except:
-            shutil.rmtree(self.path)
+            try:
+                shutil.rmtree(self.path)
+            finally:
+                # Return to cwd regardless.
+                os.chdir(self.cwd)
             raise
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
