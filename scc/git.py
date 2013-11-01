@@ -57,6 +57,30 @@ if IS_JENKINS_JOB:
 #
 
 
+def retry_on_error(retries=3):
+    """
+    Decorator for handling Github server errors
+
+    :keyword retries:
+        Number of attempts before giving up (default to 3)
+    """
+
+    def decorator(func):
+        log = logging.getLogger("scc.gh")
+
+        def wrapper(*args, **kwargs):
+            for num in range(retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except github.GithubException, e:
+                    if e.status != 502 or num >= retries:
+                        raise
+                    log.debug("Received %s, retrying", e.data)
+                    continue
+        return wrapper
+    return decorator
+
+
 def hash_object(filename):
     """
     Returns the sha1 for this file using the
@@ -199,14 +223,17 @@ class GHManager(object):
             self.create_instance()
 
     def get_login(self):
-        return self.github.get_user().login
+        return self.get_user().login
 
+    @retry_on_error(retries=3)
     def get_user(self, *args):
         return self.github.get_user(*args)
 
+    @retry_on_error(retries=3)
     def get_organization(self, *args):
         return self.github.get_organization(*args)
 
+    @retry_on_error(retries=3)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -215,6 +242,7 @@ class GHManager(object):
         self.github = github.Github(*args, user_agent=self.user_agent,
                                     **kwargs)
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
@@ -367,6 +395,7 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
@@ -430,8 +459,9 @@ class PullRequest(object):
         """Return the number of the Pull Request."""
         return self.pull.number
 
+    @retry_on_error(retries=3)
     def get_issue(self):
-        """Return the number of the Pull Request."""
+        """Return the issue corresponding to the Pull Request."""
         return self.pull.base.repo.get_issue(self.get_number())
 
     def get_head_login(self):
@@ -515,6 +545,7 @@ class GitHubRepository(object):
     def __repr__(self):
         return "Repository: %s/%s" % (self.user_name, self.repo_name)
 
+    @retry_on_error(retries=3)
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
