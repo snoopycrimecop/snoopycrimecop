@@ -32,17 +32,120 @@ from ssl import SSLError
 from mox import MoxTestBase
 
 
-class MockGHManager(GHManager):
+class InternalRetriesHelper(object):
 
-    def create_instance(self):
+    def mock_calls(self):
         pass
 
+    def get_test_function(self):
+        pass
 
-class TestGHManager(MoxTestBase):
+    def get_test_arguments(self):
+        pass
+
+    def get_output(self):
+        pass
+
+    def passes(self):
+        function = self.get_test_function()
+        arguments = self.get_test_arguments()
+        self.assertEqual(function(arguments), self.get_output())
+
+    def fails_with(self, error):
+        self.assertRaises(error, self.get_test_function(),
+                          self.get_test_arguments())
+
+    def testNoError(self):
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testNoRetryError(self):
+        self.generate_errors(self.no_retry_exception, 1)
+        self.mox.ReplayAll()
+        self.fails_with(GithubException)
+
+    def testOneServerError(self):
+        self.generate_errors(self.server_error, 1)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testTwoServerErrors(self):
+        self.generate_errors(self.server_error, 2)
+        self.mock_calls()
+        self.mox.ReplayAll()
+
+        self.passes()
+
+    def testThreeServerErrors(self):
+        self.generate_errors(self.server_error, 3)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testFourServerErrors(self):
+        self.generate_errors(self.server_error, 4)
+        self.mox.ReplayAll()
+        self.fails_with(GithubException)
+
+    def testOneSocketTimeout(self):
+        self.generate_errors(self.socket_timeout, 1)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testTwoSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 2)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testThreeSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 3)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testFourSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 4)
+        self.mox.ReplayAll()
+        self.fails_with(socket.timeout)
+
+    def testOneSSLError(self):
+        self.generate_errors(self.ssl_error, 1)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testTwoSSLErrors(self):
+        self.generate_errors(self.ssl_error, 2)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testThreeSSLErrors(self):
+        self.generate_errors(self.ssl_error, 3)
+        self.mock_calls()
+        self.mox.ReplayAll()
+        self.passes()
+
+    def testFourSSLErrors(self):
+        self.generate_errors(self.ssl_error, 4)
+        self.mox.ReplayAll()
+        self.fails_with(SSLError)
+
+
+class TestGHManager(MoxTestBase, InternalRetriesHelper):
 
     def setUp(self):
 
-        super(TestGHManager, self).setUp()
+        class MockGHManager(GHManager):
+
+            def create_instance(self):
+                pass
+
+        MoxTestBase.setUp(self)
         # Define mock objects
         self.gh = self.mox.CreateMock(Github)
         self.user = self.mox.CreateMock(AuthenticatedUser)
@@ -63,99 +166,17 @@ class TestGHManager(MoxTestBase):
         self.ssl_error = SSLError()
 
     def generate_errors(self, error, nerrors):
-
         for i in range(nerrors):
             self.gh.get_user("mock").AndRaise(error)
 
-    def testNoError(self):
+    def mock_calls(self):
         self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
 
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+    def get_test_function(self):
+        return self.gh_manager.get_user
 
-    def testNoRetryError(self):
-        self.generate_errors(self.no_retry_exception, 1)
-        self.mox.ReplayAll()
+    def get_test_arguments(self):
+        return "mock"
 
-        self.assertRaises(GithubException, self.gh_manager.get_user, "mock")
-
-    def testOneServerError(self):
-        self.generate_errors(self.server_error, 1)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testTwoServerErrors(self):
-        self.generate_errors(self.server_error, 2)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testThreeServerErrors(self):
-        self.generate_errors(self.server_error, 3)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testFourServerErrors(self):
-        self.generate_errors(self.server_error, 4)
-        self.mox.ReplayAll()
-
-        self.assertRaises(GithubException, self.gh_manager.get_user, "mock")
-
-    def testOneSocketTimeout(self):
-        self.generate_errors(self.socket_timeout, 1)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testTwoSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 2)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testThreeSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 3)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testFourSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 4)
-        self.mox.ReplayAll()
-
-        self.assertRaises(socket.timeout, self.gh_manager.get_user, "mock")
-
-    def testOneSSLError(self):
-        self.generate_errors(self.ssl_error, 1)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testTwoSSLErrors(self):
-        self.generate_errors(self.ssl_error, 2)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testThreeSSLErrors(self):
-        self.generate_errors(self.ssl_error, 3)
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.mox.ReplayAll()
-
-        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
-
-    def testFourSSLErrors(self):
-        self.generate_errors(self.ssl_error, 4)
-        self.mox.ReplayAll()
-
-        self.assertRaises(SSLError, self.gh_manager.get_user, "mock")
+    def get_output(self):
+        return self.user
