@@ -29,6 +29,7 @@ import logging
 import threading
 import difflib
 import socket
+from ssl import SSLError
 from framework import Command, Stop
 
 github_loaded = True
@@ -74,13 +75,15 @@ def retry_on_error(retries=3):
                 try:
                     return func(*args, **kwargs)
                 except github.GithubException, e:
-                    if e.status != 502 or num >= retries:
+                    if e.status != 502:
                         raise
                     error = "Received %s" % e.data
                 except socket.timeout:
-                    if num >= retries:
-                        raise
                     error = "Socket timeout"
+                except SSLError:
+                    error = "SSL error"
+                if num >= retries:
+                    raise
                 log.debug("%s, retrying (try %s)", error, num + 1)
         return wrapper
     return decorator

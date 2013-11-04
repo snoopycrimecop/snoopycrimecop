@@ -27,6 +27,7 @@ from github import Github
 from scc.git import GHManager
 
 import socket
+from ssl import SSLError
 
 from mox import MoxTestBase
 
@@ -59,6 +60,7 @@ class TestGHManager(MoxTestBase):
         self.server_error = GithubException(502, 'Server Error')
         self.no_retry_exception = GithubException(-1, 'No retry')
         self.socket_timeout = socket.timeout()
+        self.ssl_error = SSLError()
 
     def generate_errors(self, error, nerrors):
 
@@ -130,3 +132,30 @@ class TestGHManager(MoxTestBase):
         self.mox.ReplayAll()
 
         self.assertRaises(socket.timeout, self.gh_manager.get_user, "mock")
+
+    def testOneSSLError(self):
+        self.generate_errors(self.ssl_error, 1)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testTwoSSLErrors(self):
+        self.generate_errors(self.ssl_error, 2)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testThreeSSLErrors(self):
+        self.generate_errors(self.ssl_error, 3)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testFourSSLErrors(self):
+        self.generate_errors(self.ssl_error, 4)
+        self.mox.ReplayAll()
+
+        self.assertRaises(SSLError, self.gh_manager.get_user, "mock")
