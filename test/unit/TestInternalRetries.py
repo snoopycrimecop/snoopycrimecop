@@ -24,7 +24,7 @@ from github.Repository import Repository
 from github.GithubException import GithubException
 from github import Github
 
-from scc.git import GHManager
+from scc.git import GHManager, GitHubRepository
 
 import socket
 from ssl import SSLError
@@ -37,23 +37,17 @@ class InternalRetriesHelper(object):
     def mock_calls(self):
         pass
 
-    def get_test_function(self):
-        pass
-
-    def get_test_arguments(self):
+    def run_function(self):
         pass
 
     def get_output(self):
         pass
 
     def passes(self):
-        function = self.get_test_function()
-        arguments = self.get_test_arguments()
-        self.assertEqual(function(arguments), self.get_output())
+        self.assertEqual(self.run_function(), self.get_output())
 
     def fails_with(self, error):
-        self.assertRaises(error, self.get_test_function(),
-                          self.get_test_arguments())
+        self.assertRaises(error, self.run_function)
 
     def testNoError(self):
         self.mock_calls()
@@ -136,7 +130,7 @@ class InternalRetriesHelper(object):
         self.fails_with(SSLError)
 
 
-class TestGHManager(MoxTestBase, InternalRetriesHelper):
+class TestInternalRetries(MoxTestBase):
 
     def setUp(self):
 
@@ -145,7 +139,7 @@ class TestGHManager(MoxTestBase, InternalRetriesHelper):
             def create_instance(self):
                 pass
 
-        MoxTestBase.setUp(self)
+        super(TestInternalRetries, self).setUp()
         # Define mock objects
         self.gh = self.mox.CreateMock(Github)
         self.user = self.mox.CreateMock(AuthenticatedUser)
@@ -165,6 +159,9 @@ class TestGHManager(MoxTestBase, InternalRetriesHelper):
         self.socket_timeout = socket.timeout()
         self.ssl_error = SSLError()
 
+
+class TestGHManager(TestInternalRetries, InternalRetriesHelper):
+
     def generate_errors(self, error, nerrors):
         for i in range(nerrors):
             self.gh.get_user("mock").AndRaise(error)
@@ -172,11 +169,26 @@ class TestGHManager(MoxTestBase, InternalRetriesHelper):
     def mock_calls(self):
         self.gh.get_user("mock").AndReturn(self.user)
 
-    def get_test_function(self):
-        return self.gh_manager.get_user
-
-    def get_test_arguments(self):
-        return "mock"
+    def run_function(self):
+        return self.gh_manager.get_user("mock")
 
     def get_output(self):
         return self.user
+
+
+class TestGitHubRepository(TestInternalRetries, InternalRetriesHelper):
+
+    def generate_errors(self, error, nerrors):
+        for i in range(nerrors):
+            self.gh.get_user("mock").AndRaise(error)
+
+    def mock_calls(self):
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.user.get_repo("mock").AndReturn(self.repo)
+
+    def run_function(self):
+        gh_repo = GitHubRepository(self.gh_manager, "mock", "mock")
+        return gh_repo.repo
+
+    def get_output(self):
+        return self.repo
