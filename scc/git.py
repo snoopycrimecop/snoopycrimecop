@@ -28,6 +28,7 @@ import subprocess
 import logging
 import threading
 import difflib
+import socket
 from framework import Command, Stop
 
 github_loaded = True
@@ -75,8 +76,12 @@ def retry_on_error(retries=3):
                 except github.GithubException, e:
                     if e.status != 502 or num >= retries:
                         raise
-                    log.debug("Received %s, retrying", e.data)
-                    continue
+                    error = "Received %s" % e.data
+                except socket.timeout:
+                    if num >= retries:
+                        raise
+                    error = "Socket timeout"
+                log.debug("%s, retrying (try %s)", error, num + 1)
         return wrapper
     return decorator
 

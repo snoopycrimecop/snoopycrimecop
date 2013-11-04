@@ -103,3 +103,30 @@ class TestGHManager(MoxTestBase):
         self.mox.ReplayAll()
 
         self.assertRaises(GithubException, self.gh_manager.get_user, "mock")
+
+    def testOneSocketTimeout(self):
+        self.generate_errors(self.socket_timeout, 1)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testTwoSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 2)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testThreeSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 3)
+        self.gh.get_user("mock").AndReturn(self.user)
+        self.mox.ReplayAll()
+
+        self.assertEqual(self.gh_manager.get_user("mock"), self.user)
+
+    def testFourSocketTimeouts(self):
+        self.generate_errors(self.socket_timeout, 4)
+        self.mox.ReplayAll()
+
+        self.assertRaises(socket.timeout, self.gh_manager.get_user, "mock")
