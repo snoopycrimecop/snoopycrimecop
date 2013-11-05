@@ -243,6 +243,10 @@ class GHManager(object):
         return self.github.get_organization(*args)
 
     @retry_on_error(retries=3)
+    def get_repo(self, *args):
+        return self.github.get_repo(*args)
+
+    @retry_on_error(retries=3)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -549,7 +553,7 @@ class GitHubRepository(object):
         self.candidate_pulls = []
 
         try:
-            self.repo = gh.get_user(user_name).get_repo(repo_name)
+            self.repo = gh.get_repo(user_name + '/' + repo_name)
             if self.repo.organization:
                 self.org = gh.get_organization(self.repo.organization.login)
             else:

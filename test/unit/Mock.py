@@ -41,8 +41,7 @@ class MockTest(MoxTestBase):
         self.repo.organization = None
 
         self.user.login = "test"
-        self.gh.get_user("mock").AndReturn(self.user)
-        self.user.get_repo("mock").AndReturn(self.repo)
+        self.gh.get_repo("mock/mock").AndReturn(self.repo)
         self.mox.ReplayAll()
 
         self.gh_repo = GitHubRepository(self.gh, "mock", "mock")
