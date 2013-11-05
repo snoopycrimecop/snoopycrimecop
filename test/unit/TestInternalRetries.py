@@ -196,6 +196,7 @@ class TestGHManagerGetOrganization(TestInternalRetries,
     def get_output(self):
         return self.org
 
+
 class TestGHManagerGetRepo(TestInternalRetries, InternalRetriesHelper):
 
     def generate_errors(self, error, nerrors):
@@ -210,6 +211,7 @@ class TestGHManagerGetRepo(TestInternalRetries, InternalRetriesHelper):
 
     def get_output(self):
         return self.repo
+
 
 class TestGitHubRepositoryInit(TestInternalRetries, InternalRetriesHelper):
 
