@@ -140,7 +140,7 @@ class TestConflictingRebase(RebaseTest):
         super(TestConflictingRebase, self).setUp()
 
         # Open first PR against dev_4_4 branch
-        self.source_branch = 'readme'
+        self.source_branch = self.uuid()
         self.filename = 'README.md'
 
         f = open(self.filename, "w")
