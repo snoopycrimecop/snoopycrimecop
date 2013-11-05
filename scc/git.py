@@ -578,6 +578,11 @@ class GitHubRepository(object):
         return self.repo.get_pulls(*args)
 
     @retry_on_error(retries=3)
+    def get_pulls_by_base(self, base):
+        return [pull for pull in self.get_pulls()
+                if (pull.base.ref == base)]
+
+    @retry_on_error(retries=3)
     def get_pull(self, *args):
         return self.repo.get_pull(*args)
 
@@ -656,9 +661,8 @@ class GitHubRepository(object):
         if filters["default"] == 'none' and no_include:
             return msg
 
-        # Loop over pull requests opened aainst base
-        all_pulls = self.get_pulls()
-        pulls = [pull for pull in pulls if (pull.base.ref == filters["base"])]
+        # Loop over pull requests opened aGainst base
+        pulls = self.get_pulls_by_base(filters["base"])
         status_excluded_pulls = {}
 
         for pull in pulls:
