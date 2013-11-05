@@ -1881,20 +1881,20 @@ class Label(GithubCommand):
         super(Label, self).__init__(sub_parsers)
 
         self.parser.add_argument(
-            'issue', nargs="*", type=int,
-            help="The number of the issue to check")
+            'pr', nargs="*", type=int,
+            help="The number of the pull request to check")
 
         # Actions
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument(
             '--add', action='append',
-            help='List labels attached to the issue')
+            help='List labels attached to the pull request')
         group.add_argument(
             '--available', action='store_true',
-            help='List all available labels for this repo')
+            help='List all available labels for this repository')
         group.add_argument(
             '--list', action='store_true',
-            help='List labels attached to the issue')
+            help='List labels attached to the pull request')
 
     def __call__(self, args):
         super(Label, self).__call__(args)
@@ -1914,13 +1914,6 @@ class Label(GithubCommand):
         elif args.list:
             self.list(args, main_repo)
 
-    def get_issue(self, args, main_repo, issue):
-        # Copied from Rebase command.
-        # TODO: this could be refactored
-        if args.issue and len(args.issue) > 1:
-            print "# %s" % issue
-        return main_repo.origin.get_issue(issue)
-
     def add(self, args, main_repo):
         for label in args.add:
 
@@ -1939,26 +1932,25 @@ class Label(GithubCommand):
                     raise
 
             for issue in args.issue:
-                issue = self.get_issue(args, main_repo, issue)
+                pr = PullRequest(main_repo.origin.get_pull(args.pr))
                 try:
-                    issue.add_to_labels(label)
+                    pr.get_issue().add_to_labels(label)
                 except github.GithubException, ge:
                     if self.gh.exc_is_not_found(ge):
                         raise Stop(10, "Can't add label: %s" % label.name)
                     raise
 
     def available(self, args, main_repo):
-        if args.issue:
-            print >>sys.stderr, "# Ignoring issues: %s" % args.issue
+        if args.pr:
+            print >>sys.stderr, "# Ignoring pull requests: %s" % args.pr
         for label in main_repo.origin.get_labels():
             print label.name
 
     def list(self, args, main_repo):
-        for issue in args.issue:
-            issue = self.get_issue(args, main_repo, issue)
-            labels = issue.get_labels()
-            for label in labels:
-                print label.name
+        for pr_num in args.pr:
+            pr = PullRequest(main_repo.origin.get_pull(pr_num))
+            for label in pr.get_labels():
+                print label
 
 
 class Merge(FilteredPullRequestsCommand):
