@@ -613,6 +613,7 @@ class GitHubRepository(object):
         if rc != 0:
             raise Exception("'git push %s %s' failed", repo, name)
 
+    @retry_on_error(retries=3)
     def open_pr(self, title, description, base, head):
         return self.repo.create_pull(title, description, base, head)
 
@@ -656,8 +657,8 @@ class GitHubRepository(object):
             return msg
 
         # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.get_pulls()
-                 if (pull.base.ref == filters["base"])]
+        all_pulls = self.get_pulls()
+        pulls = [pull for pull in pulls if (pull.base.ref == filters["base"])]
         status_excluded_pulls = {}
 
         for pull in pulls:
