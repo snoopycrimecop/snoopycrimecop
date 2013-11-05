@@ -58,8 +58,12 @@ if IS_JENKINS_JOB:
 # Public global functions
 #
 
+try:
+    SCC_RETRIES = int(os.environ.get("SCC_RETRIES"))
+except:
+    SCC_RETRIES = 3
 
-def retry_on_error(retries=3):
+def retry_on_error(retries=SCC_RETRIES):
     """
     Decorator for handling Github server errors
 
@@ -230,23 +234,23 @@ class GHManager(object):
         else:
             self.create_instance()
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_login(self):
         return self.get_user().login
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_user(self, *args):
         return self.github.get_user(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_organization(self, *args):
         return self.github.get_organization(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_repo(self, *args):
         return self.github.get_repo(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -255,7 +259,7 @@ class GHManager(object):
         self.github = github.Github(*args, user_agent=self.user_agent,
                                     **kwargs)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
@@ -408,7 +412,7 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
@@ -472,7 +476,7 @@ class PullRequest(object):
         """Return the number of the Pull Request."""
         return self.pull.number
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self):
         """Return the issue corresponding to the Pull Request."""
         return self.pull.base.repo.get_issue(self.get_number())
@@ -489,7 +493,7 @@ class PullRequest(object):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_last_commit(self, ref="base"):
         """Return the head commit of the Pull Request.
         """
@@ -500,12 +504,12 @@ class PullRequest(object):
         """Return the branch against which the Pull Request is opened."""
         return self.pull.base.ref
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_labels(self):
         """Return the labels of the Pull Request."""
         return [x.name for x in self.get_issue().labels]
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_comments(self):
         """Return the labels of the Pull Request."""
         if self.get_issue().comments:
@@ -514,26 +518,26 @@ class PullRequest(object):
         else:
             return []
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def create_comment(self, msg):
         """Add comment to Pull Request"""
 
         self.get_issue().create_comment(msg)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def edit_body(self, body):
         """Edit body of Pull Request"""
 
         self.pull.edit(body=body)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def create_status(self, status, message, url, ref="base"):
         """Add a status to the head of the Pull Request."""
         self.get_last_commit(ref).create_status(
             status, url or github.GithubObject.NotSet, message,
         )
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_last_status(self, ref="base"):
         """Return the last status of the Pull Request."""
         try:
@@ -565,24 +569,24 @@ class GitHubRepository(object):
     def __repr__(self):
         return "Repository: %s/%s" % (self.user_name, self.repo_name)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         return getattr(self.repo, key)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self, *args):
         return self.repo.get_issue(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_pulls(self, *args):
         return self.repo.get_pulls(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_pulls_by_base(self, base):
         return [pull for pull in self.get_pulls()
                 if (pull.base.ref == base)]
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_pull(self, *args):
         return self.repo.get_pull(*args)
 
@@ -618,7 +622,7 @@ class GitHubRepository(object):
         if rc != 0:
             raise Exception("'git push %s %s' failed", repo, name)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def open_pr(self, title, description, base, head):
         return self.repo.create_pull(title, description, base, head)
 
