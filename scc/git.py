@@ -62,6 +62,7 @@ try:
     SCC_RETRIES = int(os.environ.get("SCC_RETRIES"))
 except:
     SCC_RETRIES = 3
+GH_RETRY_CODES = [405, 502]
 
 
 def retry_on_error(retries=SCC_RETRIES):
@@ -80,7 +81,7 @@ def retry_on_error(retries=SCC_RETRIES):
                 try:
                     return func(*args, **kwargs)
                 except github.GithubException, e:
-                    if e.status != 502:
+                    if e.status not in GH_RETRY_CODES:
                         raise
                     error = "Received %s" % e.data
                 except socket.timeout:
