@@ -180,6 +180,23 @@ class TestGHManagerGetUser(TestInternalRetries, InternalRetriesHelper):
         return self.user
 
 
+class TestGHManagerGetOrganization(TestInternalRetries,
+                                   InternalRetriesHelper):
+
+    def generate_errors(self, error, nerrors):
+        for i in range(nerrors):
+            self.gh.get_organization("mock").AndRaise(error)
+
+    def mock_calls(self):
+        self.gh.get_organization("mock").AndReturn(self.org)
+
+    def run_function(self):
+        return self.gh_manager.get_organization("mock")
+
+    def get_output(self):
+        return self.org
+
+
 class TestGitHubRepository(TestInternalRetries, InternalRetriesHelper):
 
     def generate_errors(self, error, nerrors):
