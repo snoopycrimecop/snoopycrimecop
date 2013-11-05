@@ -521,10 +521,10 @@ class PullRequest(object):
             return []
 
     @retry_on_error(retries=SCC_RETRIES)
-    def create_comment(self, msg):
+    def create_issue_comment(self, msg):
         """Add comment to Pull Request"""
 
-        return self.get_issue().create_comment(msg)
+        return self.pull.create_issue_comment(msg)
 
     @retry_on_error(retries=SCC_RETRIES)
     def edit_body(self, body):
@@ -1145,7 +1145,7 @@ class GitRepository(object):
                 if comment and get_token():
                     self.dbg("Adding comment to issue #%g."
                              % pullrequest.get_number())
-                    pullrequest.create_comment(msg)
+                    pullrequest.create_issue_comment(msg)
 
         merge_msg = ""
         if merged_pulls:
@@ -2101,7 +2101,7 @@ class Rebase(GithubCommand):
 
         # Remote information
         try:
-            pr = main_repo.origin.get_pull(args.PR)
+            pr = PullRequest(main_repo.origin.get_pull(args.PR))
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
@@ -2170,9 +2170,9 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     """ % template_args
 
                     gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    rebased_pr = gh_repo.open_pr(
+                    rebased_pr = PullRequest(gh_repo.open_pr(
                         title, body,
-                        base=args.newbase, head="%s:%s" % (user, new_branch))
+                        base=args.newbase, head="%s:%s" % (user, new_branch)))
                     print rebased_pr.html_url
 
                     # Add rebase comments

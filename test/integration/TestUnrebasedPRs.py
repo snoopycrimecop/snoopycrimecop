@@ -37,7 +37,7 @@ class TestUnrebasedPRs(SandboxTest):
         args = ["unrebased-prs", self.branch1, self.branch2] + list(args)
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
-    def create_comment(self, HEAD, target_pr):
+    def create_issue_comment(self, HEAD, target_pr):
         parser, sub_parser = parsers()
         command = UnrebasedPRs(sub_parser)
         o, e = self.sandbox.communicate(
@@ -45,7 +45,7 @@ class TestUnrebasedPRs(SandboxTest):
         sha1, num, rest = command.parse_pr(o.split("\n")[0])
 
         pr = PullRequest(self.sandbox.origin.get_pull(num))
-        comment = pr.create_comment("--rebased-from #%s" % target_pr)
+        comment = pr.create_issue_comment("--rebased-from #%s" % target_pr)
         return comment
 
     def testSelf(self):
@@ -80,7 +80,7 @@ class TestUnrebasedPRs(SandboxTest):
         """Test unrebased-prs mismatching PRs"""
 
         self.branch2 = "dev_4_4~2"
-        comment = self.create_comment("origin/" + self.branch1, 1)
+        comment = self.create_issue_comment("origin/" + self.branch1, 1)
 
         try:
             try:
@@ -95,7 +95,7 @@ class TestUnrebasedPRs(SandboxTest):
         """Test unrebased-prs mismatching PRs"""
 
         self.branch2 = "dev_4_4~2"
-        comment = self.create_comment("origin/" + self.branch1, 1)
+        comment = self.create_issue_comment("origin/" + self.branch1, 1)
 
         try:
             try:

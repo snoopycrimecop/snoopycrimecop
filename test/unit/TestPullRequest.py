@@ -83,7 +83,7 @@ class TestPullRequest(MoxTestBase):
         label.name = name
         self.labels.append(label)
 
-    def create_comment(self, body="mock-comment"):
+    def create_issue_comment(self, body="mock-comment"):
         comment = self.mox.CreateMock(IssueComment)
         comment.body = body
         self.issue.comments += 1
@@ -172,7 +172,7 @@ class TestPullRequest(MoxTestBase):
 
     def test_get_comments_single(self):
         self.create_issue()
-        self.create_comment()
+        self.create_issue_comment()
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
@@ -180,19 +180,19 @@ class TestPullRequest(MoxTestBase):
 
     def test_get_comments_multiple(self):
         self.create_issue()
-        self.create_comment("mock-comment")
-        self.create_comment("mock-comment")
+        self.create_issue_comment("mock-comment")
+        self.create_issue_comment("mock-comment")
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         self.assertEquals(self.pr.get_comments(),
                           ["mock-comment", "mock-comment"])
 
-    def test_create_comment(self):
-        self.create_issue()
-        self.issue.create_comment("comment")
+    def test_create_issue_comment(self):
+        comment = self.mox.CreateMock(IssueComment)
+        self.pull.create_issue_comment("comment").AndReturn(comment)
         self.mox.ReplayAll()
-        self.pr.create_comment("comment")
+        self.assertEqual(self.pr.create_issue_comment("comment"), comment)
 
     # Commit/status tests
     def test_get_sha(self):
@@ -311,7 +311,7 @@ class TestPullRequest(MoxTestBase):
         pattern = 'pattern'
         match = '-match1'
         self.create_issue()
-        self.create_comment("--%s%s\n" % (pattern, match))
+        self.create_issue_comment("--%s%s\n" % (pattern, match))
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
@@ -323,8 +323,8 @@ class TestPullRequest(MoxTestBase):
         pattern2 = 'pattern2'
         match2 = '-match2'
         self.create_issue()
-        self.create_comment("--%s%s\n--%s%s\n" % (pattern1, match1, pattern2,
-                                                  match2))
+        self.create_issue_comment("--%s%s\n--%s%s\n"
+                                  % (pattern1, match1, pattern2, match2))
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
@@ -337,8 +337,8 @@ class TestPullRequest(MoxTestBase):
         pattern2 = 'pattern2'
         match2 = '-match2'
         self.create_issue()
-        self.create_comment("--%s%s\n" % (pattern1, match1))
-        self.create_comment("--%s%s\n" % (pattern2, match2))
+        self.create_issue_comment("--%s%s\n" % (pattern1, match1))
+        self.create_issue_comment("--%s%s\n" % (pattern2, match2))
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
@@ -361,7 +361,7 @@ class TestPullRequest(MoxTestBase):
         pattern = 'pattern'
         match = '-match'
         self.create_issue()
-        self.create_comment("--%s%s\n" % (pattern, match))
+        self.create_issue_comment("--%s%s\n" % (pattern, match))
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
