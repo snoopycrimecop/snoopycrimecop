@@ -484,6 +484,7 @@ class PullRequest(object):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
 
+    @retry_on_error(retries=3)
     def get_last_commit(self, ref="base"):
         """Return the head commit of the Pull Request.
         """
@@ -556,6 +557,18 @@ class GitHubRepository(object):
     @retry_on_error(retries=3)
     def __getattr__(self, key):
         return getattr(self.repo, key)
+
+    @retry_on_error(retries=3)
+    def get_issue(self, *args):
+        return self.repo.get_issue(*args)
+
+    @retry_on_error(retries=3)
+    def get_pulls(self, *args):
+        return self.repo.get_pulls(*args)
+
+    @retry_on_error(retries=3)
+    def get_pull(self, *args):
+        return self.repo.get_pull(*args)
 
     def get_owner(self):
         return self.owner.login
