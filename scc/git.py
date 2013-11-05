@@ -28,6 +28,8 @@ import subprocess
 import logging
 import threading
 import difflib
+import socket
+from ssl import SSLError
 from framework import Command, Stop
 
 github_loaded = True
@@ -56,8 +58,14 @@ if IS_JENKINS_JOB:
 # Public global functions
 #
 
+try:
+    SCC_RETRIES = int(os.environ.get("SCC_RETRIES"))
+except:
+    SCC_RETRIES = 3
+GH_RETRY_CODES = [405, 502]
 
-def retry_on_error(retries=3):
+
+def retry_on_error(retries=SCC_RETRIES):
     """
     Decorator for handling Github server errors
 
@@ -73,10 +81,16 @@ def retry_on_error(retries=3):
                 try:
                     return func(*args, **kwargs)
                 except github.GithubException, e:
-                    if e.status != 502 or num >= retries:
+                    if e.status not in GH_RETRY_CODES:
                         raise
-                    log.debug("Received %s, retrying", e.data)
-                    continue
+                    error = "Received %s" % e.data
+                except socket.timeout:
+                    error = "Socket timeout"
+                except SSLError:
+                    error = "SSL error"
+                if num >= retries:
+                    raise
+                log.debug("%s, retrying (try %s)", error, num + 1)
         return wrapper
     return decorator
 
@@ -222,18 +236,23 @@ class GHManager(object):
         else:
             self.create_instance()
 
+    @retry_on_error(retries=SCC_RETRIES)
     def get_login(self):
         return self.get_user().login
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_user(self, *args):
         return self.github.get_user(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_organization(self, *args):
         return self.github.get_organization(*args)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_repo(self, *args):
+        return self.github.get_repo(*args)
+
+    @retry_on_error(retries=SCC_RETRIES)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -242,7 +261,7 @@ class GHManager(object):
         self.github = github.Github(*args, user_agent=self.user_agent,
                                     **kwargs)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         self.dbg("github.%s", key)
         return getattr(self.github, key)
@@ -395,7 +414,7 @@ class PullRequest(object):
         return "  # PR %s %s '%s'" % (self.get_number(), self.get_login(),
                                       self.get_title())
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
@@ -459,7 +478,7 @@ class PullRequest(object):
         """Return the number of the Pull Request."""
         return self.pull.number
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self):
         """Return the issue corresponding to the Pull Request."""
         return self.pull.base.repo.get_issue(self.get_number())
@@ -476,6 +495,7 @@ class PullRequest(object):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
 
+    @retry_on_error(retries=SCC_RETRIES)
     def get_last_commit(self, ref="base"):
         """Return the head commit of the Pull Request.
         """
@@ -486,10 +506,12 @@ class PullRequest(object):
         """Return the branch against which the Pull Request is opened."""
         return self.pull.base.ref
 
+    @retry_on_error(retries=SCC_RETRIES)
     def get_labels(self):
         """Return the labels of the Pull Request."""
         return [x.name for x in self.get_issue().labels]
 
+    @retry_on_error(retries=SCC_RETRIES)
     def get_comments(self):
         """Return the labels of the Pull Request."""
         if self.get_issue().comments:
@@ -498,22 +520,26 @@ class PullRequest(object):
         else:
             return []
 
-    def create_comment(self, msg):
+    @retry_on_error(retries=SCC_RETRIES)
+    def create_issue_comment(self, msg):
         """Add comment to Pull Request"""
 
-        self.get_issue().create_comment(msg)
+        return self.pull.create_issue_comment(msg)
 
+    @retry_on_error(retries=SCC_RETRIES)
     def edit_body(self, body):
         """Edit body of Pull Request"""
 
         self.pull.edit(body=body)
 
+    @retry_on_error(retries=SCC_RETRIES)
     def create_status(self, status, message, url, ref="base"):
         """Add a status to the head of the Pull Request."""
         self.get_last_commit(ref).create_status(
             status, url or github.GithubObject.NotSet, message,
         )
 
+    @retry_on_error(retries=SCC_RETRIES)
     def get_last_status(self, ref="base"):
         """Return the last status of the Pull Request."""
         try:
@@ -533,7 +559,7 @@ class GitHubRepository(object):
         self.candidate_pulls = []
 
         try:
-            self.repo = gh.get_user(user_name).get_repo(repo_name)
+            self.repo = gh.get_repo(user_name + '/' + repo_name)
             if self.repo.organization:
                 self.org = gh.get_organization(self.repo.organization.login)
             else:
@@ -545,9 +571,26 @@ class GitHubRepository(object):
     def __repr__(self):
         return "Repository: %s/%s" % (self.user_name, self.repo_name)
 
-    @retry_on_error(retries=3)
+    @retry_on_error(retries=SCC_RETRIES)
     def __getattr__(self, key):
         return getattr(self.repo, key)
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_issue(self, *args):
+        return self.repo.get_issue(*args)
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_pulls(self, *args):
+        return self.repo.get_pulls(*args)
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_pulls_by_base(self, base):
+        return [pull for pull in self.get_pulls()
+                if (pull.base.ref == base)]
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_pull(self, *args):
+        return self.repo.get_pull(*args)
 
     def get_owner(self):
         return self.owner.login
@@ -581,6 +624,7 @@ class GitHubRepository(object):
         if rc != 0:
             raise Exception("'git push %s %s' failed", repo, name)
 
+    @retry_on_error(retries=SCC_RETRIES)
     def open_pr(self, title, description, base, head):
         return self.repo.create_pull(title, description, base, head)
 
@@ -623,9 +667,8 @@ class GitHubRepository(object):
         if filters["default"] == 'none' and no_include:
             return msg
 
-        # Loop over pull requests opened aainst base
-        pulls = [pull for pull in self.get_pulls()
-                 if (pull.base.ref == filters["base"])]
+        # Loop over pull requests opened aGainst base
+        pulls = self.get_pulls_by_base(filters["base"])
         status_excluded_pulls = {}
 
         for pull in pulls:
@@ -1102,7 +1145,7 @@ class GitRepository(object):
                 if comment and get_token():
                     self.dbg("Adding comment to issue #%g."
                              % pullrequest.get_number())
-                    pullrequest.create_comment(msg)
+                    pullrequest.create_issue_comment(msg)
 
         merge_msg = ""
         if merged_pulls:
@@ -1839,20 +1882,20 @@ class Label(GithubCommand):
         super(Label, self).__init__(sub_parsers)
 
         self.parser.add_argument(
-            'issue', nargs="*", type=int,
-            help="The number of the issue to check")
+            'pr', nargs="*", type=int,
+            help="The number of the pull request to check")
 
         # Actions
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument(
             '--add', action='append',
-            help='List labels attached to the issue')
+            help='List labels attached to the pull request')
         group.add_argument(
             '--available', action='store_true',
-            help='List all available labels for this repo')
+            help='List all available labels for this repository')
         group.add_argument(
             '--list', action='store_true',
-            help='List labels attached to the issue')
+            help='List labels attached to the pull request')
 
     def __call__(self, args):
         super(Label, self).__call__(args)
@@ -1872,13 +1915,6 @@ class Label(GithubCommand):
         elif args.list:
             self.list(args, main_repo)
 
-    def get_issue(self, args, main_repo, issue):
-        # Copied from Rebase command.
-        # TODO: this could be refactored
-        if args.issue and len(args.issue) > 1:
-            print "# %s" % issue
-        return main_repo.origin.get_issue(issue)
-
     def add(self, args, main_repo):
         for label in args.add:
 
@@ -1897,26 +1933,25 @@ class Label(GithubCommand):
                     raise
 
             for issue in args.issue:
-                issue = self.get_issue(args, main_repo, issue)
+                pr = PullRequest(main_repo.origin.get_pull(args.pr))
                 try:
-                    issue.add_to_labels(label)
+                    pr.get_issue().add_to_labels(label)
                 except github.GithubException, ge:
                     if self.gh.exc_is_not_found(ge):
                         raise Stop(10, "Can't add label: %s" % label.name)
                     raise
 
     def available(self, args, main_repo):
-        if args.issue:
-            print >>sys.stderr, "# Ignoring issues: %s" % args.issue
+        if args.pr:
+            print >>sys.stderr, "# Ignoring pull requests: %s" % args.pr
         for label in main_repo.origin.get_labels():
             print label.name
 
     def list(self, args, main_repo):
-        for issue in args.issue:
-            issue = self.get_issue(args, main_repo, issue)
-            labels = issue.get_labels()
-            for label in labels:
-                print label.name
+        for pr_num in args.pr:
+            pr = PullRequest(main_repo.origin.get_pull(pr_num))
+            for label in pr.get_labels():
+                print label
 
 
 class Merge(FilteredPullRequestsCommand):
@@ -2066,7 +2101,7 @@ class Rebase(GithubCommand):
 
         # Remote information
         try:
-            pr = main_repo.origin.get_pull(args.PR)
+            pr = PullRequest(main_repo.origin.get_pull(args.PR))
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
@@ -2135,9 +2170,9 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                     """ % template_args
 
                     gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    rebased_pr = gh_repo.open_pr(
+                    rebased_pr = PullRequest(gh_repo.open_pr(
                         title, body,
-                        base=args.newbase, head="%s:%s" % (user, new_branch))
+                        base=args.newbase, head="%s:%s" % (user, new_branch)))
                     print rebased_pr.html_url
 
                     # Add rebase comments
