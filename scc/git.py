@@ -496,10 +496,12 @@ class PullRequest(object):
         """Return the branch against which the Pull Request is opened."""
         return self.pull.base.ref
 
+    @retry_on_error(retries=3)
     def get_labels(self):
         """Return the labels of the Pull Request."""
         return [x.name for x in self.get_issue().labels]
 
+    @retry_on_error(retries=3)
     def get_comments(self):
         """Return the labels of the Pull Request."""
         if self.get_issue().comments:
@@ -508,22 +510,26 @@ class PullRequest(object):
         else:
             return []
 
+    @retry_on_error(retries=3)
     def create_comment(self, msg):
         """Add comment to Pull Request"""
 
         self.get_issue().create_comment(msg)
 
+    @retry_on_error(retries=3)
     def edit_body(self, body):
         """Edit body of Pull Request"""
 
         self.pull.edit(body=body)
 
+    @retry_on_error(retries=3)
     def create_status(self, status, message, url, ref="base"):
         """Add a status to the head of the Pull Request."""
         self.get_last_commit(ref).create_status(
             status, url or github.GithubObject.NotSet, message,
         )
 
+    @retry_on_error(retries=3)
     def get_last_status(self, ref="base"):
         """Return the last status of the Pull Request."""
         try:
