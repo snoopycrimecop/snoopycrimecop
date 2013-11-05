@@ -230,6 +230,7 @@ class GHManager(object):
         else:
             self.create_instance()
 
+    @retry_on_error(retries=3)
     def get_login(self):
         return self.get_user().login
 
