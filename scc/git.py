@@ -63,6 +63,7 @@ try:
 except:
     SCC_RETRIES = 3
 
+
 def retry_on_error(retries=SCC_RETRIES):
     """
     Decorator for handling Github server errors
