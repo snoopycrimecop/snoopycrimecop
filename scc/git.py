@@ -524,7 +524,7 @@ class PullRequest(object):
     def create_comment(self, msg):
         """Add comment to Pull Request"""
 
-        self.get_issue().create_comment(msg)
+        return self.get_issue().create_comment(msg)
 
     @retry_on_error(retries=SCC_RETRIES)
     def edit_body(self, body):

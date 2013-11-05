@@ -22,7 +22,7 @@
 import unittest
 
 from scc.framework import main, Stop, parsers
-from scc.git import UnrebasedPRs
+from scc.git import UnrebasedPRs, PullRequest
 from Sandbox import SandboxTest
 
 
@@ -44,7 +44,7 @@ class TestUnrebasedPRs(SandboxTest):
             "git", "log", "--oneline", "-n", "1", HEAD)
         sha1, num, rest = command.parse_pr(o.split("\n")[0])
 
-        pr = self.sandbox.origin.get_issue(num)
+        pr = PullRequest(self.sandbox.origin.get_pull(num))
         comment = pr.create_comment("--rebased-from #%s" % target_pr)
         return comment
 
