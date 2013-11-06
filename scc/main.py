@@ -61,6 +61,8 @@ def entry_point():
     except Stop, stop:
         print stop,
         sys.exit(stop.rc)
+    except SystemExit, s:
+        raise
     except:
         traceback.print_exc()
         sys.exit(1)
