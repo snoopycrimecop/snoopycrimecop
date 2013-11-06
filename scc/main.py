@@ -25,6 +25,7 @@ which are present in the globals() of this module
 will be presented to the user.
 """
 
+import traceback
 import sys
 
 from framework import main, Stop
@@ -60,6 +61,9 @@ def entry_point():
     except Stop, stop:
         print stop,
         sys.exit(stop.rc)
+    except:
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
