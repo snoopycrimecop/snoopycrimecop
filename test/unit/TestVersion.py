@@ -24,7 +24,7 @@ import unittest
 from StringIO import StringIO
 
 from scc.framework import main
-from scc.version import call_git_describe, Version
+from scc.version import call_git_describe, Version, version_file
 
 
 class TestVersion(unittest.TestCase):
@@ -40,10 +40,19 @@ class TestVersion(unittest.TestCase):
         sys.stdout = self.saved_stdout
         super(TestVersion, self).tearDown()
 
-    def testVersion(self):
+    def testVersionOutput(self):
         main(["version"], items=[("version", Version)])
         self.assertEquals(self.output.getvalue().rstrip(),
                           call_git_describe())
+
+    def testVersionFile(self):
+        main(["version"], items=[("version", Version)])
+        f = open(version_file)
+        try:
+            version = f.readlines()[0]
+        finally:
+            f.close()
+        self.assertEquals(self.output.getvalue().rstrip(), version.strip())
 
 if __name__ == '__main__':
     unittest.main()
