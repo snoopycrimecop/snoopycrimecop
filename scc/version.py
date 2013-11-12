@@ -37,7 +37,7 @@ from subprocess import Popen, PIPE
 from os import path, getcwd, chdir
 from framework import Command
 
-version_dir = path.dirname(__file__)
+version_dir = path.abspath(path.dirname(__file__))
 version_file = path.join(version_dir, "RELEASE-VERSION")
 
 
