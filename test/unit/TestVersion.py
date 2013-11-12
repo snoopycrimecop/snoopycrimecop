@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import sys
+import os
 import unittest
 from StringIO import StringIO
 
@@ -34,10 +35,15 @@ class TestVersion(unittest.TestCase):
         self.output = StringIO()
         self.saved_stdout = sys.stdout
         sys.stdout = self.output
+        if os.path.isfile(version_file):
+            os.rename(version_file, version_file + '.bak')
+        self.assertFalse(os.path.isfile(version_file))
 
     def tearDown(self):
         self.output.close()
         sys.stdout = self.saved_stdout
+        if os.path.isfile(version_file + '.bak'):
+            os.rename(version_file + '.bak', version_file)
         super(TestVersion, self).tearDown()
 
     def testVersionOutput(self):
@@ -47,6 +53,7 @@ class TestVersion(unittest.TestCase):
 
     def testVersionFile(self):
         main(["version"], items=[("version", Version)])
+        self.assertTrue(os.path.isfile(version_file))
         f = open(version_file)
         try:
             version = f.readlines()[0]
