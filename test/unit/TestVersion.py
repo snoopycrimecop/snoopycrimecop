@@ -78,5 +78,17 @@ class TestVersion(unittest.TestCase):
         finally:
             os.remove(version_file)
 
+    def testNonGitRepository(self):
+        cwd = os.getcwd()
+        try:
+            # Move to a non-git repository and ensure call_git_describe
+            # returns None
+            os.chdir('..')
+            self.assertTrue(call_git_describe() is None)
+            main(["version"], items=[("version", Version)])
+            self.assertFalse(self.output.getvalue().rstrip() is None)
+        finally:
+            os.chdir(cwd)
+
 if __name__ == '__main__':
     unittest.main()
