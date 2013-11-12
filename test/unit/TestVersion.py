@@ -46,6 +46,15 @@ class TestVersion(unittest.TestCase):
             os.rename(version_file + '.bak', version_file)
         super(TestVersion, self).tearDown()
 
+    def read_version_file(self):
+        version = None
+        f = open(version_file)
+        try:
+            version = f.readlines()[0]
+        finally:
+            f.close()
+        return version.strip()
+
     def testVersionOutput(self):
         main(["version"], items=[("version", Version)])
         self.assertEquals(self.output.getvalue().rstrip(),
@@ -54,12 +63,20 @@ class TestVersion(unittest.TestCase):
     def testVersionFile(self):
         main(["version"], items=[("version", Version)])
         self.assertTrue(os.path.isfile(version_file))
-        f = open(version_file)
+        self.assertEquals(self.output.getvalue().rstrip(),
+                          self.read_version_file())
+
+    def testVersionOverwrite(self):
+        f = open(version_file, 'w')
+        f.write('test\n')
+        f.close()
+        self.assertEquals('test', self.read_version_file())
         try:
-            version = f.readlines()[0]
+            main(["version"], items=[("version", Version)])
+            self.assertEquals(self.output.getvalue().rstrip(),
+                              self.read_version_file())
         finally:
-            f.close()
-        self.assertEquals(self.output.getvalue().rstrip(), version.strip())
+            os.remove(version_file)
 
 if __name__ == '__main__':
     unittest.main()
