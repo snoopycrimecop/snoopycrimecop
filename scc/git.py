@@ -676,6 +676,8 @@ class GitHubRepository(object):
             pr_attributes = {}
             pr_attributes["label"] = [x.lower() for x in
                                       pullrequest.get_labels()]
+            pr_attributes["label"].extend(
+                [x.lower() for x in pullrequest.parse('label ')])
             pr_attributes["user"] = [pullrequest.get_user().login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
