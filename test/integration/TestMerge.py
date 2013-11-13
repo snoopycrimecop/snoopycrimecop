@@ -22,7 +22,7 @@
 import unittest
 
 from scc.framework import main, Stop
-from scc.git import Merge
+from scc.git import Merge, PullRequest
 from Sandbox import SandboxTest
 
 
@@ -48,6 +48,21 @@ class TestMerge(SandboxTest):
         # Clean the initial branch. This will close the inital PRs
         self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
         super(TestMerge, self).tearDown()
+
+    def create_status(self, state):
+        """Create status on the head repository of the Pull Request"""
+        from github.GithubObject import NotSet
+        commit = self.pr.head.repo.get_commit(self.pr.head.sha)
+        commit.create_status(
+            state, NotSet, state[0].upper() + state[1:] + " state test")
+        self.assertEqual(commit.get_statuses()[0].state, state)
+
+    def create_issue_comment(self, comment):
+        """Create status on the head repository of the Pull Request"""
+
+        pr = PullRequest(self.pr)
+        comment = pr.create_issue_comment("%s" % comment)
+        return comment
 
     def merge(self, *args):
         self.sandbox.checkout_branch(self.remote + "/" + self.base)
@@ -86,14 +101,6 @@ class TestMerge(SandboxTest):
         # scc merge with --remote setup should pass
         self.merge("--remote", self.remote)
         self.assertTrue(self.isMerged())
-
-    def create_status(self, state):
-        """Create status on the head repository of the Pull Request"""
-        from github.GithubObject import NotSet
-        commit = self.pr.head.repo.get_commit(self.pr.head.sha)
-        commit.create_status(
-            state, NotSet, state[0].upper() + state[1:] + " state test")
-        self.assertEqual(commit.get_statuses()[0].state, state)
 
     def testStatusNone(self):
 
@@ -172,6 +179,12 @@ class TestMerge(SandboxTest):
         self.create_status("success")
         self.merge("-S", "success-only")
         self.assertTrue(self.isMerged())
+
+    def testExcludeComment(self):
+
+        self.create_issue_comment('--label exclude')
+        self.merge()
+        self.assertFalse(self.isMerged())
 
 if __name__ == '__main__':
     import logging
