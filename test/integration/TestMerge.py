@@ -22,7 +22,7 @@
 import unittest
 
 from scc.framework import main, Stop
-from scc.git import Merge, PullRequest
+from scc.git import Merge
 from Sandbox import SandboxTest
 
 
@@ -56,13 +56,6 @@ class TestMerge(SandboxTest):
         commit.create_status(
             state, NotSet, state[0].upper() + state[1:] + " state test")
         self.assertEqual(commit.get_statuses()[0].state, state)
-
-    def create_issue_comment(self, comment):
-        """Create status on the head repository of the Pull Request"""
-
-        pr = PullRequest(self.pr)
-        comment = pr.create_issue_comment("%s" % comment)
-        return comment
 
     def merge(self, *args):
         self.sandbox.checkout_branch(self.remote + "/" + self.base)
@@ -182,7 +175,13 @@ class TestMerge(SandboxTest):
 
     def testExcludeComment(self):
 
-        self.create_issue_comment('--label exclude')
+        self.pr.create_issue_comment('--label exclude')
+        self.merge()
+        self.assertFalse(self.isMerged())
+
+    def testExcludeDescription(self):
+
+        self.pr.edit(body=self.pr.body+'\n\n----\n--label exclude')
         self.merge()
         self.assertFalse(self.isMerged())
 
