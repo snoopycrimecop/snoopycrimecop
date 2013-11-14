@@ -175,13 +175,13 @@ class TestMerge(SandboxTest):
 
     def testExcludeComment(self):
 
-        self.pr.create_issue_comment('--label exclude')
+        self.pr.create_issue_comment('--exclude')
         self.merge()
         self.assertFalse(self.isMerged())
 
     def testExcludeDescription(self):
 
-        self.pr.edit(body=self.pr.body+'\n\n----\n--label exclude')
+        self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
         self.merge()
         self.assertFalse(self.isMerged())
 
