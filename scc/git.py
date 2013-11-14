@@ -418,13 +418,14 @@ class PullRequest(object):
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
-    def parse(self, argument):
+    def parse(self, argument, whitelist=lambda x: True):
 
         found_body_comments = self.parse_body(argument)
         if found_body_comments:
             return found_body_comments
         else:
-            found_comments = self.parse_comments(argument)
+            found_comments = self.parse_comments(argument,
+                                                 whitelist=whitelist)
             if found_comments:
                 return found_comments
             else:
@@ -447,14 +448,14 @@ class PullRequest(object):
                     found_comments.append(line.replace(pattern, ""))
         return found_comments
 
-    def parse_comments(self, argument):
+    def parse_comments(self, argument, whitelist=lambda x: True):
         found_comments = []
         if isinstance(argument, list):
             patterns = ["--%s" % a for a in argument]
         else:
             patterns = ["--%s" % argument]
 
-        for comment in self.get_comments():
+        for comment in self.get_comments(whitelist=whitelist):
             lines = comment.splitlines()
             for line in lines:
                 for pattern in patterns:
@@ -673,15 +674,20 @@ class GitHubRepository(object):
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["default"])
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
+
+            if pullrequest.parse('exclude', whitelist=is_whitelisted_comment):
+                excluded_pulls[pullrequest] = 'exclude comment'
+                continue
+
             pullrequest_user = pullrequest.get_user()
             pr_attributes = {}
             pr_attributes["label"] = [x.lower() for x in
                                       pullrequest.get_labels()]
-            if pullrequest.parse('exclude'):
-                pr_attributes["label"].append('exclude')
             pr_attributes["user"] = [pullrequest_user.login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
@@ -1581,12 +1587,11 @@ class FilteredPullRequestsCommand(GitRepoCommand):
         self.parser.add_argument(
             '--default', '-D', type=str,
             choices=["none", "mine", "org", "all"], default="org",
-            help='Mode specifying the default PRs to include. '
-            'None includes no PR. All includes all open PRs. '
-            'Mine only includes the PRs opened by the authenticated user. '
-            'If the repository belongs to an organization, org includes '
-            'any PR opened by a public member of the organization. '
-            'Default: org.')
+            help="""Mode specifying the default PRs/comments to include. \
+None includes no PR/comment. All includes all open PRs/comments. \
+Mine only includes the PRs/comments created by the authenticated user. \
+If the repository belongs to an organization, org includes any PR/comment \
+created by a public member of the organization. Default: org.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
             default=DefaultList(["include"]),
