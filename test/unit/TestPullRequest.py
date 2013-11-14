@@ -28,6 +28,8 @@ from github.GithubObject import NotSet
 from github.Issue import Issue
 from github.IssueComment import IssueComment
 from github.Label import Label
+from github.NamedUser import NamedUser
+from github.Organization import Organization
 from github.PullRequest import PullRequest
 from github.PullRequestPart import PullRequestPart
 from github.Repository import Repository
@@ -83,9 +85,13 @@ class TestPullRequest(MoxTestBase):
         label.name = name
         self.labels.append(label)
 
-    def create_issue_comment(self, body="mock-comment"):
+    def create_issue_comment(self, body="mock-comment", user=None):
         comment = self.mox.CreateMock(IssueComment)
         comment.body = body
+        if user:
+            comment.user = user
+        else:
+            comment.user = self.head_user
         self.issue.comments += 1
         self.comments.append(comment)
 
@@ -187,6 +193,25 @@ class TestPullRequest(MoxTestBase):
         self.mox.ReplayAll()
         self.assertEquals(self.pr.get_comments(),
                           ["mock-comment", "mock-comment"])
+
+    def test_get_comments_whitelist(self):
+        org = self.mox.CreateMock(Organization)
+        org_user_1 = self.mox.CreateMock(NamedUser)
+        org_user_2 = self.mox.CreateMock(NamedUser)
+        ext_user = self.mox.CreateMock(NamedUser)
+        self.create_issue()
+        self.create_issue_comment("mock-comment-1", user=org_user_1)
+        self.create_issue_comment("mock-comment-2", user=ext_user)
+        self.create_issue_comment("mock-comment-3", user=org_user_2)
+        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+        self.issue.get_comments().AndReturn(self.comments)
+        org.has_in_public_members(org_user_1).AndReturn(True)
+        org.has_in_public_members(ext_user).AndReturn(False)
+        org.has_in_public_members(org_user_2).AndReturn(True)
+        self.mox.ReplayAll()
+        whitelist = lambda x: org.has_in_public_members(x.user)
+        self.assertEquals(self.pr.get_comments(whitelist=whitelist),
+                          ["mock-comment-1", "mock-comment-3"])
 
     def test_create_issue_comment(self):
         comment = self.mox.CreateMock(IssueComment)

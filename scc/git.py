@@ -512,11 +512,11 @@ class PullRequest(object):
         return [x.name for x in self.get_issue().labels]
 
     @retry_on_error(retries=SCC_RETRIES)
-    def get_comments(self):
+    def get_comments(self, whitelist=lambda x: True):
         """Return the labels of the Pull Request."""
         if self.get_issue().comments:
             return [comment.body for comment in
-                    self.get_issue().get_comments()]
+                    self.get_issue().get_comments() if whitelist(comment)]
         else:
             return []
 
