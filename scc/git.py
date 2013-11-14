@@ -631,10 +631,12 @@ class GitHubRepository(object):
     def merge_info(self):
         """List the candidate Pull Request to be merged"""
 
-        msg = "Candidate PRs:\n"
-        for pullrequest in self.candidate_pulls:
-            msg += str(pullrequest) + "\n"
-
+        if self.candidate_pulls:
+            msg = "Candidate PRs:\n"
+            for pullrequest in self.candidate_pulls:
+                msg += str(pullrequest) + "\n"
+        else:
+            msg = ""
         return msg
 
     def intersect(self, a, b):
