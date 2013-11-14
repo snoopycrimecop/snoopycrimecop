@@ -653,9 +653,9 @@ class GitHubRepository(object):
             intersect_set = self.intersect(filters[key], value)
             if intersect_set:
                 self.dbg("  # ... %s %s: %s", action, key, " ".join(value))
-                return True
+                return True, "%s: %s" % (key, " ".join(value))
 
-        return False
+        return False, None
 
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
@@ -669,28 +669,33 @@ class GitHubRepository(object):
 
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
-        status_excluded_pulls = {}
+        excluded_pulls = {}
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
+            pullrequest_user = pullrequest.get_user()
             pr_attributes = {}
             pr_attributes["label"] = [x.lower() for x in
                                       pullrequest.get_labels()]
             if pullrequest.parse('exclude'):
                 pr_attributes["label"].append('exclude')
-            pr_attributes["user"] = [pullrequest.get_user().login]
+            pr_attributes["user"] = [pullrequest_user.login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            if not self.is_whitelisted(pullrequest.get_user(),
-                                       filters["default"]):
+            if not self.is_whitelisted(pullrequest_user, filters["default"]):
                 # Allow filter PR inclusion using include filter
-                if not self.run_filter(filters["include"], pr_attributes,
-                                       action="Include"):
+                include, reason = self.run_filter(
+                    filters["include"], pr_attributes, action="Include")
+                if not include:
+                    excluded_pulls[pullrequest] = "user: %s" \
+                        % pullrequest_user.login
                     continue
 
             # Exclude PRs specified by filters
-            if self.run_filter(filters["exclude"], pr_attributes,
-                               action="Exclude"):
+            exclude, reason = self.run_filter(
+                filters["exclude"], pr_attributes, action="Exclude")
+            if exclude:
+                excluded_pulls[pullrequest] = reason
                 continue
 
             # Filter PRs by status if the status filter is on
@@ -710,16 +715,16 @@ class GitHubRepository(object):
                 exclude_2 = (filters["status"] == "no-error") and \
                     (state in ["error", "failure"])
                 if exclude_1 or exclude_2:
-                    status_excluded_pulls[pullrequest] = state
+                    excluded_pulls[pullrequest] = "status: %s" % state
                     continue
 
             self.dbg(pullrequest)
             self.candidate_pulls.append(pullrequest)
 
-        if status_excluded_pulls:
-            msg += "Status-excluded PRs:\n"
-            for pull in status_excluded_pulls.keys():
-                msg += str(pull) + " (%s)" % status_excluded_pulls[pull] + "\n"
+        if excluded_pulls:
+            msg += "Excluded PRs:\n"
+            for pull in excluded_pulls.keys():
+                msg += str(pull) + " (%s)" % excluded_pulls[pull] + "\n"
 
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
