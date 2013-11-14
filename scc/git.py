@@ -652,7 +652,7 @@ class GitHubRepository(object):
         for key, value in pr_attributes.iteritems():
             intersect_set = self.intersect(filters[key], value)
             if intersect_set:
-                self.dbg("# ... %s %s: %s", action, key, " ".join(value))
+                self.dbg("  # ... %s %s: %s", action, key, " ".join(value))
                 return True
 
         return False
