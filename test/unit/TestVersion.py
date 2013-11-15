@@ -91,7 +91,6 @@ class TestVersion(unittest.TestCase):
             os.chdir(cwd)
 
     def testGitRepository(self):
-        """Test scc version within a different"""
         cwd = os.getcwd()
         import tempfile
         import shutil
