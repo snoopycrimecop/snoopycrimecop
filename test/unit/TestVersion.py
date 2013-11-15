@@ -20,11 +20,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import sys
+import os
 import unittest
 from StringIO import StringIO
 
 from scc.framework import main
-from scc.version import call_git_describe, Version
+from scc.version import call_git_describe, Version, version_file
 
 
 class TestVersion(unittest.TestCase):
@@ -34,16 +35,88 @@ class TestVersion(unittest.TestCase):
         self.output = StringIO()
         self.saved_stdout = sys.stdout
         sys.stdout = self.output
+        if os.path.isfile(version_file):
+            os.rename(version_file, version_file + '.bak')
+        self.assertFalse(os.path.isfile(version_file))
 
     def tearDown(self):
         self.output.close()
         sys.stdout = self.saved_stdout
+        if os.path.isfile(version_file + '.bak'):
+            os.rename(version_file + '.bak', version_file)
         super(TestVersion, self).tearDown()
 
-    def testVersion(self):
+    def read_version_file(self):
+        version = None
+        f = open(version_file)
+        try:
+            version = f.readlines()[0]
+        finally:
+            f.close()
+        return version.strip()
+
+    def testVersionOutput(self):
         main(["version"], items=[("version", Version)])
         self.assertEquals(self.output.getvalue().rstrip(),
                           call_git_describe())
+
+    def testVersionFile(self):
+        main(["version"], items=[("version", Version)])
+        self.assertTrue(os.path.isfile(version_file))
+        self.assertEquals(self.output.getvalue().rstrip(),
+                          self.read_version_file())
+
+    def testVersionOverwrite(self):
+        f = open(version_file, 'w')
+        f.write('test\n')
+        f.close()
+        self.assertEquals('test', self.read_version_file())
+        try:
+            main(["version"], items=[("version", Version)])
+            self.assertEquals(self.output.getvalue().rstrip(),
+                              self.read_version_file())
+        finally:
+            os.remove(version_file)
+
+    def testNonGitRepository(self):
+        cwd = os.getcwd()
+        try:
+            # Move to a non-git repository and ensure call_git_describe
+            # returns None
+            os.chdir('..')
+            self.assertTrue(call_git_describe() is None)
+            main(["version"], items=[("version", Version)])
+            self.assertFalse(self.output.getvalue().rstrip() is None)
+        finally:
+            os.chdir(cwd)
+
+    def testGitRepository(self):
+        cwd = os.getcwd()
+        import tempfile
+        import shutil
+        from subprocess import Popen, PIPE
+        sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
+        path = tempfile.mkdtemp("", "sandbox-", "..")
+        path = os.path.abspath(path)
+        # Read the version for the current Git repository
+        main(["version"], items=[("version", Version)])
+        version = self.read_version_file()
+        try:
+            # Clone snoopys-sanbox
+            p = Popen(["git", "clone", sandbox_url, path],
+                      stdout=PIPE, stderr=PIPE)
+            self.assertEquals(0, p.wait())
+            os.chdir(path)
+            # Check git describe returns a different version number
+            self.assertFalse(call_git_describe() is version)
+            # Read the version again and check the file is unmodified
+            main(["version"], items=[("version", Version)])
+            self.assertEquals(self.read_version_file(), version)
+        finally:
+            try:
+                shutil.rmtree(path)
+            finally:
+                os.chdir(cwd)
 
 if __name__ == '__main__':
     unittest.main()

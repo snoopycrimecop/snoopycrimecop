@@ -34,10 +34,11 @@
 __all__ = ("get_git_version")
 
 from subprocess import Popen, PIPE
-from os import path
+from os import path, getcwd, chdir
 from framework import Command
 
-version_file = path.join(path.dirname(__file__), "RELEASE-VERSION")
+version_dir = path.abspath(path.dirname(__file__))
+version_file = path.join(version_dir, "RELEASE-VERSION")
 
 
 def call_git_describe(abbrev=4):
@@ -79,8 +80,13 @@ def get_git_version(abbrev=4):
     release_version = read_release_version()
 
     # First try to get the current version using “git describe”.
-
-    version = call_git_describe(abbrev)
+    cwd = getcwd()
+    version = None
+    try:
+        chdir(version_dir)
+        version = call_git_describe(abbrev)
+    finally:
+        chdir(cwd)
 
     # If that doesn't work, fall back on the value that's in
     # RELEASE-VERSION.
