@@ -90,5 +90,34 @@ class TestVersion(unittest.TestCase):
         finally:
             os.chdir(cwd)
 
+    def testGitRepository(self):
+        """Test scc version within a different"""
+        cwd = os.getcwd()
+        import tempfile
+        import shutil
+        from subprocess import Popen, PIPE
+        sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
+        path = tempfile.mkdtemp("", "sandbox-", "..")
+        path = os.path.abspath(path)
+        # Read the version for the current Git repository
+        main(["version"], items=[("version", Version)])
+        version = self.read_version_file()
+        try:
+            # Clone snoopys-sanbox
+            p = Popen(["git", "clone", sandbox_url, path],
+                      stdout=PIPE, stderr=PIPE)
+            self.assertEquals(0, p.wait())
+            os.chdir(path)
+            # Check git describe returns a different version number
+            self.assertFalse(call_git_describe() is version)
+            # Read the version again and check the file is unmodified
+            main(["version"], items=[("version", Version)])
+            self.assertEquals(self.read_version_file(), version)
+        finally:
+            try:
+                shutil.rmtree(path)
+            finally:
+                os.chdir(cwd)
+
 if __name__ == '__main__':
     unittest.main()
