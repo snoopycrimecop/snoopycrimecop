@@ -49,6 +49,14 @@ class TestMerge(SandboxTest):
         self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
         super(TestMerge, self).tearDown()
 
+    def create_status(self, state):
+        """Create status on the head repository of the Pull Request"""
+        from github.GithubObject import NotSet
+        commit = self.pr.head.repo.get_commit(self.pr.head.sha)
+        commit.create_status(
+            state, NotSet, state[0].upper() + state[1:] + " state test")
+        self.assertEqual(commit.get_statuses()[0].state, state)
+
     def merge(self, *args):
         self.sandbox.checkout_branch(self.remote + "/" + self.base)
         args = ["merge", "--no-ask", self.base] + list(args)
@@ -86,14 +94,6 @@ class TestMerge(SandboxTest):
         # scc merge with --remote setup should pass
         self.merge("--remote", self.remote)
         self.assertTrue(self.isMerged())
-
-    def create_status(self, state):
-        """Create status on the head repository of the Pull Request"""
-        from github.GithubObject import NotSet
-        commit = self.pr.head.repo.get_commit(self.pr.head.sha)
-        commit.create_status(
-            state, NotSet, state[0].upper() + state[1:] + " state test")
-        self.assertEqual(commit.get_statuses()[0].state, state)
 
     def testStatusNone(self):
 
@@ -172,6 +172,18 @@ class TestMerge(SandboxTest):
         self.create_status("success")
         self.merge("-S", "success-only")
         self.assertTrue(self.isMerged())
+
+    def testExcludeComment(self):
+
+        self.pr.create_issue_comment('--exclude')
+        self.merge()
+        self.assertFalse(self.isMerged())
+
+    def testExcludeDescription(self):
+
+        self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
+        self.merge()
+        self.assertFalse(self.isMerged())
 
 if __name__ == '__main__':
     import logging

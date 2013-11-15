@@ -418,13 +418,14 @@ class PullRequest(object):
     def __getattr__(self, key):
         return getattr(self.pull, key)
 
-    def parse(self, argument):
+    def parse(self, argument, whitelist=lambda x: True):
 
         found_body_comments = self.parse_body(argument)
         if found_body_comments:
             return found_body_comments
         else:
-            found_comments = self.parse_comments(argument)
+            found_comments = self.parse_comments(argument,
+                                                 whitelist=whitelist)
             if found_comments:
                 return found_comments
             else:
@@ -447,14 +448,14 @@ class PullRequest(object):
                     found_comments.append(line.replace(pattern, ""))
         return found_comments
 
-    def parse_comments(self, argument):
+    def parse_comments(self, argument, whitelist=lambda x: True):
         found_comments = []
         if isinstance(argument, list):
             patterns = ["--%s" % a for a in argument]
         else:
             patterns = ["--%s" % argument]
 
-        for comment in self.get_comments():
+        for comment in self.get_comments(whitelist=whitelist):
             lines = comment.splitlines()
             for line in lines:
                 for pattern in patterns:
@@ -512,11 +513,11 @@ class PullRequest(object):
         return [x.name for x in self.get_issue().labels]
 
     @retry_on_error(retries=SCC_RETRIES)
-    def get_comments(self):
+    def get_comments(self, whitelist=lambda x: True):
         """Return the labels of the Pull Request."""
         if self.get_issue().comments:
             return [comment.body for comment in
-                    self.get_issue().get_comments()]
+                    self.get_issue().get_comments() if whitelist(comment)]
         else:
             return []
 
@@ -631,10 +632,12 @@ class GitHubRepository(object):
     def merge_info(self):
         """List the candidate Pull Request to be merged"""
 
-        msg = "Candidate PRs:\n"
-        for pullrequest in self.candidate_pulls:
-            msg += str(pullrequest) + "\n"
-
+        if self.candidate_pulls:
+            msg = "Candidate PRs:\n"
+            for pullrequest in self.candidate_pulls:
+                msg += str(pullrequest) + "\n"
+        else:
+            msg = ""
         return msg
 
     def intersect(self, a, b):
@@ -652,10 +655,11 @@ class GitHubRepository(object):
         for key, value in pr_attributes.iteritems():
             intersect_set = self.intersect(filters[key], value)
             if intersect_set:
-                self.dbg("# ... %s %s: %s", action, key, " ".join(value))
-                return True
+                self.dbg("  # ... %s %s: %s", action, key,
+                         " ".join(intersect_set))
+                return True, "%s: %s" % (key, " ".join(intersect_set))
 
-        return False
+        return False, None
 
     def find_candidates(self, filters):
         """Find candidate Pull Requests for merging."""
@@ -669,26 +673,38 @@ class GitHubRepository(object):
 
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
-        status_excluded_pulls = {}
+        excluded_pulls = {}
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["default"])
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
+
+            if pullrequest.parse('exclude', whitelist=is_whitelisted_comment):
+                excluded_pulls[pullrequest] = 'exclude comment'
+                continue
+
+            pullrequest_user = pullrequest.get_user()
             pr_attributes = {}
             pr_attributes["label"] = [x.lower() for x in
                                       pullrequest.get_labels()]
-            pr_attributes["user"] = [pullrequest.get_user().login]
+            pr_attributes["user"] = [pullrequest_user.login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            if not self.is_whitelisted(pullrequest.get_user(),
-                                       filters["default"]):
+            if not self.is_whitelisted(pullrequest_user, filters["default"]):
                 # Allow filter PR inclusion using include filter
-                if not self.run_filter(filters["include"], pr_attributes,
-                                       action="Include"):
+                include, reason = self.run_filter(
+                    filters["include"], pr_attributes, action="Include")
+                if not include:
+                    excluded_pulls[pullrequest] = "user: %s" \
+                        % pullrequest_user.login
                     continue
 
             # Exclude PRs specified by filters
-            if self.run_filter(filters["exclude"], pr_attributes,
-                               action="Exclude"):
+            exclude, reason = self.run_filter(
+                filters["exclude"], pr_attributes, action="Exclude")
+            if exclude:
+                excluded_pulls[pullrequest] = reason
                 continue
 
             # Filter PRs by status if the status filter is on
@@ -708,16 +724,16 @@ class GitHubRepository(object):
                 exclude_2 = (filters["status"] == "no-error") and \
                     (state in ["error", "failure"])
                 if exclude_1 or exclude_2:
-                    status_excluded_pulls[pullrequest] = state
+                    excluded_pulls[pullrequest] = "status: %s" % state
                     continue
 
             self.dbg(pullrequest)
             self.candidate_pulls.append(pullrequest)
 
-        if status_excluded_pulls:
-            msg += "Status-excluded PRs:\n"
-            for pull in status_excluded_pulls.keys():
-                msg += str(pull) + " (%s)" % status_excluded_pulls[pull] + "\n"
+        if excluded_pulls:
+            msg += "Excluded PRs:\n"
+            for pull in excluded_pulls.keys():
+                msg += str(pull) + " (%s)" % excluded_pulls[pull] + "\n"
 
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
@@ -1571,12 +1587,11 @@ class FilteredPullRequestsCommand(GitRepoCommand):
         self.parser.add_argument(
             '--default', '-D', type=str,
             choices=["none", "mine", "org", "all"], default="org",
-            help='Mode specifying the default PRs to include. '
-            'None includes no PR. All includes all open PRs. '
-            'Mine only includes the PRs opened by the authenticated user. '
-            'If the repository belongs to an organization, org includes '
-            'any PR opened by a public member of the organization. '
-            'Default: org.')
+            help="""Mode specifying the default PRs/comments to include. \
+None includes no PR/comment. All includes all open PRs/comments. \
+Mine only includes the PRs/comments created by the authenticated user. \
+If the repository belongs to an organization, org includes any PR/comment \
+created by a public member of the organization. Default: org.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
             default=DefaultList(["include"]),

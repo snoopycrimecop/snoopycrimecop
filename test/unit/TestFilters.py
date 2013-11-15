@@ -30,56 +30,66 @@ class UnitTestFilter(MockTest):
 
     def setUp(self):
         MockTest.setUp(self)
-        self.test_filter = {
+        self.input = {
             "label": ["test_label"],
             "user": ["test_user"],
             "pr": ["1"],
             }
+        self.filters = {}
+
+    def run_filter(self):
+        status, reason = self.gh_repo.run_filter(
+            self.filters, self.input)
+        return status, reason
 
     def testIntersect(self):
         self.assertEquals([3], self.gh_repo.intersect([1, 2, 3], [3, 4, 5]))
 
     def testSelfFilter(self):
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter,
-                                                self.test_filter))
-
-    def testWrongFilter(self):
-        pr_attributes = {"label": [], "user": [None], "pr": ["0"]}
-        self.assertFalse(self.gh_repo.run_filter(self.test_filter,
-                                                 pr_attributes))
+        self.filters = self.input
+        status, reason = self.run_filter()
+        self.assertTrue(status)
 
     def testLabelFilter(self):
-        label_filter = {"label": ["test_label"], "user": [None], "pr": ["0"]}
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter,
-                                                label_filter))
+        self.filters = {"label": ["test_label"], "user": [None], "pr": []}
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "label: test_label")
 
     def testLabelsFilter(self):
-        labels_filter = {
+        self.filters = {
             "label": ["test_label", "test_label_2"],
             "user": [None],
             "pr": ["0"]
             }
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter,
-                                                labels_filter))
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "label: test_label")
 
     def testUserFilter(self):
-        user_filter = {"label": [], "user": ["test_user"], "pr": ["0"]}
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter,
-                                                user_filter))
+        self.filters = {"label": [], "user": ["test_user"], "pr": []}
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "user: test_user")
 
     def testUsersFilter(self):
-        users_filter = {"label": [], "user": ["test_user", "test_user_2"],
-                        "pr": ["0"]}
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter,
-                                                users_filter))
+        self.filters = {"label": [], "user": ["test_user", "test_user_2"],
+                        "pr": []}
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "user: test_user")
 
     def testPRFilter(self):
-        pr_filter = {"label": [], "user": [None], "pr": ["1"]}
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter, pr_filter))
+        self.filters = {"label": [], "user": [None], "pr": ["1"]}
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "pr: 1")
 
     def testPRsFilter(self):
-        prs_filter = {"label": [], "user": [None], "pr": ["1", "2"]}
-        self.assertTrue(self.gh_repo.run_filter(self.test_filter, prs_filter))
+        self.filters = {"label": [], "user": [None], "pr": ["1", "2"]}
+        status, reason = self.run_filter()
+        self.assertTrue(status)
+        self.assertEqual(reason, "pr: 1")
 
 
 class UnitTestFilteredPullRequestsCommand(object):
