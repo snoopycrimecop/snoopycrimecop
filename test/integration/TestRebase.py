@@ -42,18 +42,33 @@ class RebaseTest(SandboxTest):
                 self.target_base] + list(args)
         main(args=args, items=[(Rebase.NAME, Rebase)])
 
+    def has_remote_source_branch(self):
+        return self.source_branch and \
+            self.sandbox.has_remote_branch(
+                self.source_branch, remote=self.user)
+
+    def has_remote_target_branch(self):
+        return self.target_branch and \
+            self.sandbox.has_remote_branch(
+                self.target_branch, remote=self.user)
+
+    def has_rebased_pr(self):
+
+        # Check the last opened PR is the rebased one
+        prs = self.sandbox.origin.get_pulls()
+        return prs[0].head.user.login == self.user and \
+            prs[0].head.ref == self.target_branch
+
     def tearDown(self):
 
         if self.source_branch or self.target_branch:
             self.sandbox.fetch(self.user)
-        if self.source_branch and self.sandbox.has_remote_branch(
-                self.source_branch, remote=self.user):
+        if self.has_remote_source_branch():
             # Clean the initial branch. This will close the inital PRs
             self.sandbox.push_branch(":%s" % self.source_branch,
                                      remote=self.user)
 
-        if self.target_branch and self.sandbox.has_remote_branch(
-                self.target_branch, remote=self.user):
+        if self.has_remote_target_branch():
             # Clean the rebased branch
             self.sandbox.push_branch(":%s" % self.target_branch,
                                      remote=self.user)
@@ -120,6 +135,7 @@ class TestRebaseNewBranch(RebaseTest):
 
         # Rebase the PR locally
         self.rebase("--no-push", "--no-pr")
+        self.assertFalse(self.has_remote_target_branch())
 
     def testPushNoFetch(self):
 
@@ -128,23 +144,21 @@ class TestRebaseNewBranch(RebaseTest):
 
     def testPushRebaseNoPr(self):
 
-        # Rebase the PR locally
         self.rebase("--no-pr")
+        self.assertTrue(self.has_remote_target_branch())
+        self.assertFalse(self.has_rebased_pr())
 
-    def testPushFullRebase(self):
+    def testDefault(self):
 
         # Rebase the PR and push to Github
         self.rebase()
-
-        # Check the last opened PR is the rebased one
-        prs = list(self.sandbox.origin.get_pulls())
-        self.assertEquals(prs[0].head.user.login, self.user)
-        self.assertEquals(prs[0].head.ref, self.target_branch)
+        self.assertTrue(self.has_rebased_pr())
 
     def testRemote(self):
 
         self.rename_origin_remote("gh")
         self.rebase("--remote", "gh")
+        self.assertTrue(self.has_rebased_pr())
 
 
 class TestConflictingRebase(RebaseTest):
@@ -187,9 +201,7 @@ class TestConflictingRebase(RebaseTest):
         self.assertEquals(0, p.wait())
 
         self.rebase("--continue")
-
-        # Clean the rebased branch
-        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
+        self.assertTrue(self.has_rebased_pr())
 
 if __name__ == '__main__':
     unittest.main()
