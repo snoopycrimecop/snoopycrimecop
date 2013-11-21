@@ -1080,11 +1080,18 @@ class GitRepository(object):
     def list_remotes(self):
         """Return a list of existing remotes"""
 
+        self.cd(self.path)
         remotes = self.call("git", "remote",
                             stdout=subprocess.PIPE).communicate()[0]
         remotes = remotes.split("\n")[:-1]
 
         return remotes
+
+    def get_remote_url(self, remote_name="origin"):
+        """Return the URL of the remote"""
+
+        self.cd(self.path)
+        return git_config("remote.%s.url" % remote_name)
 
     #
     # Higher level git commands
@@ -1094,28 +1101,27 @@ class GitRepository(object):
         """
         Return user and repository name of the specified remote.
 
-        Origin remote must be on GitHub, i.e. of type
+        Remote must be on GitHub, i.e. of type
         *github/user/repository.git
         """
-        self.cd(self.path)
-        config_key = "remote.%s.url" % remote_name
-        originurl = git_config(config_key)
-        if originurl is None:
+        remoteurl = self.get_remote_url(remote_name)
+        if remoteurl is None:
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s"
                        " can be passed with the --remote argument."
                        % (remote_name, ", ".join(self.list_remotes())))
-        if originurl[-1] == "/":
-            originurl = originurl[:-1]
+        if remoteurl[-1] == "/":
+            remoteurl = remoteurl[:-1]
 
-        # Read user from origin URL
-        dirname = os.path.dirname(originurl)
-        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        # Read user from remote URL
+        dirname = os.path.dirname(remoteurl)
+        assert "github" in dirname, 'URL of remote %s: %s is not on GitHub' \
+            % (remote_name, dirname)
         user = os.path.basename(dirname)
         if ":" in dirname:
             user = user.split(":")[-1]
 
-        # Read repository from origin URL
-        basename = os.path.basename(originurl)
+        # Read repository from remote URL
+        basename = os.path.basename(remoteurl)
         if ".git" in basename:
             repo = basename.rsplit(".git")[0]
         else:
