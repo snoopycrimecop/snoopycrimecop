@@ -34,11 +34,31 @@ class RebaseTest(SandboxTest):
         super(RebaseTest, self).setUp()
         self.source_base = "dev_4_4"
         self.target_base = "develop"
+        self.source_branch = None
+        self.target_branch = None
 
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
         main(args=args, items=[(Rebase.NAME, Rebase)])
+
+    def tearDown(self):
+
+        if self.source_branch or self.target_branch:
+            self.sandbox.fetch(self.user)
+        if self.source_branch and self.sandbox.has_remote_branch(
+                self.source_branch, remote=self.user):
+            # Clean the initial branch. This will close the inital PRs
+            self.sandbox.push_branch(":%s" % self.source_branch,
+                                     remote=self.user)
+
+        if self.target_branch and self.sandbox.has_remote_branch(
+                self.target_branch, remote=self.user):
+            # Clean the rebased branch
+            self.sandbox.push_branch(":%s" % self.target_branch,
+                                     remote=self.user)
+
+        super(RebaseTest, self).tearDown()
 
 
 class MockPR(object):
@@ -79,13 +99,6 @@ class TestRebaseNewBranch(RebaseTest):
         self.target_branch = "rebased/%s/%s" \
             % (self.target_base, self.source_branch)
 
-    def tearDown(self):
-
-        # Clean the initial branch. This will close the inital PRs
-        self.sandbox.push_branch(":%s" % self.source_branch, remote=self.user)
-
-        super(TestRebaseNewBranch, self).tearDown()
-
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
@@ -102,7 +115,6 @@ class TestRebaseNewBranch(RebaseTest):
         self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
                                  remote=self.user)
         self.assertRaises(Stop, self.rebase)
-        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
     def testPushLocalRebase(self):
 
@@ -128,9 +140,6 @@ class TestRebaseNewBranch(RebaseTest):
         prs = list(self.sandbox.origin.get_pulls())
         self.assertEquals(prs[0].head.user.login, self.user)
         self.assertEquals(prs[0].head.ref, self.target_branch)
-
-        # Clean the rebased branch
-        self.sandbox.push_branch(":%s" % self.target_branch, remote=self.user)
 
 
 class TestConflictingRebase(RebaseTest):
@@ -158,13 +167,6 @@ class TestConflictingRebase(RebaseTest):
         # Define target branch for rebasing PR
         self.target_branch = "rebased/%s/%s" \
             % (self.target_base, self.source_branch)
-
-    def tearDown(self):
-
-        # Clean the initial branch. This will close the inital PRs
-        self.sandbox.push_branch(":%s" % self.source_branch, remote=self.user)
-
-        super(TestConflictingRebase, self).tearDown()
 
     def testPushRebaseContinue(self):
 
