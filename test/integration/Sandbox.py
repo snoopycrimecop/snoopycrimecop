@@ -46,6 +46,7 @@ class SandboxTest(unittest.TestCase):
                       stdout=PIPE, stderr=PIPE)
             self.assertEquals(0, p.wait())
             self.sandbox = self.gh.git_repo(self.path)
+            self.origin_remote = "origin"
         except:
             try:
                 shutil.rmtree(self.path)
@@ -113,6 +114,14 @@ class SandboxTest(unittest.TestCase):
         remote_url = "https://%s@github.com/%s/%s.git" \
             % (self.token, self.user, self.sandbox.origin.name)
         self.sandbox.add_remote(self.user, remote_url)
+
+    def rename_origin_remote(self, new_name):
+        """
+        Rename the remote used for the upstream repository
+        """
+        self.sandbox.call("git", "remote", "rename", self.origin_remote,
+                          new_name)
+        self.origin_remote = new_name
 
     def open_pr(self, branch, base):
         """
