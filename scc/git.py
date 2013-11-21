@@ -1101,11 +1101,9 @@ class GitRepository(object):
         config_key = "remote.%s.url" % remote_name
         originurl = git_config(config_key)
         if originurl is None:
-            remotes = self.call("git", "remote", stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE).communicate()[0]
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s"
-                       "can be passed with the --remote argument."
-                       % (remote_name, ", ".join(remotes.split("\n")[:-1])))
+                       " can be passed with the --remote argument."
+                       % (remote_name, ", ".join(self.list_remotes())))
         if originurl[-1] == "/":
             originurl = originurl[:-1]
 
