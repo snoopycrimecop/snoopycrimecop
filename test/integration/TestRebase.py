@@ -157,6 +157,7 @@ class TestRebaseNewBranch(RebaseTest):
     def testRemote(self):
 
         self.rename_origin_remote("gh")
+        self.assertRaises(Stop, self.rebase)
         self.rebase("--remote", "gh")
         self.assertTrue(self.has_rebased_pr())
 
