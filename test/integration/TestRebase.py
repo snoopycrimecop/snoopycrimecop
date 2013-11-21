@@ -141,6 +141,11 @@ class TestRebaseNewBranch(RebaseTest):
         self.assertEquals(prs[0].head.user.login, self.user)
         self.assertEquals(prs[0].head.ref, self.target_branch)
 
+    def testRemote(self):
+
+        self.rename_origin_remote("gh")
+        self.rebase("--remote", "gh")
+
 
 class TestConflictingRebase(RebaseTest):
 
