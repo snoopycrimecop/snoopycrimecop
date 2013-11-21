@@ -2170,8 +2170,18 @@ class Rebase(GitRepoCommand):
 
                 remote = "git@github.com:%s/%s.git" % (
                     user, self.main_repo.origin.name)
-                self.main_repo.push_branch(new_branch, remote=remote)
-                print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
+                push_msg = ""
+                if user in self.main_repo.list_remotes():
+                    try:
+                        self.main_repo.push_branch(new_branch, remote=user)
+                        push_msg = "# Pushed %s to %s" % (new_branch, user)
+                    except:
+                        self.log.info('Could not push to remote %s' % user)
+
+                if not push_msg:
+                    self.main_repo.push_branch(new_branch, remote=remote)
+                    push_msg = "# Pushed %s to %s" % (new_branch, remote)
+                print >> sys.stderr, push_msg
 
                 if args.pr:
                     template_args = {
