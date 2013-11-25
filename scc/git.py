@@ -1080,11 +1080,18 @@ class GitRepository(object):
     def list_remotes(self):
         """Return a list of existing remotes"""
 
+        self.cd(self.path)
         remotes = self.call("git", "remote",
                             stdout=subprocess.PIPE).communicate()[0]
         remotes = remotes.split("\n")[:-1]
 
         return remotes
+
+    def get_remote_url(self, remote_name="origin"):
+        """Return the URL of the remote"""
+
+        self.cd(self.path)
+        return git_config("remote.%s.url" % remote_name)
 
     #
     # Higher level git commands
@@ -1094,30 +1101,27 @@ class GitRepository(object):
         """
         Return user and repository name of the specified remote.
 
-        Origin remote must be on GitHub, i.e. of type
+        Remote must be on GitHub, i.e. of type
         *github/user/repository.git
         """
-        self.cd(self.path)
-        config_key = "remote.%s.url" % remote_name
-        originurl = git_config(config_key)
-        if originurl is None:
-            remotes = self.call("git", "remote", stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE).communicate()[0]
+        remoteurl = self.get_remote_url(remote_name)
+        if remoteurl is None:
             raise Stop(1, "Failed to find remote: %s.\nAvailable remotes: %s"
-                       "can be passed with the --remote argument."
-                       % (remote_name, ", ".join(remotes.split("\n")[:-1])))
-        if originurl[-1] == "/":
-            originurl = originurl[:-1]
+                       " can be passed with the --remote argument."
+                       % (remote_name, ", ".join(self.list_remotes())))
+        if remoteurl[-1] == "/":
+            remoteurl = remoteurl[:-1]
 
-        # Read user from origin URL
-        dirname = os.path.dirname(originurl)
-        assert "github" in dirname, 'Origin URL %s is not on GitHub' % dirname
+        # Read user from remote URL
+        dirname = os.path.dirname(remoteurl)
+        assert "github" in dirname, 'URL of remote %s: %s is not on GitHub' \
+            % (remote_name, dirname)
         user = os.path.basename(dirname)
         if ":" in dirname:
             user = user.split(":")[-1]
 
-        # Read repository from origin URL
-        basename = os.path.basename(originurl)
+        # Read repository from remote URL
+        basename = os.path.basename(remoteurl)
         if ".git" in basename:
             repo = basename.rsplit(".git")[0]
         else:
@@ -2048,7 +2052,7 @@ class Merge(FilteredPullRequestsCommand):
                       action, args.base, default_user)
 
 
-class Rebase(GithubCommand):
+class Rebase(GitRepoCommand):
     """Rebase Pull Requests opened against a specific base branch.
 
         The workflow currently is:
@@ -2068,7 +2072,6 @@ class Rebase(GithubCommand):
     def __init__(self, sub_parsers):
         super(Rebase, self).__init__(sub_parsers)
 
-        self.add_remote_arg()
         self.parser.add_argument(
             '--no-fetch', action='store_true',
             help="Do not fetch the origin remote")
@@ -2094,29 +2097,29 @@ class Rebase(GithubCommand):
         super(Rebase, self).__call__(args)
         self.login(args)
 
-        main_repo = self.gh.git_repo(self.cwd)
+        args.shallow = True
+        args.reset = False
+        self.init_main_repo(args)
+        if not args.no_fetch:
+            self.main_repo.fetch(args.remote)
         try:
-            if not args.no_fetch:
-                main_repo.fetch(args.remote)
-            self.rebase(args, main_repo)
+            self.rebase(args)
         finally:
-            main_repo.cleanup()
+            self.main_repo.cleanup()
 
-    def rebase(self, args, main_repo):
+    def rebase(self, args):
 
-        # Local information
-        [origin_name, origin_repo] = main_repo.get_remote_info(args.remote)
         # If we are pushing the branch somewhere, we likely will
         # be deleting the new one, and so should remember what
         # commit we are on now in order to go back to it.
         try:
-            old_branch = main_repo.get_current_head()
+            old_branch = self.main_repo.get_current_head()
         except:
-            old_branch = main_repo.get_current_sha1()
+            old_branch = self.main_repo.get_current_sha1()
 
         # Remote information
         try:
-            pr = PullRequest(main_repo.origin.get_pull(args.PR))
+            pr = PullRequest(self.main_repo.origin.get_pull(args.PR))
             self.log.info("PR %g: %s opened by %s against %s",
                           args.PR, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
@@ -2127,46 +2130,58 @@ class Rebase(GithubCommand):
         self.log.info("Merged: %s", pr.is_merged())
 
         # Fail-fast if bad object
-        if not main_repo.has_local_object(pr_head):
+        if not self.main_repo.has_local_object(pr_head):
             raise Stop(17, 'Commit %s does not exists in local Git '
                        'repository. Fetch this remote first: %s'
                        % (pr_head, pr.head.user.login))
 
         # Fail-fast if local branch exist with the target name
         new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
-        if main_repo.has_local_branch(new_branch):
+        if self.main_repo.has_local_branch(new_branch):
             raise Stop(18, 'Branch %s already exists in local Git repository'
                        % new_branch)
 
         remote_newbase = "%s/%s" % (args.remote, args.newbase)
         if not args._continue:
-            branching_sha1 = main_repo.find_branching_point(
+            branching_sha1 = self.main_repo.find_branching_point(
                 pr_head, "%s/%s" % (args.remote, pr.base.ref))
 
             try:
-                main_repo.rebase(remote_newbase, branching_sha1, pr_head)
+                self.main_repo.rebase(remote_newbase, branching_sha1, pr_head)
             except:
                 raise Stop(20, self.get_conflict_message(args))
 
         # Fail-fast if sha1 is the same as the new base
 
-        if main_repo.get_current_sha1() == main_repo.get_sha1(remote_newbase):
+        if self.main_repo.get_current_sha1() == \
+                self.main_repo.get_sha1(remote_newbase):
             raise Stop(22, "No new commits between the rebased branch and %s"
                        % remote_newbase)
-        main_repo.new_branch(new_branch)
+        self.main_repo.new_branch(new_branch)
         print >> sys.stderr, "# Created local branch %s" % new_branch
 
         if args.push or args.pr:
             try:
                 user = self.gh.get_login()
                 # Fail-fast if remote branch exist with the target name
-                if main_repo.has_remote_branch(new_branch, remote=user):
+                if self.main_repo.has_remote_branch(new_branch, remote=user):
                     raise Stop(19, 'Branch %s already exists in %s remote'
                                % (new_branch, args.remote))
 
-                remote = "git@github.com:%s/%s.git" % (user, origin_repo)
-                main_repo.push_branch(new_branch, remote=remote)
-                print >> sys.stderr, "# Pushed %s to %s" % (new_branch, remote)
+                remote = "git@github.com:%s/%s.git" % (
+                    user, self.main_repo.origin.name)
+                push_msg = ""
+                if user in self.main_repo.list_remotes():
+                    try:
+                        self.main_repo.push_branch(new_branch, remote=user)
+                        push_msg = "# Pushed %s to %s" % (new_branch, user)
+                    except:
+                        self.log.info('Could not push to remote %s' % user)
+
+                if not push_msg:
+                    self.main_repo.push_branch(new_branch, remote=remote)
+                    push_msg = "# Pushed %s to %s" % (new_branch, remote)
+                print >> sys.stderr, push_msg
 
                 if args.pr:
                     template_args = {
@@ -2184,8 +2199,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
 
                     """ % template_args
 
-                    gh_repo = self.gh.gh_repo(origin_repo, origin_name)
-                    rebased_pr = PullRequest(gh_repo.open_pr(
+                    rebased_pr = PullRequest(self.main_repo.origin.open_pr(
                         title, body,
                         base=args.newbase, head="%s:%s" % (user, new_branch)))
                     print rebased_pr.html_url
@@ -2197,10 +2211,10 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
                                                     pr.number)
 
             finally:
-                main_repo.checkout_branch(old_branch)
+                self.main_repo.checkout_branch(old_branch)
 
             if args.delete:
-                main_repo.delete_local_branch(new_branch, force=True)
+                self.main_repo.delete_local_branch(new_branch, force=True)
 
     def get_conflict_message(self, args):
         msg = 'Rebasing failed\nYou are now in detached HEAD mode\n\n'
