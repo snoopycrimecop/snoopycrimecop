@@ -43,10 +43,7 @@ class TestReadme(object):
 
     def testReadme(self, capsys):
 
-        try:
-            f = open('README.rst', 'r')
+        with open('README.rst', 'r') as f:
             self.viewer.rest_to_html(f.read()).strip()
-        finally:
-            f.close()
         out, err = capsys.readouterr()
         assert err.rstrip() == ''

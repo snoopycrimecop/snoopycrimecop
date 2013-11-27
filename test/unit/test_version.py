@@ -38,11 +38,8 @@ class TestVersion(object):
 
     def read_version_file(self):
         version = None
-        f = open(version_file)
-        try:
+        with open(version_file) as f:
             version = f.readlines()[0]
-        finally:
-            f.close()
         return version.strip()
 
     def testVersionOutput(self, capsys):
@@ -57,9 +54,8 @@ class TestVersion(object):
         assert out.rstrip() == self.read_version_file()
 
     def testVersionOverwrite(self, capsys):
-        f = open(version_file, 'w')
-        f.write('test\n')
-        f.close()
+        with open(version_file, 'w') as f:
+            f.write('test\n')
         assert self.read_version_file() == 'test'
         try:
             main(["version"], items=[("version", Version)])

@@ -92,9 +92,8 @@ class SandboxTest(object):
         Return a local branch with a single commit adding a unique file
         """
 
-        f = self.unique_file()
-        f.write("hi")
-        f.close()
+        with self.unique_file() as f:
+            f.write("hi")
 
         path = f.name
         name = f.name.split(os.path.sep)[-1]

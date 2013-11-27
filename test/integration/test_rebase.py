@@ -177,9 +177,8 @@ class TestConflictingRebase(RebaseTest):
         self.source_branch = self.uuid()
         self.filename = 'README.md'
 
-        f = open(self.filename, "w")
-        f.write("hi")
-        f.close()
+        with open(self.filename, "w") as f:
+            f.write("hi")
 
         self.sandbox.new_branch(self.source_branch, head=self.source_base)
         self.sandbox.add(self.filename)
@@ -199,9 +198,8 @@ class TestConflictingRebase(RebaseTest):
         with pytest.raises(Stop):
             self.rebase()
 
-        f = open(self.filename, "w")
-        f.write("hi")
-        f.close()
+        with open(self.filename, "w") as f:
+            f.write("hi")
 
         self.sandbox.add(self.filename)
         p = Popen(["git", "rebase", "--continue"])

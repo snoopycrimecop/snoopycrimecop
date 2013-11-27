@@ -28,9 +28,8 @@ from Sandbox import SandboxTest
 class TestConfig(SandboxTest):
 
     def writeConfigFile(self, configString):
-        f = open(os.path.join(self.path, '.git', 'config'), 'w')
-        f.write(configString)
-        f.close()
+        with open(os.path.join(self.path, '.git', 'config'), 'w') as f:
+            f.write(configString)
 
     def testEmptyConfig(self):
         assert get_token_or_user(local=True) is None
