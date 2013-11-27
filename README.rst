@@ -47,7 +47,7 @@ Contributing
 
 PyGithub follows `PEP 8`_, the Style Guide for Python Code. Please check your
 code with pep8_ or flake8_, the Python style guide checkers, by running
-``flake8 -v scc/ test/`` or ``pep8 -v scc/ test``.
+``flake8 -v .`` or ``pep8 -v .``.
 
 .. _PEP 8: http://www.python.org/dev/peps/pep-0008/
 
@@ -55,19 +55,17 @@ code with pep8_ or flake8_, the Python style guide checkers, by running
 Running tests
 -------------
 
-The tests are located under the `test` directory. It is required to install
-`mox`_ and `restview`_ as listed in `dev_requirements`.
+The tests are located under the `test` directory. To run all the tests, use
+the `test` target of `setup.py`::
+
+  python setup.py test
 
 Unit tests
 ^^^^^^^^^^
 
 Unit tests are stored under the `test/unit` folder and can be run by calling::
 
-  python test/unit
-
-or using nose_::
-
-  nosetests -v test/unit
+  python setup.py test -s test/unit
 
 Unit tests are also run by the Travis_ build on every Pull Request opened
 against the main repository.
@@ -92,11 +90,7 @@ Running the integration test suite requires:
 
 Once this is set up, the integration tests can be run by calling::
 
-  python test/integration
-
-or using nose_::
-
-  nosetests -v test/integration
+  python setupy.py -s test/integration
 
 Integration tests are run daily on the OME Continuous Integration
 infrastructure under the SCC-self-merge_ job using the token-authenticated
@@ -115,11 +109,8 @@ Copyright
 .. _SCC-self-merge: http://hudson.openmicroscopy.org.uk/view/Mgmt/job/SCC-self-merge/
 .. _PyGithub: https://github.com/jacquev6/PyGithub
 .. _argparse: http://pypi.python.org/pypi/argparse
-.. _nose: https://nose.readthedocs.org/en/latest/
 .. _pep8: https://pypi.python.org/pypi/pep8
 .. _flake8: https://pypi.python.org/pypi/flake8
-.. _mox: https://pypi.python.org/pypi/mox
-.. _restview: https://pypi.python.org/pypi/restview
 .. _snoopys-sandbox: https://github.com/openmicroscopy/snoopys-sandbox
 .. _snoopys-sandbox2: https://github.com/openmicroscopy/snoopys-sandbox2
 .. _Travis: http://travis-ci.org/openmicroscopy/snoopycrimecop
