@@ -21,7 +21,6 @@
 
 import os
 import shutil
-import unittest
 import pytest
 
 from scc.framework import main, Stop
@@ -138,6 +137,3 @@ class TestDeploy(TestDeployCommand):
         self.deploy(self.folder)
         assert os.path.lexists(targetlink) is False
         assert os.path.exists(targetlink) is False
-
-if __name__ == '__main__':
-    unittest.main()

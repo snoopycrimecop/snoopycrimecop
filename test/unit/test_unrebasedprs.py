@@ -19,14 +19,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
-
 from scc.git import UnrebasedPRs
 
 
-class UnitTestCheck(unittest.TestCase):
+class TestCheck(object):
 
-    def setUp(self):
+    def setup_method(self, method):
         self.d1 = {}
         self.d2 = {}
         self.m1 = {}
@@ -104,9 +102,3 @@ class UnitTestCheck(unittest.TestCase):
         self.d1 = {1: ['-to #2.']}
         self.d2 = {2: ['-from #1.']}
         self.runCheck()
-
-
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig()
-    unittest.main()

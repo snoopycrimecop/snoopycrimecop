@@ -50,46 +50,16 @@ class TestFilter(MockTest):
         status, reason = self.run_filter()
         assert status is True
 
-    def testLabelFilter(self):
-        self.filters = {"label": ["test_label"], "user": [None], "pr": []}
+    @pytest.mark.parametrize(
+        'labels', [[], ["test_label"], ["test_label", "test_label_2"]])
+    @pytest.mark.parametrize(
+        'users', [[], ["test_user"], ["test_user", "test_user_2"]])
+    @pytest.mark.parametrize('prs', [[], ["1"], ["1", "2"]])
+    def testStatus(self, labels, users, prs):
+        self.filters = {"label": labels, "user": users, "pr": prs}
         status, reason = self.run_filter()
-        assert status is True
-        assert reason == "label: test_label"
-
-    def testLabelsFilter(self):
-        self.filters = {
-            "label": ["test_label", "test_label_2"],
-            "user": [None],
-            "pr": ["0"]
-            }
-        status, reason = self.run_filter()
-        assert status is True
-        assert reason == "label: test_label"
-
-    def testUserFilter(self):
-        self.filters = {"label": [], "user": ["test_user"], "pr": []}
-        status, reason = self.run_filter()
-        assert status is True
-        assert reason == "user: test_user"
-
-    def testUsersFilter(self):
-        self.filters = {"label": [], "user": ["test_user", "test_user_2"],
-                        "pr": []}
-        status, reason = self.run_filter()
-        assert status is True
-        assert reason == "user: test_user"
-
-    def testPRFilter(self):
-        self.filters = {"label": [], "user": [None], "pr": ["1"]}
-        status, reason = self.run_filter()
-        assert status is True
-        assert reason == "pr: 1"
-
-    def testPRsFilter(self):
-        self.filters = {"label": [], "user": [None], "pr": ["1", "2"]}
-        status, reason = self.run_filter()
-        assert status is True
-        assert reason == "pr: 1"
+        assert status is ("test_label" in labels) or ("test_user" in users) \
+            or ("1" in prs)
 
 
 class FilteredPullRequestsCommandTest(MoxTestBase):

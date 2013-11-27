@@ -328,9 +328,3 @@ class TestPullRequest(MoxTestBase):
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.parse(pattern) == [match]
-
-if __name__ == '__main__':
-    import logging
-    import unittest
-    logging.basicConfig()
-    unittest.main()

@@ -144,9 +144,3 @@ class TestGithubRepository(MoxTestBase):
             self.gh, self.user.login, self.repo.name)
         assert self.gh_repo.create_pull(title, description, base, head) == \
             pullrequest
-
-if __name__ == '__main__':
-    import logging
-    import unittest
-    logging.basicConfig()
-    unittest.main()
