@@ -20,7 +20,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import unittest
 
 from scc.git import get_token_or_user
 from Sandbox import SandboxTest
@@ -34,22 +33,19 @@ class TestConfig(SandboxTest):
         f.close()
 
     def testEmptyConfig(self):
-        self.assertEquals(None, get_token_or_user(local=True))
+        assert get_token_or_user(local=True) is None
 
     def testUserConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    user = %s" % uuid)
-        self.assertEquals(uuid, get_token_or_user(local=True))
+        assert get_token_or_user(local=True) == uuid
 
     def testTokenConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    token = %s" % uuid)
-        self.assertEquals(uuid, get_token_or_user(local=True))
+        assert get_token_or_user(local=True) == uuid
 
     def testUserAndTokenConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    user = 2\n    token = %s" % uuid)
-        self.assertEquals(uuid, get_token_or_user(local=True))
-
-if __name__ == '__main__':
-    unittest.main()
+        assert get_token_or_user(local=True) == uuid

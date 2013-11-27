@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
+import pytest
 
 from scc.framework import main, Stop
 from scc.git import CheckMilestone
@@ -33,14 +33,12 @@ class TestCheckMilestone(SandboxTest):
         main(args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
 
     def testNonExistingTag(self):
-        self.assertRaises(Stop, self.check_milestone, "v.0.0.0", "HEAD")
+        with pytest.raises(Stop):
+            self.check_milestone("v.0.0.0", "HEAD")
 
     def testNonExistingMilestone(self):
-        self.assertRaises(Stop, self.check_milestone, "v.1.0.0", "HEAD",
-                          "--set", "0.0.0")
+        with pytest.raises(Stop):
+            self.check_milestone("v.1.0.0", "HEAD", "--set", "0.0.0")
 
     def testCheckMilestone(self):
         self.check_milestone("v.1.0.0", "v.1.1.1-TEST")
-
-if __name__ == '__main__':
-    unittest.main()

@@ -22,7 +22,6 @@
 import os
 import uuid
 import shutil
-import unittest
 import tempfile
 
 from scc.git import get_github, get_token_or_user
@@ -31,10 +30,10 @@ from subprocess import Popen, PIPE
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
 
-class SandboxTest(unittest.TestCase):
+class SandboxTest(object):
 
-    def setUp(self):
-        unittest.TestCase.setUp(self)
+    def setup_method(self, method):
+        self.method = method.__name__
         self.cwd = os.getcwd()
         self.token = get_token_or_user(local=False)
         self.gh = get_github(self.token, dont_ask=True)
@@ -44,7 +43,7 @@ class SandboxTest(unittest.TestCase):
         try:
             p = Popen(["git", "clone", sandbox_url, self.path],
                       stdout=PIPE, stderr=PIPE)
-            self.assertEquals(0, p.wait())
+            assert p.wait() == 0
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
         except:
@@ -68,7 +67,7 @@ class SandboxTest(unittest.TestCase):
         try:
             p = Popen(["git", "submodule", "update", "--init"],
                       stdout=PIPE, stderr=PIPE)
-            self.assertEquals(0, p.wait())
+            assert p.wait() == 0
         except:
             os.chdir(self.path)
             raise
@@ -132,13 +131,13 @@ class SandboxTest(unittest.TestCase):
         new_pr = self.sandbox.origin.open_pr(
             title="test %s" % branch,
             description="This is a call to Sandbox.open_pr by %s"
-            % self.id()[9:],
+            % self.method,
             base=base,
             head="%s:%s" % (self.user, branch))
 
         return new_pr
 
-    def tearDown(self):
+    def teardown_method(self, method):
         try:
             self.sandbox.cleanup()
         finally:
@@ -147,4 +146,3 @@ class SandboxTest(unittest.TestCase):
             finally:
                 # Return to cwd regardless.
                 os.chdir(self.cwd)
-        unittest.TestCase.tearDown(self)

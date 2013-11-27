@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
+import pytest
 import subprocess
 
 from scc.framework import Stop, main
@@ -29,9 +29,9 @@ from Sandbox import SandboxTest
 
 class TestTagRelease(SandboxTest):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(TestTagRelease, self).setUp()
+        super(TestTagRelease, self).setup_method(method)
         self.new_version = '5.0.0-beta1'
 
     def has_new_prefixed_tag(self, repo):
@@ -46,35 +46,37 @@ class TestTagRelease(SandboxTest):
         """Test tagging on repository without submodules"""
 
         self.tag_release(self.new_version)
-        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
+        assert self.has_new_prefixed_tag(self.sandbox) is True
 
     def testRecursiveTag(self):
         """Test recursive tagging on repository with submodules"""
 
         self.init_submodules()
         self.tag_release(self.new_version)
-        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
+        assert self.has_new_prefixed_tag(self.sandbox) is True
         for submodule in self.sandbox.submodules:
-            self.assertTrue(self.has_new_prefixed_tag(submodule))
+            assert self.has_new_prefixed_tag(submodule) is True
 
     def testShallowTag(self):
         """Test shallow tagging on repository with submodules"""
 
         self.init_submodules()
         self.tag_release("--shallow", self.new_version)
-        self.assertTrue(self.has_new_prefixed_tag(self.sandbox))
+        assert self.has_new_prefixed_tag(self.sandbox) is True
         for submodule in self.sandbox.submodules:
-            self.assertFalse(self.has_new_prefixed_tag(submodule))
+            assert self.has_new_prefixed_tag(submodule) is False
 
     def testInvalidVersionNumber(self):
         """Test invalid version number"""
 
-        self.assertRaises(Stop, self.tag_release, 'v5.0.0-beta1')
+        with pytest.raises(Stop):
+            self.tag_release('v5.0.0-beta1')
 
     def testInvalidVersionPreReleaseNumber(self):
         """Test invalid version pre-release number"""
 
-        self.assertRaises(Stop, self.tag_release, '0.0.0beta1')
+        with pytest.raises(Stop):
+            self.tag_release('0.0.0beta1')
 
     def testExitingTag(self):
         """Test existing tag"""
@@ -83,16 +85,15 @@ class TestTagRelease(SandboxTest):
         subprocess.Popen(
             ["git", "tag", 'v.' + self.new_version],
             stdout=subprocess.PIPE).communicate()
-        self.assertTrue(self.sandbox.has_local_tag('v.' + self.new_version))
+        assert self.sandbox.has_local_tag('v.' + self.new_version) is True
 
         # Test Stop is thrown by tag-release command
-        self.assertRaises(Stop, self.tag_release, self.new_version)
+        with pytest.raises(Stop):
+            self.tag_release(self.new_version)
 
     def testInvalidTag(self):
         """Test invalid tag reference name"""
 
         # Test Stop is thrown by tag-release command
-        self.assertRaises(Stop, self.tag_release, self.new_version + "..")
-
-if __name__ == '__main__':
-    unittest.main()
+        with pytest.raises(Stop):
+            self.tag_release(self.new_version + "..")

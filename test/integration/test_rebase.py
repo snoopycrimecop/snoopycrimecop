@@ -19,8 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
-
+import pytest
 from scc.framework import main, Stop
 from scc.git import Rebase
 from Sandbox import SandboxTest
@@ -29,9 +28,9 @@ from subprocess import Popen
 
 class RebaseTest(SandboxTest):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(RebaseTest, self).setUp()
+        super(RebaseTest, self).setup_method(method)
         self.source_base = "dev_4_4"
         self.target_base = "develop"
         self.source_branch = None
@@ -59,7 +58,7 @@ class RebaseTest(SandboxTest):
         return prs[0].head.user.login == self.user and \
             prs[0].head.ref == self.target_branch
 
-    def tearDown(self):
+    def teardown_method(self, method):
 
         if self.source_branch or self.target_branch:
             self.sandbox.fetch(self.user)
@@ -73,7 +72,7 @@ class RebaseTest(SandboxTest):
             self.sandbox.push_branch(":%s" % self.target_branch,
                                      remote=self.user)
 
-        super(RebaseTest, self).tearDown()
+        super(RebaseTest, self).teardown_method(method)
 
 
 class MockPR(object):
@@ -87,24 +86,27 @@ class TestRebaseStop(RebaseTest):
     def testUnfoundPR(self):
 
         self.pr = MockPR(0)
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
     def testNoCommonCommits(self):
 
         self.pr = MockPR(79)
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
     def testBadObject(self):
 
         self.pr = MockPR(112)
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
 
 class TestRebaseNewBranch(RebaseTest):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(TestRebaseNewBranch, self).setUp()
+        super(TestRebaseNewBranch, self).setup_method(method)
 
         # Open first PR against dev_4_4 branch
         self.source_branch = self.fake_branch(head=self.source_base)
@@ -123,19 +125,21 @@ class TestRebaseNewBranch(RebaseTest):
 
         # Rebase the PR locally
         self.sandbox.new_branch(self.target_branch)
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
     def testPushExistingRemoteBranch(self):
 
         self.sandbox.push_branch("HEAD:refs/heads/%s" % (self.target_branch),
                                  remote=self.user)
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
     def testPushLocalRebase(self):
 
         # Rebase the PR locally
         self.rebase("--no-push", "--no-pr")
-        self.assertFalse(self.has_remote_target_branch())
+        assert self.has_remote_target_branch() is False
 
     def testPushNoFetch(self):
 
@@ -145,28 +149,29 @@ class TestRebaseNewBranch(RebaseTest):
     def testPushRebaseNoPr(self):
 
         self.rebase("--no-pr")
-        self.assertTrue(self.has_remote_target_branch())
-        self.assertFalse(self.has_rebased_pr())
+        assert self.has_remote_target_branch() is True
+        assert self.has_rebased_pr() is False
 
     def testDefault(self):
 
         # Rebase the PR and push to Github
         self.rebase()
-        self.assertTrue(self.has_rebased_pr())
+        assert self.has_rebased_pr() is True
 
     def testRemote(self):
 
         self.rename_origin_remote("gh")
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
         self.rebase("--remote", "gh")
-        self.assertTrue(self.has_rebased_pr())
+        assert self.has_rebased_pr() is True
 
 
 class TestConflictingRebase(RebaseTest):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(TestConflictingRebase, self).setUp()
+        super(TestConflictingRebase, self).setup_method(method)
 
         # Open first PR against dev_4_4 branch
         self.source_branch = self.uuid()
@@ -191,7 +196,8 @@ class TestConflictingRebase(RebaseTest):
     def testPushRebaseContinue(self):
 
         # Rebase the PR locally
-        self.assertRaises(Stop, self.rebase)
+        with pytest.raises(Stop):
+            self.rebase()
 
         f = open(self.filename, "w")
         f.write("hi")
@@ -199,10 +205,7 @@ class TestConflictingRebase(RebaseTest):
 
         self.sandbox.add(self.filename)
         p = Popen(["git", "rebase", "--continue"])
-        self.assertEquals(0, p.wait())
+        assert p.wait() == 0
 
         self.rebase("--continue")
-        self.assertTrue(self.has_rebased_pr())
-
-if __name__ == '__main__':
-    unittest.main()
+        assert self.has_rebased_pr() is True
