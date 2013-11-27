@@ -25,14 +25,23 @@ from github.Repository import Repository
 from scc.git import GHManager
 from scc.git import GitHubRepository
 
-from mox import MoxTestBase
+from mox import Mox
+
+
+class MoxTestBase(object):
+
+    def setup_method(self, method):
+        self.mox = Mox()
+
+    def teardown_method(self, method):
+        self.mox.VerifyAll()
 
 
 class MockTest(MoxTestBase):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(MockTest, self).setUp()
+        super(MockTest, self).setup_method(method)
         # Mocks
         self.gh = self.mox.CreateMock(GHManager)
         self.user = self.mox.CreateMock(AuthenticatedUser)

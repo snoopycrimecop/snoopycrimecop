@@ -33,10 +33,8 @@ class UnitTestCheck(unittest.TestCase):
         self.m2 = {}
 
     def runCheck(self):
-        self.assertEqual(UnrebasedPRs.check_directed_links(self.d1, self.d2),
-                         self.m2)
-        self.assertEqual(UnrebasedPRs.check_directed_links(self.d2, self.d1),
-                         self.m1)
+        assert UnrebasedPRs.check_directed_links(self.d1, self.d2) == self.m2
+        assert UnrebasedPRs.check_directed_links(self.d2, self.d1) == self.m1
 
     def testEmptyDictionaries(self):
         self.runCheck()

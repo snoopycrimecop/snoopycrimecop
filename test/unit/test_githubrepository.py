@@ -29,15 +29,14 @@ from github.PaginatedList import PaginatedList
 
 from scc.git import GHManager
 from scc.git import GitHubRepository
-
-from mox import MoxTestBase
+import pytest
+from Mock import MoxTestBase
 
 
 class TestGithubRepository(MoxTestBase):
 
-    def setUp(self):
-
-        super(TestGithubRepository, self).setUp()
+    def setup_method(self, method):
+        super(TestGithubRepository, self).setup_method(method)
         # Mocks
         self.gh = self.mox.CreateMock(GHManager)
         self.user = self.mox.CreateMock(AuthenticatedUser)
@@ -67,34 +66,29 @@ class TestGithubRepository(MoxTestBase):
         for x in self.pulls:
             yield x
 
-    def test_init_without_org(self):
+    @pytest.mark.parametrize('with_org', [True, False])
+    def test_init(self, with_org):
+        if with_org:
+            self.repo.organization = self.org
+            self.gh.get_organization(self.org.login).AndReturn(self.org)
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEqual(self.gh_repo.gh, self.gh)
-        self.assertEqual(self.gh_repo.repo, self.repo)
-        self.assertEqual(self.gh_repo.org, None)
-        self.assertEqual(self.gh_repo.user_name, self.user.login)
-        self.assertEqual(self.gh_repo.repo_name, self.repo.name)
-
-    def test_init_with_org(self):
-        self.repo.organization = self.org
-        self.gh.get_organization(self.org.login).AndReturn(self.org)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
-        self.assertEqual(self.gh_repo.gh, self.gh)
-        self.assertEqual(self.gh_repo.repo, self.repo)
-        self.assertEqual(self.gh_repo.org, self.org)
-        self.assertEqual(self.gh_repo.user_name, self.user.login)
-        self.assertEqual(self.gh_repo.repo_name, self.repo.name)
+        assert self.gh_repo.gh == self.gh
+        assert self.gh_repo.repo == self.repo
+        assert self.gh_repo.user_name == self.user.login
+        assert self.gh_repo.repo_name == self.repo.name
+        if with_org:
+            assert self.gh_repo.org is self.org
+        else:
+            assert self.gh_repo.org is None
 
     def test_repr(self):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
         repo_str = "Repository: %s/%s" % (self.user.login, self.repo.name)
-        self.assertEquals(str(self.gh_repo), repo_str)
+        assert str(self.gh_repo) == repo_str
 
     def test_get_issue(self):
         issue = self.mox.CreateMock(Issue)
@@ -102,7 +96,7 @@ class TestGithubRepository(MoxTestBase):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEquals(self.gh_repo.get_issue(1), issue)
+        assert self.gh_repo.get_issue(1) == issue
 
     def test_get_pull(self):
         pullrequest = self.mox.CreateMock(PullRequest)
@@ -110,7 +104,7 @@ class TestGithubRepository(MoxTestBase):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEquals(self.gh_repo.get_pull(1), pullrequest)
+        assert self.gh_repo.get_pull(1) == pullrequest
 
     def test_get_pulls(self):
         pulls = self.mox.CreateMock(PaginatedList)
@@ -118,7 +112,7 @@ class TestGithubRepository(MoxTestBase):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEquals(self.gh_repo.get_pulls(), pulls)
+        assert self.gh_repo.get_pulls() == pulls
 
     def test_get_pulls_by_base(self):
         self.create_pulls(["master", "master", "develop"])
@@ -128,14 +122,14 @@ class TestGithubRepository(MoxTestBase):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEquals(self.gh_repo.get_pulls_by_base("master"),
-                          self.pulls[:-1])
+        assert self.gh_repo.get_pulls_by_base("master") == \
+            self.pulls[:-1]
 
     def test_get_owner(self):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEquals(self.gh_repo.get_owner(), self.user.login)
+        assert self.gh_repo.get_owner() == self.user.login
 
     def test_create_open_pr(self):
         pullrequest = self.mox.CreateMock(PullRequest)
@@ -148,9 +142,8 @@ class TestGithubRepository(MoxTestBase):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
-        self.assertEqual(
-            self.gh_repo.create_pull(title, description, base, head),
-            pullrequest)
+        assert self.gh_repo.create_pull(title, description, base, head) == \
+            pullrequest
 
 if __name__ == '__main__':
     import logging

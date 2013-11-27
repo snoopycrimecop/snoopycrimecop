@@ -19,47 +19,34 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import sys
-import unittest
 from restview.restviewhttp import RestViewer
-from StringIO import StringIO
 
 
-class TestReadme(unittest.TestCase):
+class TestReadme(object):
 
-    def setUp(self):
-        super(TestReadme, self).setUp()
-        self.stderr = StringIO()
-        self.saved_stderr = sys.stderr
-        sys.stderr = self.stderr
-
+    def setup_method(self, method):
         self.viewer = RestViewer('.')
         self.viewer.css_path = self.viewer.css_url = None
         self.viewer.strict = True
 
-    def tearDown(self):
-        self.stderr.close()
-        sys.stderr = self.saved_stderr
-        super(TestReadme, self).tearDown()
-
-    def testValidRst(self):
+    def testValidRst(self, capsys):
 
         self.viewer.rest_to_html(''' Some text ''').strip()
-        self.assertEqual(self.stderr.getvalue().rstrip(), '')
+        out, err = capsys.readouterr()
+        assert err.rstrip() == ''
 
-    def testBrokenRst(self):
+    def testBrokenRst(self, capsys):
 
         self.viewer.rest_to_html(''' Some text with an `error ''').strip()
-        self.assertNotEqual(self.stderr.getvalue().rstrip(), '')
+        out, err = capsys.readouterr()
+        assert err != ''
 
-    def testReadme(self):
+    def testReadme(self, capsys):
 
         try:
             f = open('README.rst', 'r')
             self.viewer.rest_to_html(f.read()).strip()
         finally:
             f.close()
-        self.assertEqual(self.stderr.getvalue().rstrip(), '')
-
-if __name__ == '__main__':
-    unittest.main()
+        out, err = capsys.readouterr()
+        assert err.rstrip() == ''

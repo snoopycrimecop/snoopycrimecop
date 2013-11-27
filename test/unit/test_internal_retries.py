@@ -30,8 +30,8 @@ from scc.git import GHManager, GitHubRepository
 
 import socket
 from ssl import SSLError
-
-from mox import MoxTestBase
+import pytest
+from Mock import MoxTestBase
 
 
 class InternalRetriesHelper(object):
@@ -45,103 +45,53 @@ class InternalRetriesHelper(object):
     def get_output(self):
         pass
 
-    def passes(self):
-        self.assertEqual(self.run_function(), self.get_output())
-
-    def fails_with(self, error):
-        self.assertRaises(error, self.run_function)
-
     def testNoError(self):
         self.mock_calls()
         self.mox.ReplayAll()
-        self.passes()
+        assert self.run_function() == self.get_output()
 
     def testNoRetryError(self):
         self.generate_errors(self.no_retry_exception, 1)
         self.mox.ReplayAll()
-        self.fails_with(GithubException)
+        with pytest.raises(GithubException):
+            self.run_function()
 
-    def testOneServerError(self):
-        self.generate_errors(self.server_error, 1)
-        self.mock_calls()
+    @pytest.mark.parametrize('error_type', ['server', 'socket', 'SSL'])
+    @pytest.mark.parametrize('nerrors', [1, 2, 3, 4])
+    def testRetries(self, error_type, nerrors):
+        if error_type == 'server':
+            self.generate_errors(self.server_error, nerrors)
+        elif error_type == 'socket':
+            self.generate_errors(self.socket_timeout, nerrors)
+        elif error_type == 'SSL':
+            self.generate_errors(self.ssl_error, nerrors)
+        if nerrors < 4:
+            self.mock_calls()
         self.mox.ReplayAll()
-        self.passes()
-
-    def testTwoServerErrors(self):
-        self.generate_errors(self.server_error, 2)
-        self.mock_calls()
-        self.mox.ReplayAll()
-
-        self.passes()
-
-    def testThreeServerErrors(self):
-        self.generate_errors(self.server_error, 3)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testFourServerErrors(self):
-        self.generate_errors(self.server_error, 4)
-        self.mox.ReplayAll()
-        self.fails_with(GithubException)
-
-    def testOneSocketTimeout(self):
-        self.generate_errors(self.socket_timeout, 1)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testTwoSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 2)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testThreeSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 3)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testFourSocketTimeouts(self):
-        self.generate_errors(self.socket_timeout, 4)
-        self.mox.ReplayAll()
-        self.fails_with(socket.timeout)
-
-    def testOneSSLError(self):
-        self.generate_errors(self.ssl_error, 1)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testTwoSSLErrors(self):
-        self.generate_errors(self.ssl_error, 2)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testThreeSSLErrors(self):
-        self.generate_errors(self.ssl_error, 3)
-        self.mock_calls()
-        self.mox.ReplayAll()
-        self.passes()
-
-    def testFourSSLErrors(self):
-        self.generate_errors(self.ssl_error, 4)
-        self.mox.ReplayAll()
-        self.fails_with(SSLError)
+        if nerrors < 4:
+            assert self.run_function() == self.get_output()
+        else:
+            if error_type == 'server':
+                with pytest.raises(GithubException):
+                    self.run_function()
+            elif error_type == 'socket':
+                with pytest.raises(socket.timeout):
+                    self.run_function()
+            elif error_type == 'SSL':
+                with pytest.raises(SSLError):
+                    self.run_function()
 
 
 class TestInternalRetries(MoxTestBase):
 
-    def setUp(self):
+    def setup_method(self, method):
 
         class MockGHManager(GHManager):
 
             def create_instance(self):
                 pass
 
-        super(TestInternalRetries, self).setUp()
+        super(TestInternalRetries, self).setup_method(method)
         # Define mock objects
         self.gh = self.mox.CreateMock(Github)
         self.user = self.mox.CreateMock(AuthenticatedUser)
@@ -233,8 +183,8 @@ class TestGitHubRepositoryInit(TestInternalRetries, InternalRetriesHelper):
 class TestGitHubRepositoryGetIssue(TestInternalRetries,
                                    InternalRetriesHelper):
 
-    def setUp(self):
-        TestInternalRetries.setUp(self)
+    def setup_method(self, method):
+        super(TestGitHubRepositoryGetIssue, self).setup_method(method)
         self.gh.get_repo("mock/mock").AndReturn(self.repo)
 
     def generate_errors(self, error, nerrors):
@@ -255,8 +205,8 @@ class TestGitHubRepositoryGetIssue(TestInternalRetries,
 class TestGitHubRepositoryGetPulls(TestInternalRetries,
                                    InternalRetriesHelper):
 
-    def setUp(self):
-        TestInternalRetries.setUp(self)
+    def setup_method(self, method):
+        super(TestGitHubRepositoryGetPulls, self).setup_method(method)
         self.gh.get_repo("mock/mock").AndReturn(self.repo)
 
     def generate_errors(self, error, nerrors):
@@ -277,8 +227,8 @@ class TestGitHubRepositoryGetPulls(TestInternalRetries,
 class TestGitHubRepositoryGetPull(TestInternalRetries,
                                   InternalRetriesHelper):
 
-    def setUp(self):
-        TestInternalRetries.setUp(self)
+    def setup_method(self, method):
+        super(TestGitHubRepositoryGetPull, self).setup_method(method)
         self.gh.get_repo("mock/mock").AndReturn(self.repo)
 
     def generate_errors(self, error, nerrors):

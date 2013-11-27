@@ -19,17 +19,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
+import pytest
 
 from scc.framework import parsers
 from scc.git import Merge, SetCommitStatus, TravisMerge
-from Mock import MockTest
+from Mock import MoxTestBase, MockTest
 
 
-class UnitTestFilter(MockTest):
+class TestFilter(MockTest):
 
-    def setUp(self):
-        MockTest.setUp(self)
+    def setup_method(self, method):
+        super(TestFilter, self).setup_method(method)
         self.input = {
             "label": ["test_label"],
             "user": ["test_user"],
@@ -43,18 +43,18 @@ class UnitTestFilter(MockTest):
         return status, reason
 
     def testIntersect(self):
-        self.assertEquals([3], self.gh_repo.intersect([1, 2, 3], [3, 4, 5]))
+        assert self.gh_repo.intersect([1, 2, 3], [3, 4, 5]) == [3]
 
     def testSelfFilter(self):
         self.filters = self.input
         status, reason = self.run_filter()
-        self.assertTrue(status)
+        assert status is True
 
     def testLabelFilter(self):
         self.filters = {"label": ["test_label"], "user": [None], "pr": []}
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "label: test_label")
+        assert status is True
+        assert reason == "label: test_label"
 
     def testLabelsFilter(self):
         self.filters = {
@@ -63,38 +63,39 @@ class UnitTestFilter(MockTest):
             "pr": ["0"]
             }
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "label: test_label")
+        assert status is True
+        assert reason == "label: test_label"
 
     def testUserFilter(self):
         self.filters = {"label": [], "user": ["test_user"], "pr": []}
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "user: test_user")
+        assert status is True
+        assert reason == "user: test_user"
 
     def testUsersFilter(self):
         self.filters = {"label": [], "user": ["test_user", "test_user_2"],
                         "pr": []}
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "user: test_user")
+        assert status is True
+        assert reason == "user: test_user"
 
     def testPRFilter(self):
         self.filters = {"label": [], "user": [None], "pr": ["1"]}
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "pr: 1")
+        assert status is True
+        assert reason == "pr: 1"
 
     def testPRsFilter(self):
         self.filters = {"label": [], "user": [None], "pr": ["1", "2"]}
         status, reason = self.run_filter()
-        self.assertTrue(status)
-        self.assertEqual(reason, "pr: 1")
+        assert status is True
+        assert reason == "pr: 1"
 
 
-class UnitTestFilteredPullRequestsCommand(object):
+class FilteredPullRequestsCommandTest(MoxTestBase):
 
-    def setUp(self):
+    def setup_method(self, method):
+        super(FilteredPullRequestsCommandTest, self).setup_method(method)
         self.scc_parser, self.sub_parser = parsers()
         self.base = 'master'
         self.filters = self.get_default_filters()
@@ -112,154 +113,86 @@ class UnitTestFilteredPullRequestsCommand(object):
     # Default arguments
     def testDefaults(self):
         self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testBase(self):
         self.base = 'develop'
         self.filters = self.get_default_filters()  # Regenerate default
         self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     # Default PR sets
-    def testNone(self):
-        self.parse_filters(['-Dnone'])
-        self.filters["default"] = 'none'
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testOrg(self):
-        self.parse_filters(['-Dorg'])
-        self.filters["default"] = 'org'
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testAll(self):
-        self.parse_filters(['-Dall'])
-        self.filters["default"] = 'all'
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('default', ['none', 'org', 'all'])
+    def testDefault(self, default):
+        self.parse_filters(['-D%s' % default])
+        self.filters["default"] = default
+        assert self.command.filters == self.filters
 
     # PR inclusion
-    def testIncludeLabelNoKey(self):
-        self.parse_filters(["-Itest"])
-        self.filters["include"]["label"] = ["test"]
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('prefix', ['', 'label:'])
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def testLabelFilter(self, filter_type, prefix):
+        self.parse_filters(['--%s' % filter_type, '%stest' % prefix])
+        self.filters[filter_type]["label"] = ['test']
+        assert self.command.filters == self.filters
 
-    def testIncludeLabelKey(self):
-        self.parse_filters(["-Ilabel:test"])
-        self.filters["include"]["label"] = ["test"]
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('prefix', ['#', 'pr:'])
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def testPRFilter(self, filter_type, prefix):
+        self.parse_filters(['--%s' % filter_type, '%s1' % prefix])
+        self.filters[filter_type]["label"] = None
+        self.filters[filter_type]["pr"] = ['1']
+        assert self.command.filters == self.filters
 
-    def testIncludeMixedLabels(self):
-        self.parse_filters(["-Itest", "-Ilabel:test2"])
-        self.filters["include"]["label"] = ['test', 'test2']
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def testSubmodulePRFilter(self, filter_type):
+        self.parse_filters(['--%s' % filter_type, 'org/repo#1'])
+        self.filters[filter_type]["label"] = None
+        self.filters[filter_type]["pr"] = ['org/repo1']
+        assert self.command.filters == self.filters
 
-    def testIncludePRHash(self):
-        self.parse_filters(["-I#65"])
-        self.filters["include"]["label"] = None
-        self.filters["include"]["pr"] = ["65"]
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def testUserFilter(self, filter_type):
+        self.parse_filters(['--%s' % filter_type, 'user:user'])
+        self.filters[filter_type]["label"] = None
+        self.filters[filter_type]["user"] = ["user"]
+        assert self.command.filters == self.filters
 
-    def testIncludePRSubmodule(self):
-        self.parse_filters(["-Iome/scripts#65"])
-        self.filters["include"]["label"] = None
-        self.filters["include"]["pr"] = ["ome/scripts65"]
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def testMixedFilters(self, filter_type):
+        self.parse_filters(
+            ['--%s' % filter_type, 'test',
+             '--%s' % filter_type, 'label:test2',
+             '--%s' % filter_type, '#1',
+             '--%s' % filter_type, 'pr:2',
+             '--%s' % filter_type, 'org/repo#1',
+             '--%s' % filter_type, 'user:user'])
+        self.filters[filter_type]["label"] = ['test', 'test2']
+        self.filters[filter_type]["pr"] = ["1", '2', 'org/repo1']
+        self.filters[filter_type]["user"] = ["user"]
+        assert self.command.filters == self.filters
 
-    def testIncludeMixedPRs(self):
-        self.parse_filters(["-I#65", "-Ipr:66", "-Iome/scripts#65"])
-        self.filters["include"]["label"] = None
-        self.filters["include"]["pr"] = ["65", '66', 'ome/scripts65']
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testIncludePR(self):
-        self.parse_filters(["-Ipr:65"])
-        self.filters["include"]["label"] = None
-        self.filters["include"]["pr"] = ["65"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testIncludeUser(self):
-        self.parse_filters(["-Iuser:snoopycrimecop"])
-        self.filters["include"]["label"] = None
-        self.filters["include"]["user"] = ["snoopycrimecop"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    # Label exclusion
-    def testExcludeLabelNoKey(self):
-        self.parse_filters(["-Etest"])
-        self.filters["exclude"]["label"] = ["test"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludeLabelKey(self):
-        self.parse_filters(["-Elabel:test"])
-        self.filters["exclude"]["label"] = ["test"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludeMultipleLabels(self):
-        self.parse_filters(["-Etest", "-Elabel:test2"])
-        self.filters["exclude"]["label"] = ['test', 'test2']
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludePR(self):
-        self.parse_filters(["-Epr:65"])
-        self.filters["exclude"]["label"] = None
-        self.filters["exclude"]["pr"] = ["65"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludePRHash(self):
-        self.parse_filters(["-E#65"])
-        self.filters["exclude"]["label"] = None
-        self.filters["exclude"]["pr"] = ["65"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludePRSubmodule(self):
-        self.parse_filters(["-Eome/scripts#65"])
-        self.filters["exclude"]["label"] = None
-        self.filters["exclude"]["pr"] = ["ome/scripts65"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludeMixedPRs(self):
-        self.parse_filters(["-E#65", "-Epr:66", "-Eome/scripts#65"])
-        self.filters["exclude"]["label"] = None
-        self.filters["exclude"]["pr"] = ["65", '66', 'ome/scripts65']
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testExcludeUser(self):
-        self.parse_filters(["-Euser:snoopycrimecop"])
-        self.filters["exclude"]["label"] = None
-        self.filters["exclude"]["user"] = ["snoopycrimecop"]
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testCheckCommitStatusNone(self):
-        self.parse_filters(["-S", "none"])
-        self.filters["status"] = "none"
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testCheckCommitStatusError(self):
-        self.parse_filters(["-S", "no-error"])
-        self.filters["status"] = "no-error"
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testCheckCommitStatusSuccessOnly(self):
-        self.parse_filters(["-S", "success-only"])
-        self.filters["status"] = "success-only"
-        self.assertEqual(self.command.filters, self.filters)
+    @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
+    def testCheckCommitStatus(self, status):
+        self.parse_filters(["-S", "%s" % status])
+        self.filters["status"] = status
+        assert self.command.filters == self.filters
 
 
-class UnitTestMerge(MockTest, UnitTestFilteredPullRequestsCommand):
+class TestMerge(FilteredPullRequestsCommandTest):
 
-    def setUp(self):
-        MockTest.setUp(self)
-        UnitTestFilteredPullRequestsCommand.setUp(self)
+    def setup_method(self, method):
+        super(TestMerge, self).setup_method(method)
         self.command = Merge(self.sub_parser)
 
     def get_main_cmd(self):
         return [self.command.NAME, self.base]
 
 
-class UnitTestSetCommitStatus(MockTest, UnitTestFilteredPullRequestsCommand):
+class TestSetCommitStatus(FilteredPullRequestsCommandTest):
 
-    def setUp(self):
-        MockTest.setUp(self)
-        UnitTestFilteredPullRequestsCommand.setUp(self)
+    def setup_method(self, method):
+        super(TestSetCommitStatus, self).setup_method(method)
         self.command = SetCommitStatus(self.sub_parser)
         self.status = 'success'
         self.message = 'test'
@@ -269,32 +202,18 @@ class UnitTestSetCommitStatus(MockTest, UnitTestFilteredPullRequestsCommand):
                 self.message]
 
     # Status tests
-    def testSuccess(self):
-        self.status = 'success'
+    @pytest.mark.parametrize(
+        'status', ['success', 'failure', 'error', 'pending'])
+    def testStatus(self, status):
+        self.status = status
         self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testFailure(self):
-        self.status = 'failure'
-        self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testError(self):
-        self.status = 'error'
-        self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
-
-    def testPending(self):
-        self.status = 'pending'
-        self.parse_filters([])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
 
-class UnitTestTravisMerge(MockTest):
+class TestTravisMerge(MoxTestBase):
 
-    def setUp(self):
-        MockTest.setUp(self)
-
+    def setup_method(self, method):
+        super(TestTravisMerge, self).setup_method(method)
         self.scc_parser, self.sub_parser = parsers()
         self.command = TravisMerge(self.sub_parser)
         self.base = 'master'
@@ -312,39 +231,33 @@ class UnitTestTravisMerge(MockTest):
     # Default arguments
     def testDefaults(self):
         self.parse_dependencies([])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testBase(self):
         self.base = 'develop'
         self.filters = self.get_default_filters()  # Regenerate default
         self.parse_dependencies([])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testIncludePRNoHash(self):
         # --depends-on 21 does not change filters
         self.parse_dependencies(['21'])
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testIncludeSinglePR(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21'])
         self.filters["include"]["pr"] = ['21']
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testIncludeSubmodulePR(self):
         # --depends-on ome/scripts#21 changes filters
         self.parse_dependencies(['ome/scripts#21'])
         self.filters["include"]["pr"] = ['ome/scripts21']
-        self.assertEqual(self.command.filters, self.filters)
+        assert self.command.filters == self.filters
 
     def testIncludeMultiplePRs(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
         self.filters["include"]["pr"] = ['21', '22', 'ome/scripts21']
-        self.assertEqual(self.command.filters, self.filters)
-
-
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig()
-    unittest.main()
+        assert self.command.filters == self.filters
