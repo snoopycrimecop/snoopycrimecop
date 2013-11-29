@@ -37,6 +37,7 @@ class TestUpdateSubmodules(SandboxTest):
         self.submodules_branch = "merge/%s/submodules" % self.branch
 
     def teardown_method(self, method):
+        self.sandbox.fetch(self.user)
         if self.sandbox.has_remote_branch(
                 self.submodules_branch, remote=self.user):
             self.sandbox.push_branch(":%s" % self.submodules_branch,
