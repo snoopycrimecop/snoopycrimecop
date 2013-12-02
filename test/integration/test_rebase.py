@@ -139,7 +139,7 @@ class TestRebaseNewBranch(RebaseTest):
 
         # Rebase the PR locally
         self.rebase("--no-push", "--no-pr")
-        assert self.has_remote_target_branch() is False
+        assert not self.has_remote_target_branch()
 
     def testPushNoFetch(self):
 
@@ -149,14 +149,14 @@ class TestRebaseNewBranch(RebaseTest):
     def testPushRebaseNoPr(self):
 
         self.rebase("--no-pr")
-        assert self.has_remote_target_branch() is True
-        assert self.has_rebased_pr() is False
+        assert self.has_remote_target_branch()
+        assert not self.has_rebased_pr()
 
     def testDefault(self):
 
         # Rebase the PR and push to Github
         self.rebase()
-        assert self.has_rebased_pr() is True
+        assert self.has_rebased_pr()
 
     def testRemote(self):
 
@@ -164,7 +164,7 @@ class TestRebaseNewBranch(RebaseTest):
         with pytest.raises(Stop):
             self.rebase()
         self.rebase("--remote", "gh")
-        assert self.has_rebased_pr() is True
+        assert self.has_rebased_pr()
 
 
 class TestConflictingRebase(RebaseTest):
@@ -206,4 +206,4 @@ class TestConflictingRebase(RebaseTest):
         assert p.wait() == 0
 
         self.rebase("--continue")
-        assert self.has_rebased_pr() is True
+        assert self.has_rebased_pr()

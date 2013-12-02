@@ -48,7 +48,7 @@ class TestFilter(MockTest):
     def testSelfFilter(self):
         self.filters = self.input
         status, reason = self.run_filter()
-        assert status is True
+        assert status
 
     @pytest.mark.parametrize(
         'labels', [[], ["test_label"], ["test_label", "test_label_2"]])

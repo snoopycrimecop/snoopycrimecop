@@ -46,25 +46,25 @@ class TestTagRelease(SandboxTest):
         """Test tagging on repository without submodules"""
 
         self.tag_release(self.new_version)
-        assert self.has_new_prefixed_tag(self.sandbox) is True
+        assert self.has_new_prefixed_tag(self.sandbox)
 
     def testRecursiveTag(self):
         """Test recursive tagging on repository with submodules"""
 
         self.init_submodules()
         self.tag_release(self.new_version)
-        assert self.has_new_prefixed_tag(self.sandbox) is True
+        assert self.has_new_prefixed_tag(self.sandbox)
         for submodule in self.sandbox.submodules:
-            assert self.has_new_prefixed_tag(submodule) is True
+            assert self.has_new_prefixed_tag(submodule)
 
     def testShallowTag(self):
         """Test shallow tagging on repository with submodules"""
 
         self.init_submodules()
         self.tag_release("--shallow", self.new_version)
-        assert self.has_new_prefixed_tag(self.sandbox) is True
+        assert self.has_new_prefixed_tag(self.sandbox)
         for submodule in self.sandbox.submodules:
-            assert self.has_new_prefixed_tag(submodule) is False
+            assert not self.has_new_prefixed_tag(submodule)
 
     def testInvalidVersionNumber(self):
         """Test invalid version number"""
@@ -85,7 +85,7 @@ class TestTagRelease(SandboxTest):
         subprocess.Popen(
             ["git", "tag", 'v.' + self.new_version],
             stdout=subprocess.PIPE).communicate()
-        assert self.sandbox.has_local_tag('v.' + self.new_version) is True
+        assert self.sandbox.has_local_tag('v.' + self.new_version)
 
         # Test Stop is thrown by tag-release command
         with pytest.raises(Stop):

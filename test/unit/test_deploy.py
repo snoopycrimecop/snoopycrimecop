@@ -53,8 +53,8 @@ class TestDeployCommand(object):
         brokenlink = os.path.join(folder, "brokensymlink")
         badsource = os.path.join(folder, "nonexistingsource")
         os.symlink(badsource, brokenlink)
-        assert os.path.lexists(brokenlink) is True
-        assert os.path.exists(brokenlink) is False
+        assert os.path.lexists(brokenlink)
+        assert not os.path.exists(brokenlink)
 
         return os.path.join(self.folder, "brokensymlink")
 
@@ -80,16 +80,16 @@ class TestDeployInit(TestDeployCommand):
 
     def testPasses(self):
         self.deploy("--init", self.folder)
-        assert os.path.isdir(self.live_folder) is True
-        assert os.path.islink(self.folder) is True
-        assert os.path.isfile(self.oldtargetfile) is True
-        assert os.path.isdir(self.oldtargetdir) is True
+        assert os.path.isdir(self.live_folder)
+        assert os.path.islink(self.folder)
+        assert os.path.isfile(self.oldtargetfile)
+        assert os.path.isdir(self.oldtargetdir)
 
     def testBrokenSymlink(self):
         targetlink = self.createBrokenSymlink(self.folder)
         self.deploy("--init", self.folder)
-        assert os.path.lexists(targetlink) is False
-        assert os.path.exists(targetlink) is False
+        assert not os.path.lexists(targetlink)
+        assert not os.path.exists(targetlink)
 
 
 class TestDeploy(TestDeployCommand):
@@ -126,14 +126,14 @@ class TestDeploy(TestDeployCommand):
     def testPasses(self):
         self.deploy("--init", self.folder)
         self.deploy(self.folder)
-        assert os.path.exists(self.tmp_folder) is False
-        assert os.path.exists(self.oldtargetfile) is False
-        assert os.path.exists(self.oldtargetdir) is False
-        assert os.path.isfile(self.newtargetfile) is True
+        assert not os.path.exists(self.tmp_folder)
+        assert not os.path.exists(self.oldtargetfile)
+        assert not os.path.exists(self.oldtargetdir)
+        assert os.path.isfile(self.newtargetfile)
 
     def testBrokenSymlink(self):
         targetlink = self.createBrokenSymlink(self.tmp_folder)
         self.deploy("--init", self.folder)
         self.deploy(self.folder)
-        assert os.path.lexists(targetlink) is False
-        assert os.path.exists(targetlink) is False
+        assert not os.path.lexists(targetlink)
+        assert not os.path.exists(targetlink)

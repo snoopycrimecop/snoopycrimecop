@@ -30,7 +30,7 @@ class TestVersion(object):
     def setup_method(self, method):
         if os.path.isfile(version_file):
             os.rename(version_file, version_file + '.bak')
-        assert os.path.isfile(version_file) is False
+        assert not os.path.isfile(version_file)
 
     def teardown_method(self, method):
         if os.path.isfile(version_file + '.bak'):
@@ -49,7 +49,7 @@ class TestVersion(object):
 
     def testVersionFile(self, capsys):
         main(["version"], items=[("version", Version)])
-        assert os.path.isfile(version_file) is True
+        assert os.path.isfile(version_file)
         out, err = capsys.readouterr()
         assert out.rstrip() == self.read_version_file()
 

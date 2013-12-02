@@ -43,7 +43,7 @@ class TestToken(MockTest):
     def testDefaults(self):
         ns = self.scc_parser.parse_args(["token", "create"])
         assert ns.scope == self.default_scopes
-        assert ns.no_set is False
+        assert not ns.no_set
 
     def testCreateNonDefaultScopes(self):
         ns = self.scc_parser.parse_args(
@@ -52,7 +52,7 @@ class TestToken(MockTest):
 
     def testCreateNoSet(self):
         ns = self.scc_parser.parse_args(["token", "create", "--no-set"])
-        assert ns.no_set is True
+        assert ns.no_set
 
     # Authorization scopes
     @pytest.mark.parametrize('scope', scopes)

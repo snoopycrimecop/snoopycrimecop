@@ -37,7 +37,7 @@ class TestMerge(SandboxTest):
         self.branch = self.fake_branch(head=self.base)
         self.pr = self.open_pr(self.branch, self.base)
         self.sandbox.checkout_branch(self.base)
-        assert self.isMerged() is False
+        assert not self.isMerged()
 
     def isMerged(self, ref='HEAD'):
         revlist, o = self.sandbox.communicate("git", "rev-list", ref)
@@ -64,13 +64,13 @@ class TestMerge(SandboxTest):
     def testMerge(self):
 
         self.merge()
-        assert self.isMerged() is True
+        assert self.isMerged()
 
     def testShallowMerge(self):
 
         pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
         self.merge("--shallow")
-        assert self.isMerged() is True
+        assert self.isMerged()
         post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
         assert pre_merge == post_merge
 
@@ -78,7 +78,7 @@ class TestMerge(SandboxTest):
 
         self.merge("--push", self.merge_branch)
         self.sandbox.fetch(self.user)
-        assert self.isMerged("%s/%s" % (self.user, self.merge_branch)) is True
+        assert self.isMerged("%s/%s" % (self.user, self.merge_branch))
         self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
 
     def testRemote(self):
@@ -91,7 +91,7 @@ class TestMerge(SandboxTest):
 
         # scc merge with --remote setup should pass
         self.merge("--remote", self.origin_remote)
-        assert self.isMerged() is True
+        assert self.isMerged()
 
     @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
     def testStatus(self, status):
@@ -118,16 +118,16 @@ class TestMerge(SandboxTest):
         # success state
         self.create_status("success")
         self.merge("-S", "%s" % status)
-        assert self.isMerged() is True
+        assert self.isMerged()
 
     def testExcludeComment(self):
 
         self.pr.create_issue_comment('--exclude')
         self.merge()
-        assert self.isMerged() is False
+        assert not self.isMerged()
 
     def testExcludeDescription(self):
 
         self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
         self.merge()
-        assert self.isMerged() is False
+        assert not self.isMerged()
