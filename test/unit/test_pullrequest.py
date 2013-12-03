@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import scc.git
+import pytest
 
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Commit import Commit
@@ -33,13 +34,13 @@ from github.Organization import Organization
 from github.PullRequest import PullRequest
 from github.PullRequestPart import PullRequestPart
 from github.Repository import Repository
-from mox import MoxTestBase
+from Mock import MoxTestBase
 
 
 class TestPullRequest(MoxTestBase):
 
-    def setUp(self):
-        super(TestPullRequest, self).setUp()
+    def setup_method(self, method):
+        super(TestPullRequest, self).setup_method(method)
         # Create base of PullRequest
         self.base_user = self.mox.CreateMock(AuthenticatedUser)
         self.base_repo = self.mox.CreateMock(Repository)
@@ -95,10 +96,13 @@ class TestPullRequest(MoxTestBase):
         self.issue.comments += 1
         self.comments.append(comment)
 
-    def create_commit(self, repo):
+    def create_commit(self, ref):
         self.pull.head.sha = "mock-sha"
         self.commit = self.mox.CreateMock(Commit)
-        repo.get_commit("mock-sha").AndReturn(self.commit)
+        if ref == 'head':
+            self.head_repo.get_commit("mock-sha").AndReturn(self.commit)
+        else:
+            self.base_repo.get_commit("mock-sha").AndReturn(self.commit)
 
     def create_commit_status(self, state="pending"):
         status = self.mox.CreateMock(CommitStatus)
@@ -110,24 +114,18 @@ class TestPullRequest(MoxTestBase):
             self.pull.number, self.pr_user.login, self.pull.title)
 
     def test_get_user(self):
-        self.assertEquals(self.pr.get_user(), self.pr_user)
+        assert self.pr.get_user() == self.pr_user
 
     def test_get_title(self):
-        self.assertEquals(self.pr.get_title(), self.pull.title)
+        assert self.pr.get_title() == self.pull.title
 
-    def test_str(self):
-        self.assertEquals(unicode(self.pr), self.get_unicode())
-        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
-
-    def test_str_unicode_title(self):
-        self.pull.title = u"£unicode"
-        self.assertEquals(unicode(self.pr), self.get_unicode())
-        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
-
-    def test_str_unicode_user(self):
-        self.pr_user.login = u"£user"
-        self.assertEquals(unicode(self.pr), self.get_unicode())
-        self.assertEquals(str(self.pr), self.get_unicode().encode("utf-8"))
+    @pytest.mark.parametrize('title', ['title', u"£title"])
+    @pytest.mark.parametrize('user', ['user', u"£user"])
+    def test_str(self, title, user):
+        self.pull.title = title
+        self.pr_user.login = user
+        assert unicode(self.pr) == self.get_unicode()
+        assert str(self.pr) == self.get_unicode().encode("utf-8")
 
     def test_edit_body(self):
         self.pull.edit("new_body")
@@ -135,184 +133,123 @@ class TestPullRequest(MoxTestBase):
         self.pr.edit("new_body")
 
     def test_get_login(self):
-        self.assertEquals(self.pr.get_login(), self.pr_user.login)
+        assert self.pr.get_login() == self.pr_user.login
 
     def test_get_number(self):
-        self.assertEquals(self.pr.get_number(), self.pull.number)
+        assert self.pr.get_number() == self.pull.number
 
     def test_get_issue(self):
         self.create_issue()
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_issue(), self.issue)
+        assert self.pr.get_issue() == self.issue
 
     def test_get_base(self):
-        self.assertEquals(self.pr.get_base(), self.base.ref)
+        assert self.pr.get_base() == self.base.ref
 
     # Label tests
-    def test_get_labels_none(self):
+    @pytest.mark.parametrize('nlabels', [0, 1, 2])
+    def test_get_labels(self, nlabels):
         self.create_issue()
+        for x in range(nlabels):
+            self.create_label()
         self.issue.labels = self.labels
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_labels(), [])
-
-    def test_get_labels_single(self):
-        self.create_issue()
-        self.create_label()
-        self.issue.labels = self.labels
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_labels(), ["mock-label"])
-
-    def test_get_labels_multiple(self):
-        self.create_issue()
-        self.create_label()
-        self.create_label()
-        self.issue.labels = self.labels
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_labels(), ["mock-label", "mock-label"])
+        assert self.pr.get_labels() == ["mock-label" for x in range(nlabels)]
 
     # Comment tests
-    def test_get_comments_none(self):
+    @pytest.mark.parametrize('ncomments', [0, 1, 2])
+    def test_get_comments(self, ncomments):
         self.create_issue()
+        for x in range(ncomments):
+            self.create_issue_comment()
+        if ncomments > 0:
+            self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
+            self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_comments(), [])
+        assert self.pr.get_comments() == \
+            ["mock-comment" for x in range(ncomments)]
 
-    def test_get_comments_single(self):
-        self.create_issue()
-        self.create_issue_comment()
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
-        self.issue.get_comments().AndReturn(self.comments)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_comments(), ["mock-comment"])
-
-    def test_get_comments_multiple(self):
-        self.create_issue()
-        self.create_issue_comment("mock-comment")
-        self.create_issue_comment("mock-comment")
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
-        self.issue.get_comments().AndReturn(self.comments)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_comments(),
-                          ["mock-comment", "mock-comment"])
-
-    def test_get_comments_whitelist(self):
+    @pytest.mark.parametrize('org_users', [[True, False, True]])
+    def test_get_comments_whitelist(self, org_users):
         org = self.mox.CreateMock(Organization)
-        org_user_1 = self.mox.CreateMock(NamedUser)
-        org_user_2 = self.mox.CreateMock(NamedUser)
-        ext_user = self.mox.CreateMock(NamedUser)
         self.create_issue()
-        self.create_issue_comment("mock-comment-1", user=org_user_1)
-        self.create_issue_comment("mock-comment-2", user=ext_user)
-        self.create_issue_comment("mock-comment-3", user=org_user_2)
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
-        org.has_in_public_members(org_user_1).AndReturn(True)
-        org.has_in_public_members(ext_user).AndReturn(False)
-        org.has_in_public_members(org_user_2).AndReturn(True)
+
+        comments = []
+        for is_org_user in org_users:
+            user = self.mox.CreateMock(NamedUser)
+            org.has_in_public_members(user).AndReturn(is_org_user)
+            self.create_issue_comment("mock-comment-%s" % is_org_user,
+                                      user=user)
+            if is_org_user:
+                comments.append("mock-comment-%s" % is_org_user)
+
         self.mox.ReplayAll()
         whitelist = lambda x: org.has_in_public_members(x.user)
-        self.assertEquals(self.pr.get_comments(whitelist=whitelist),
-                          ["mock-comment-1", "mock-comment-3"])
+        assert self.pr.get_comments(whitelist=whitelist) == comments
 
     def test_create_issue_comment(self):
         comment = self.mox.CreateMock(IssueComment)
         self.pull.create_issue_comment("comment").AndReturn(comment)
         self.mox.ReplayAll()
-        self.assertEqual(self.pr.create_issue_comment("comment"), comment)
+        assert self.pr.create_issue_comment("comment") == comment
 
     # Commit/status tests
     def test_get_sha(self):
         self.pull.head.sha = "mock-sha"
-        self.assertEquals(self.pr.get_sha(), self.pull.head.sha)
+        assert self.pr.get_sha() == self.pull.head.sha
 
-    def test_get_last_commit_default(self):
-        self.create_commit(self.base_repo)
+    @pytest.mark.parametrize('ref', ["base", "head"])
+    def test_get_last_commit(self, ref):
+        self.create_commit(ref)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_commit(), self.commit)
+        assert self.pr.get_last_commit(ref=ref) == self.commit
 
-    def test_get_last_commit_base(self):
-        self.create_commit(self.base_repo)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_commit("base"), self.commit)
-
-    def test_get_last_commit_head(self):
-        self.create_commit(self.head_repo)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_commit("head"), self.commit)
-
-    def test_get_last_status_default(self):
-        self.create_commit(self.base_repo)
+    @pytest.mark.parametrize('ref', ["base", "head"])
+    @pytest.mark.parametrize(
+        'states', [None, ["pending"], ["success", "pneding"]])
+    def test_get_last_status(self, ref, states):
+        self.create_commit(ref)
+        if states:
+            for state in states:
+                self.create_commit_status(state=state)
         self.commit.get_statuses().AndReturn(self.statuses)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_status(), None)
+        last_status = self.pr.get_last_status(ref=ref)
+        if states is None:
+            assert last_status is None
+        else:
+            assert last_status.state == states[0]
 
-    def test_get_last_status_base(self):
-        self.create_commit(self.base_repo)
-        self.commit.get_statuses().AndReturn(self.statuses)
+    @pytest.mark.parametrize('ref', ["base", "head"])
+    @pytest.mark.parametrize('url', [None, "mock-url"])
+    def test_create_status_default(self, ref, url):
+        self.create_commit(ref)
+        if url is None:
+            self.commit.create_status("mock-status", NotSet, "mock-message")
+        else:
+            self.commit.create_status("mock-status", url, "mock-message")
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_status("base"), None)
-
-    def test_get_last_status_head(self):
-        self.create_commit(self.head_repo)
-        self.commit.get_statuses().AndReturn(self.statuses)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_status("head"), None)
-
-    def test_get_last_status_single(self):
-        self.create_commit(self.base_repo)
-        self.create_commit_status('pending')
-        self.commit.get_statuses().AndReturn(self.statuses)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_status().state, 'pending')
-
-    def test_get_last_status_multiple(self):
-        self.create_commit(self.base_repo)
-        self.create_commit_status('success')
-        self.create_commit_status('pending')
-        self.commit.get_statuses().AndReturn(self.statuses)
-        self.mox.ReplayAll()
-        self.assertEquals(self.pr.get_last_status().state, 'success')
-
-    def test_create_status_default(self):
-        self.create_commit(self.base_repo)
-        self.commit.create_status("mock-status", NotSet, "mock-message")
-        self.mox.ReplayAll()
-        self.pr.create_status("mock-status", "mock-message", None)
-
-    def test_create_status_base(self):
-        self.create_commit(self.base_repo)
-        self.commit.create_status("mock-status", NotSet, "mock-message")
-        self.mox.ReplayAll()
-        self.pr.create_status("mock-status", "mock-message", None, ref="base")
-
-    def test_create_status_head(self):
-        self.create_commit(self.head_repo)
-        self.commit.create_status("mock-status", NotSet, "mock-message")
-        self.mox.ReplayAll()
-        self.pr.create_status("mock-status", "mock-message", None, ref="head")
-
-    def test_create_status_url(self):
-        self.create_commit(self.base_repo)
-        self.commit.create_status("mock-status", "mock-url", "mock-message")
-        self.mox.ReplayAll()
-        self.pr.create_status("mock-status", "mock-message", "mock-url")
+        self.pr.create_status("mock-status", "mock-message", url, ref=ref)
 
     # Body/comment Parsing
     def test_parse_body_empty(self):
         pattern = 'pattern'
-        self.assertEquals(self.pr.parse_body(pattern), [])
+        assert self.pr.parse_body(pattern) == []
 
     def test_parse_body_nomatch(self):
         pattern = 'pattern'
         nomatch = '-nomatch'
         self.pull.body = "%s%s\n" % (pattern, nomatch)
-        self.assertEquals(self.pr.parse_body(pattern), [])
+        assert self.pr.parse_body(pattern) == []
 
     def test_parse_body_multimatch(self):
         pattern = 'pattern'
         match1 = '-match1'
         match2 = '-match2'
         self.pull.body = "--%s%s\n--%s%s" % (pattern, match1, pattern, match2)
-        self.assertEquals(self.pr.parse_body(pattern), [match1, match2])
+        assert self.pr.parse_body(pattern) == [match1, match2]
 
     def test_parse_body_multipattern(self):
         pattern1 = 'pattern1'
@@ -321,16 +258,16 @@ class TestPullRequest(MoxTestBase):
         match2 = '-match2'
         self.pull.body = "--%s%s\n--%s%s" % (pattern1, match1, pattern2,
                                              match2)
-        self.assertEquals(self.pr.parse_body(pattern1), [match1])
-        self.assertEquals(self.pr.parse_body(pattern2), [match2])
-        self.assertEquals(self.pr.parse_body([pattern1, pattern2]),
-                          [match1, match2])
+        assert self.pr.parse_body(pattern1) == [match1]
+        assert self.pr.parse_body(pattern2) == [match2]
+        assert self.pr.parse_body([pattern1, pattern2]) == \
+            [match1, match2]
 
     def test_parse_comments_none(self):
         self.create_issue()
         pattern = 'pattern'
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse_comments(pattern), [])
+        assert self.pr.parse_comments(pattern) == []
 
     def test_parse_comments_single(self):
         pattern = 'pattern'
@@ -340,7 +277,7 @@ class TestPullRequest(MoxTestBase):
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse_comments(pattern), [match])
+        assert self.pr.parse_comments(pattern) == [match]
 
     def test_parse_comments_single_multipattern(self):
         pattern1 = 'pattern1'
@@ -353,8 +290,8 @@ class TestPullRequest(MoxTestBase):
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse_comments([pattern1, pattern2]),
-                          [match1, match2])
+        assert self.pr.parse_comments([pattern1, pattern2]) == \
+            [match1, match2]
 
     def test_parse_comments_multiple(self):
         pattern1 = 'pattern1'
@@ -367,20 +304,20 @@ class TestPullRequest(MoxTestBase):
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse_comments([pattern1, pattern2]),
-                          [match1, match2])
+        assert self.pr.parse_comments([pattern1, pattern2]) == \
+            [match1, match2]
 
     def test_parse_empty(self):
         pattern = 'pattern'
         self.create_issue()
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse(pattern), [])
+        assert self.pr.parse(pattern) == []
 
     def test_parse_body_only(self):
         pattern = 'pattern'
         match = '-match'
         self.pull.body = "--%s%s\n" % (pattern, match)
-        self.assertEquals(self.pr.parse(pattern), [match])
+        assert self.pr.parse(pattern) == [match]
 
     def test_parse_comment_only(self):
         pattern = 'pattern'
@@ -390,10 +327,4 @@ class TestPullRequest(MoxTestBase):
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
-        self.assertEquals(self.pr.parse(pattern), [match])
-
-if __name__ == '__main__':
-    import logging
-    import unittest
-    logging.basicConfig()
-    unittest.main()
+        assert self.pr.parse(pattern) == [match]

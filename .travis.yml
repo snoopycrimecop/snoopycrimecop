@@ -6,7 +6,7 @@ virtualenv:
   system_site_packages: true
 before_install:
   - "pip install -r requirements.txt --use-mirrors"
-  - "pip install -r dev_requirements.txt --use-mirrors"
+  - pip install flake8 --use-mirrors
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors argparse; fi
   - git config --global github.token 3bc7fc530b01081559eb911f59ccfec7f4fb2592
   - git config --global user.email snoopycrimecop@gmail.com
@@ -17,5 +17,5 @@ before_script:
   - python scc/main.py -h
 script:
   - flake8 -v scc test
-  - nosetests -v -d test/unit
+  - python setup.py test -s test/unit -v
   - python setup.py sdist install

@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
+import pytest
 
 from scc.framework import main, Stop
 from scc.git import Merge
@@ -28,25 +28,25 @@ from Sandbox import SandboxTest
 
 class TestMerge(SandboxTest):
 
-    def setUp(self):
+    def setup_method(self, method):
 
-        super(TestMerge, self).setUp()
+        super(TestMerge, self).setup_method(method)
         self.init_submodules()
         self.base = "dev_4_4"
         self.merge_branch = "merge/dev_4_4/test"
         self.branch = self.fake_branch(head=self.base)
         self.pr = self.open_pr(self.branch, self.base)
         self.sandbox.checkout_branch(self.base)
-        self.assertFalse(self.isMerged())
+        assert not self.isMerged()
 
     def isMerged(self, ref='HEAD'):
         revlist, o = self.sandbox.communicate("git", "rev-list", ref)
         return self.pr.head.sha in revlist.splitlines()
 
-    def tearDown(self):
+    def teardown_method(self, method):
         # Clean the initial branch. This will close the inital PRs
         self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
-        super(TestMerge, self).tearDown()
+        super(TestMerge, self).teardown_method(method)
 
     def create_status(self, state):
         """Create status on the head repository of the Pull Request"""
@@ -54,7 +54,7 @@ class TestMerge(SandboxTest):
         commit = self.pr.head.repo.get_commit(self.pr.head.sha)
         commit.create_status(
             state, NotSet, state[0].upper() + state[1:] + " state test")
-        self.assertEqual(commit.get_statuses()[0].state, state)
+        assert commit.get_statuses()[0].state == state
 
     def merge(self, *args):
         self.sandbox.checkout_branch(self.origin_remote + "/" + self.base)
@@ -64,22 +64,21 @@ class TestMerge(SandboxTest):
     def testMerge(self):
 
         self.merge()
-        self.assertTrue(self.isMerged())
+        assert self.isMerged()
 
     def testShallowMerge(self):
 
         pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
         self.merge("--shallow")
-        self.assertTrue(self.isMerged())
+        assert self.isMerged()
         post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
-        self.assertEqual(pre_merge, post_merge)
+        assert pre_merge == post_merge
 
     def testMergePush(self):
 
         self.merge("--push", self.merge_branch)
         self.sandbox.fetch(self.user)
-        self.assertTrue(self.isMerged("%s/%s"
-                                      % (self.user, self.merge_branch)))
+        assert self.isMerged("%s/%s" % (self.user, self.merge_branch))
         self.sandbox.push_branch(":%s" % self.merge_branch, remote=self.user)
 
     def testRemote(self):
@@ -87,103 +86,48 @@ class TestMerge(SandboxTest):
         self.rename_origin_remote("gh")
 
         # scc merge without --remote should fail
-        self.assertRaises(Stop, self.merge)
+        with pytest.raises(Stop):
+            self.merge()
 
         # scc merge with --remote setup should pass
         self.merge("--remote", self.origin_remote)
-        self.assertTrue(self.isMerged())
+        assert self.isMerged()
 
-    def testStatusNone(self):
+    @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
+    def testStatus(self, status):
 
         # no status
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
+        self.merge("-S", "%s" % status)
+        assert self.isMerged() is (status != "success-only")
 
         # pending state
         self.create_status("pending")
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
+        self.merge("-S", "%s" % status)
+        assert self.isMerged() is (status != "success-only")
 
         # error state
         self.create_status("error")
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
+        self.merge("-S", "%s" % status)
+        assert self.isMerged() is (status == "none")
 
         # failure state
         self.create_status("failure")
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
+        self.merge("-S", "%s" % status)
+        assert self.isMerged() is (status == "none")
 
         # success state
         self.create_status("success")
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
-
-    def testStatusNoError(self):
-
-        # no status
-        self.merge("-S", "no-error")
-        self.assertTrue(self.isMerged())
-
-        # pending state
-        self.create_status("pending")
-        self.merge("-S", "no-error")
-        self.assertTrue(self.isMerged())
-
-        # failure state
-        self.create_status("failure")
-        self.merge("-S", "no-error")
-        self.assertFalse(self.isMerged())
-
-        # error state
-        self.create_status("error")
-        self.merge("-S", "no-error")
-        self.assertFalse(self.isMerged())
-
-        # success state
-        self.create_status("success")
-        self.merge("-S", "none")
-        self.assertTrue(self.isMerged())
-
-    def testStatusSuccessOnly(self):
-
-        # no status
-        self.merge("-S", "success-only")
-        self.assertFalse(self.isMerged())
-
-        # pending state
-        self.create_status("pending")
-        self.merge("-S", "success-only")
-        self.assertFalse(self.isMerged())
-
-        # error state
-        self.create_status("error")
-        self.merge("-S", "success-only")
-        self.assertFalse(self.isMerged())
-
-        # failure state
-        self.create_status("failure")
-        self.merge("-S", "success-only")
-        self.assertFalse(self.isMerged())
-
-        # success state
-        self.create_status("success")
-        self.merge("-S", "success-only")
-        self.assertTrue(self.isMerged())
+        self.merge("-S", "%s" % status)
+        assert self.isMerged()
 
     def testExcludeComment(self):
 
         self.pr.create_issue_comment('--exclude')
         self.merge()
-        self.assertFalse(self.isMerged())
+        assert not self.isMerged()
 
     def testExcludeDescription(self):
 
         self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
         self.merge()
-        self.assertFalse(self.isMerged())
-
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig()
-    unittest.main()
+        assert not self.isMerged()

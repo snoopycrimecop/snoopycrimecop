@@ -19,28 +19,31 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
-
-from scc.framework import main, Stop
-from scc.git import CheckMilestone
-from Sandbox import SandboxTest
+from restview.restviewhttp import RestViewer
 
 
-class TestCheckMilestone(SandboxTest):
+class TestReadme(object):
 
-    def check_milestone(self, *args):
-        args = ["check-milestone", "--no-ask"] + list(args)
-        main(args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
+    def setup_method(self, method):
+        self.viewer = RestViewer('.')
+        self.viewer.css_path = self.viewer.css_url = None
+        self.viewer.strict = True
 
-    def testNonExistingTag(self):
-        self.assertRaises(Stop, self.check_milestone, "v.0.0.0", "HEAD")
+    def testValidRst(self, capsys):
 
-    def testNonExistingMilestone(self):
-        self.assertRaises(Stop, self.check_milestone, "v.1.0.0", "HEAD",
-                          "--set", "0.0.0")
+        self.viewer.rest_to_html(''' Some text ''').strip()
+        out, err = capsys.readouterr()
+        assert err.rstrip() == ''
 
-    def testCheckMilestone(self):
-        self.check_milestone("v.1.0.0", "v.1.1.1-TEST")
+    def testBrokenRst(self, capsys):
 
-if __name__ == '__main__':
-    unittest.main()
+        self.viewer.rest_to_html(''' Some text with an `error ''').strip()
+        out, err = capsys.readouterr()
+        assert err != ''
+
+    def testReadme(self, capsys):
+
+        with open('README.rst', 'r') as f:
+            self.viewer.rest_to_html(f.read()).strip()
+        out, err = capsys.readouterr()
+        assert err.rstrip() == ''

@@ -26,6 +26,59 @@ SCC distribution script
 from setuptools import setup
 from scc.version import get_git_version
 
+from setuptools.command.test import test as TestCommand
+import sys
+
+
+class PyTest(TestCommand):
+    user_options = TestCommand.user_options + \
+        [('test-pythonpath=', 'p', "prepend 'pythonpath' to PYTHONPATH"),
+         ('test-string=', 'k', "only run tests including 'string'"),
+         ('test-marker=', 'm', "only run tests including 'marker'"),
+         ('test-path=', 's', "base dir for test collection"),
+         ('test-failfast', 'x', "Exit on first error"),
+         ('test-verbose', 'v', "more verbose output"),
+         ('test-quiet', 'q', "less verbose output"),
+         ('junitxml=', None, "create junit-xml style report file at 'path'"),
+         ('pdb', None, "fallback to pdb on error"),
+         ]
+
+    def initialize_options(self):
+        TestCommand.initialize_options(self)
+        self.test_pythonpath = None
+        self.test_string = None
+        self.test_marker = None
+        self.test_path = 'test'
+        self.test_failfast = False
+        self.test_quiet = False
+        self.test_verbose = False
+        self.junitxml = None
+        self.pdb = False
+
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = [self.test_path]
+        if self.test_string is not None:
+            self.test_args.extend(['-k', self.test_string])
+        if self.test_marker is not None:
+            self.test_args.extend(['-m', self.test_marker])
+        if self.test_failfast:
+            self.test_args.extend(['-x'])
+        if self.test_verbose:
+            self.test_args.extend(['-v'])
+        if self.test_quiet:
+            self.test_args.extend(['-q'])
+        if self.junitxml is not None:
+            self.test_args.extend(['--junitxml', self.junitxml])
+        if self.pdb:
+            self.test_args.extend(['--pdb'])
+        self.test_suite = True
+
+    def run_tests(self):
+        #import here, cause outside the eggs aren't loaded
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
 
 VERSION = get_git_version()
 ZIP_SAFE = False
@@ -61,4 +114,7 @@ setup(name='scc',
       long_description=LONG_DESCRIPTION,
       classifiers=CLASSIFIERS,
       version=VERSION,
+
+      cmdclass={'test': PyTest},
+      tests_require=['pytest', 'restview', 'mox'],
       )

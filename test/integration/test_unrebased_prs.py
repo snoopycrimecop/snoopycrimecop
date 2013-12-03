@@ -19,8 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import unittest
-
+import pytest
 from scc.framework import main, Stop, parsers
 from scc.git import UnrebasedPRs, PullRequest
 from Sandbox import SandboxTest
@@ -28,13 +27,16 @@ from Sandbox import SandboxTest
 
 class TestUnrebasedPRs(SandboxTest):
 
-    def setUp(self):
-        super(TestUnrebasedPRs, self).setUp()
+    def setup_method(self, method):
+        super(TestUnrebasedPRs, self).setup_method(method)
         self.branch1 = "dev_4_4"
+        self.args = None
 
     def unrebased_prs(self, *args):
         self.sandbox.checkout_branch("origin/" + self.branch1)
-        args = ["unrebased-prs", self.branch1, self.branch2] + list(args)
+        args = ["unrebased-prs", self.branch1, self.branch2]
+        if self.args:
+            args += list(self.args)
         main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
     def create_issue_comment(self, HEAD, target_pr):
@@ -54,59 +56,39 @@ class TestUnrebasedPRs(SandboxTest):
         self.branch2 = "dev_4_4"
         self.unrebased_prs()
 
-    def testShallow(self):
-        """Test shallow unrebased-prs using last first-parent commit"""
-
-        self.branch2 = "dev_4_4~"
-        self.init_submodules()
-        try:
-            self.unrebased_prs("--shallow")
-            self.fail()
-        except Stop, s:
-            self.assertEqual(s.rc, 1)
-
-    def testRecursive(self):
+    @pytest.mark.parametrize('shallow', [False, True])
+    def testShallow(self, shallow):
         """Test unrebased-prs using last first-parent commit"""
 
         self.branch2 = "dev_4_4~"
         self.init_submodules()
+        if shallow:
+            self.args = ['--shallow']
         try:
             self.unrebased_prs()
-            self.fail()
+            pytest.fail('should stop')
         except Stop, s:
-            self.assertEqual(s.rc, 2)
+            if shallow:
+                assert s.rc == 1
+            else:
+                assert s.rc == 2
 
-    def testMismatch(self):
+    @pytest.mark.parametrize('check', [False, True])
+    def testMismatch(self, check):
         """Test unrebased-prs mismatching PRs"""
 
         self.branch2 = "dev_4_4~2"
         comment = self.create_issue_comment("origin/" + self.branch1, 1)
-
+        if not check:
+            self.args = ['--no-check']
         try:
             try:
                 self.unrebased_prs()
-                self.fail()
+                pytest.fail('should stop')
             except Stop, s:
-                self.assertEqual(s.rc, 2)
+                if check:
+                    assert s.rc == 2
+                else:
+                    assert s.rc == 1
         finally:
             comment.delete()
-
-    def testMismatchNoCheck(self):
-        """Test unrebased-prs mismatching PRs"""
-
-        self.branch2 = "dev_4_4~2"
-        comment = self.create_issue_comment("origin/" + self.branch1, 1)
-
-        try:
-            try:
-                self.unrebased_prs("--no-check")
-                self.fail()
-            except Stop, s:
-                self.assertEqual(s.rc, 1)
-        finally:
-            comment.delete()
-
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig()
-    unittest.main()

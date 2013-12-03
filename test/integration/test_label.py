@@ -19,27 +19,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import sys
-import unittest
-from StringIO import StringIO
-
 from scc.framework import main
 from scc.git import Label
 from Sandbox import SandboxTest
 
 
 class TestLabel(SandboxTest):
-
-    def setUp(self):
-        super(TestLabel, self).setUp()
-        self.output = StringIO()
-        self.saved_stdout = sys.stdout
-        sys.stdout = self.output
-
-    def tearDown(self):
-        self.output.close()
-        sys.stdout = self.saved_stdout
-        super(TestLabel, self).tearDown()
 
     def get_repo_labels(self):
         labels = self.sandbox.origin.get_labels()
@@ -53,20 +38,17 @@ class TestLabel(SandboxTest):
         args = ["label", "--no-ask"] + list(args)
         main(args=args, items=[(Label.NAME, Label)])
 
-    def testAvailable(self):
+    def testAvailable(self, capsys):
         self.label("--available")
-        self.assertEquals(self.output.getvalue().rstrip(),
-                          self.get_repo_labels())
+        out, err = capsys.readouterr()
+        assert out.rstrip() == self.get_repo_labels()
 
-    def testListLabels(self):
+    def testListLabels(self, capsys):
         self.label("--list", "1")
-        self.assertEquals(self.output.getvalue().rstrip(),
-                          self.get_issue_labels(1))
+        out, err = capsys.readouterr()
+        assert out.rstrip() == self.get_issue_labels(1)
 
-    def testListNoLabel(self):
+    def testListNoLabel(self, capsys):
         self.label("--list", "2")
-        self.assertEquals(self.output.getvalue(),
-                          self.get_issue_labels(2))
-
-if __name__ == '__main__':
-    unittest.main()
+        out, err = capsys.readouterr()
+        assert out.rstrip() == self.get_issue_labels(2)
