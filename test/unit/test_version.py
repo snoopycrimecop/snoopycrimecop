@@ -77,14 +77,11 @@ class TestVersion(object):
         finally:
             os.chdir(cwd)
 
-    def testGitRepository(self):
+    def testGitRepository(self, tmpdir):
         cwd = os.getcwd()
-        import tempfile
-        import shutil
         from subprocess import Popen, PIPE
         sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
-        path = tempfile.mkdtemp("", "sandbox-", "..")
-        path = os.path.abspath(path)
+        path = str(tmpdir.mkdir("sandbox"))
         # Read the version for the current Git repository
         main(["version"], items=[("version", Version)])
         version = self.read_version_file()
@@ -100,7 +97,4 @@ class TestVersion(object):
             main(["version"], items=[("version", Version)])
             assert self.read_version_file() == version
         finally:
-            try:
-                shutil.rmtree(path)
-            finally:
-                os.chdir(cwd)
+            os.chdir(cwd)
