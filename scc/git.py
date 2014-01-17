@@ -1049,6 +1049,15 @@ class GitRepository(object):
         except Exception:
             return False
 
+    def has_remote_tag(self, name, remote="origin"):
+        self.cd(self.path)
+        self.dbg("Check tag exists %s...", name)
+        p = self.call_no_wait(
+            "git", "ls-remote", "--tags", "--exit-code",
+            remote, name)
+        rcode = p.wait()
+        return 0 == rcode
+
     def is_valid_tag(self, tag):
         """Check the validity of a reference name for a tag"""
 
@@ -1380,16 +1389,19 @@ class GitRepository(object):
         tag_string = ":%s%s" % (tag_prefix, version)
         self.log.info(self.origin)
         try:
-            self.log.info("Pushing %s to %s", tag_string, self.remote)
-            self.push_branch(tag_string, remote=self.remote)
+            if self.has_remote_tag(tag_string):
+                self.log.info("Pushing %s to %s", tag_string, self.remote)
+                self.push_branch(tag_string, remote=self.remote)
         except:
-            self.log.warn("Failed to push")
+            self.log.warn("Failed to push", exc_info=1)
 
         try:
-            self.log.info("Removing local tag %s", tag_string)
-            self.call("git", "tag", "-d", tag)
+            tag_string = tag_string[1:]
+            if self.has_local_tag(tag_string):
+                self.log.info("Removing local tag %s", tag_string)
+                self.call("git", "tag", "-d", tag_string)
         except:
-            self.log.warn("Failed to push")
+            self.log.warn("Failed to remove local tag", exc_info=1)
 
     def rtagdelete(self, version):
         """Recursively remove tag from repositories."""
