@@ -74,6 +74,9 @@ def entry_point():
         sys.exit(stop.rc)
     except SystemExit:
         raise
+    except KeyboardInterrupt:
+        print "Cancelled"
+        sys.exit(1)
     except:
         traceback.print_exc()
         sys.exit(1)
