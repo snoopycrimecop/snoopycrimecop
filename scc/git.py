@@ -1380,17 +1380,20 @@ class GitRepository(object):
 
         tag_prefix = self.get_tag_prefix()
         tag_string = ":%s%s" % (tag_prefix, version)
-        self.log.info("Pushing %s to %s", tag_string, self.remote)
+        self.log.info("Pushing %s to %s (%s)",
+                      tag_string, self.origin, self.remote)
         try:
             self.push_branch(tag_string, remote=self.remote)
         except:
             self.log.warn("Failed to push")
 
-        for submodule_repo in self.submodules:
-            tag_prefix = submodule_repo.get_tag_prefix()
+        for repo in self.submodules:
+            tag_prefix = repo.get_tag_prefix()
             tag_string = ":%s%s" % (tag_prefix, version)
             try:
-                submodule_repo.push_branch(tag_string, remote=self.remote)
+                self.log.info("Pushing %s to %s (%s)",
+                              tag_string, repo.origin, self.remote)
+                repo.push_branch(tag_string, remote=self.remote)
             except:
                 self.log.warn("Failed to push")
 
