@@ -2859,6 +2859,9 @@ class DeleteTags(_TagCommands):
 
     def __call__(self, args):
         super(DeleteTags, self).__call__(args)
+        if args.remote in ("origin", "upstream"):
+            raise Stop(2, ('"origin" and "upstream" are disabled. '
+                           'Create a secondary remote for removing tags.'))
         self.main_repo.rtagdelete(args.version)
 
 
