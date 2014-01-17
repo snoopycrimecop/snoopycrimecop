@@ -1375,27 +1375,27 @@ class GitRepository(object):
 
         return msg
 
-    def rtagdelete(self, version):
-        """Recursively remove tag from repositories."""
-
+    def tagdelete(self, version):
         tag_prefix = self.get_tag_prefix()
         tag_string = ":%s%s" % (tag_prefix, version)
-        self.log.info("Pushing %s to %s (%s)",
-                      tag_string, self.origin, self.remote)
+        self.log.info(self.origin)
         try:
+            self.log.info("Pushing %s to %s", tag_string, self.remote)
             self.push_branch(tag_string, remote=self.remote)
         except:
             self.log.warn("Failed to push")
 
+        try:
+            self.log.info("Removing local tag %s", tag_string)
+            self.call("git", "tag", "-d", tag)
+        except:
+            self.log.warn("Failed to push")
+
+    def rtagdelete(self, version):
+        """Recursively remove tag from repositories."""
+        self.tagdelete(version)
         for repo in self.submodules:
-            tag_prefix = repo.get_tag_prefix()
-            tag_string = ":%s%s" % (tag_prefix, version)
-            try:
-                self.log.info("Pushing %s to %s (%s)",
-                              tag_string, repo.origin, self.remote)
-                repo.push_branch(tag_string, remote=self.remote)
-            except:
-                self.log.warn("Failed to push")
+            repo.tagdelete(version)
 
     def unique_logins(self):
         """Return a set of unique logins."""
