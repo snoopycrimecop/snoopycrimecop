@@ -2472,7 +2472,7 @@ command.
         unrebased_count = count1 + count2
 
         if not args.no_check:
-            # Check mismatching rebased PRs comment
+            # Check mismatching rebased PRs links
             m = self.check_links(repo.origin)
             if not m:
                 mismatch_count = 0
@@ -2595,7 +2595,7 @@ command.
                 unrebased_prs.append(pr)
                 continue
 
-            # PR marked as --no-rebase
+            # PR marked as no-rebase
             if self.links[pr_number] == -1:
                 self.log.debug("PR %s is marked as no-rebase" % pr_number)
                 continue
@@ -2606,12 +2606,14 @@ command.
                 target_pr = self.visit_pr(repo.origin, target)
                 target_status = (target_pr.pull.state == 'open' or
                                  target_pr.pull.is_merged())
+
+                # Check  PR is open or merged against the target branch
                 if (target_status and target_pr.get_base() == target_branch):
-                    self.log.debug("PR %s is rebased as %s on %s"
+                    self.log.debug("PR %s is rebased on %s as %s"
                                    % (pr_number, target, target_branch))
                     break
 
-                # No rebased PR has been found against the target branch
+                # No valid comment has been found against the target branch
                 unrebased_prs.append(pr)
 
         # Print list of unrebased PRs
@@ -2637,7 +2639,7 @@ command.
         return len(unrebased_prs)
 
     def check_links(self, gh_repo):
-        """Return a dictionary of PRs with missing comments"""
+        """Return a dictionary of PRs with missing rebase comments"""
 
         m = self.check_directed_links(self.links)
 
@@ -2658,19 +2660,22 @@ command.
 
         mismatch_dict = {}
         for source_pr in links.keys():
+            # Do not check PRs without rebase comments or marked as no-rebase
             if links[source_pr] == -1 or links[source_pr] is None:
                 continue
 
-            targets, target_links = \
-                UnrebasedPRs.read_links(links, source_pr)
+            targets, target_links = UnrebasedPRs.read_links(links, source_pr)
             for target_pr, target_link in zip(targets, target_links):
 
                 if target_pr not in links.keys():
+                    # Target PR has not been visited
                     mismatch = True
                 elif links[target_pr] is None or links[target_pr] == -1:
+                    # Target PR has no rebase comment or marked as non-rebase
                     mismatch = True
                 elif not any(x.startswith(target_link) for x
                              in links[target_pr]):
+                    # Non-matching target PR rebase comments
                     mismatch = True
                 else:
                     mismatch = False
