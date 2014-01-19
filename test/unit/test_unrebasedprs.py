@@ -22,83 +22,72 @@
 from scc.git import UnrebasedPRs
 
 
-class TestCheck(object):
+class TestCheckDirectedLinks(object):
 
     def setup_method(self, method):
-        self.d1 = {}
-        self.d2 = {}
-        self.m1 = {}
-        self.m2 = {}
+        self.links = {}
+        self.mismatch = {}
 
-    def runCheck(self):
-        assert UnrebasedPRs.check_directed_links(self.d1, self.d2) == self.m2
-        assert UnrebasedPRs.check_directed_links(self.d2, self.d1) == self.m1
+    def check_directed_links(self):
+        assert UnrebasedPRs.check_directed_links(self.links) == self.mismatch
 
     def testEmptyDictionaries(self):
-        self.runCheck()
+        self.check_directed_links()
 
     def testMatchingDictionaries(self):
-        self.d1 = {1: ['-to #2']}
-        self.d2 = {2: ['-from #1']}
-        self.runCheck()
+        self.links = {1: ['-to #2'], 2: ['-from #1']}
+        self.check_directed_links()
 
     def testMissingSourceComment(self):
-        self.d1 = {1: ['-to #2']}
-        self.d2 = {2: None}
-        self.m2 = {2: ['-from #1']}
-        self.runCheck()
+        self.links = {1: ['-to #2'], 2: None}
+        self.mismatch = {2: ['-from #1']}
+        self.check_directed_links()
 
     def testMissingTargetComment(self):
-        self.d1 = {1: ['-from #2']}
-        self.d2 = {2: None}
-        self.m2 = {2: ['-to #1']}
-        self.runCheck()
+        self.links = {1: ['-from #2'], 2: None}
+        self.mismatch = {2: ['-to #1']}
+        self.check_directed_links()
 
     def testMultipleSources(self):
-        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
-        self.d2 = {3: ['-from #1', '-from #2']}
-        self.runCheck()
+        self.links = {1: ['-to #3'], 2: ['-to #3']}
+        self.mismatch = {3: ['-from #1', '-from #2']}
+        self.check_directed_links()
 
     def testPartialMissingMultipleSources(self):
-        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
-        self.d2 = {3: ['-from #1']}
-        self.m2 = {3: ['-from #2']}
-        self.runCheck()
+        self.links = {1: ['-to #3'], 2: ['-to #3'], 3: ['-from #1']}
+        self.mismatch = {3: ['-from #2']}
+        self.check_directed_links()
 
     def testFullMissingMultipleSources(self):
-        self.d1 = {1: ['-to #3'], 2: ['-to #3']}
-        self.d2 = {3: None}
-        self.m2 = {3: ['-from #1', '-from #2']}
-        self.runCheck()
+        self.links = {1: ['-to #3'], 2: ['-to #3'], 3: None}
+        self.mismatch = {3: ['-from #1', '-from #2']}
+        self.check_directed_links()
 
     def testMultipleTargets(self):
-        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
-        self.d2 = {3: ['-to #1', '-to #2']}
-        self.runCheck()
+        self.links = {1: ['-from #3'], 2: ['-from #3']}
+        self.mismatch = {3: ['-to #1', '-to #2']}
+        self.check_directed_links()
 
     def testPartialMissingMultipleTargets(self):
-        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
-        self.d2 = {3: ['-to #1']}
-        self.m2 = {3: ['-to #2']}
-        self.runCheck()
+        self.links = {1: ['-from #3'], 2: ['-from #3'], 3: ['-to #1']}
+        self.mismatch = {3: ['-to #2']}
+        self.check_directed_links()
 
     def testFullMissingMultipleTargets(self):
-        self.d1 = {1: ['-from #3'], 2: ['-from #3']}
-        self.d2 = {3: None}
-        self.m2 = {3: ['-to #1', '-to #2']}
-        self.runCheck()
+        self.links = {1: ['-from #3'], 2: ['-from #3'], 3: None}
+        self.mismatch = {3: ['-to #1', '-to #2']}
+        self.check_directed_links()
 
     def testTrailingWhitespace(self):
-        self.d1 = {1: ['-to #2']}
-        self.d2 = {2: ['-from #1 ']}
-        self.runCheck()
+        self.links = {1: ['-to #2'], 2: ['-from #1 ']}
+        self.check_directed_links()
 
     def testTrailingComment(self):
-        self.d1 = {1: ['-to #2 comment on the source']}
-        self.d2 = {2: ['-from #1 comment on the target']}
-        self.runCheck()
+        self.links = {
+            1: ['-to #2 comment on the source'],
+            2: ['-from #1 comment on the target']}
+        self.check_directed_links()
 
     def testTrailingPeriod(self):
-        self.d1 = {1: ['-to #2.']}
-        self.d2 = {2: ['-from #1.']}
-        self.runCheck()
+        self.links = {1: ['-to #2.'], 2: ['-from #1.']}
+        self.check_directed_links()

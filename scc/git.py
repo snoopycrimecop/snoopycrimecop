@@ -2639,7 +2639,7 @@ command.
     def check_links(self, gh_repo):
         """Return a dictionary of PRs with missing comments"""
 
-        m = self.check_directed_links()
+        m = self.check_directed_links(self.links)
 
         # Ensure all nodes (PRs) are visited - handling chained links
         while not all(x in self.links.keys() for x in m.keys()):
@@ -2648,25 +2648,27 @@ command.
                               if not key in self.links.keys()]:
                 self.visit_pr(gh_repo, pr_number)
 
-            m = self.check_directed_links()
+            m = self.check_directed_links(self.links)
 
         return m
 
-    def check_directed_links(self):
+    @staticmethod
+    def check_directed_links(links):
         """Find mismatching comments in rebased PRs"""
 
         mismatch_dict = {}
-        for source_pr in self.links.keys():
-            if self.links[source_pr] is None:
+        for source_pr in links.keys():
+            if links[source_pr] is None:
                 continue
 
-            targets, target_links = self.read_links(source_pr)
+            targets, target_links = \
+                UnrebasedPRs.read_links(links, source_pr)
             for target_pr, target_link in zip(targets, target_links):
 
-                if target_pr not in self.links.keys() or \
-                    self.links[target_pr] is None or \
+                if target_pr not in links.keys() or \
+                    links[target_pr] is None or \
                     not any(x.startswith(target_link) for x
-                            in self.links[target_pr]):
+                            in links[target_pr]):
 
                     if target_pr in mismatch_dict:
                         mismatch_dict[target_pr].append(target_link)
@@ -2689,13 +2691,14 @@ command.
 
         return self.prs[pr_number]
 
-    def read_links(self, pr_number):
+    @staticmethod
+    def read_links(links, pr_number):
         to_pattern = r"-to #(\d+)"
         from_pattern = r"-from #(\d+)"
 
         targets = []
         target_links = []
-        for link in self.links[pr_number]:
+        for link in links[pr_number]:
             match = re.match(to_pattern, link)
             if match:
                 targets.append(int(match.group(1)))
@@ -2703,6 +2706,7 @@ command.
             else:
                 match = re.match(from_pattern, link)
                 if match:
+                    targets.append(int(match.group(1)))
                     target_links.append('-to #%s' % pr_number)
                 else:
                     return None, None
