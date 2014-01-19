@@ -20,6 +20,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 from scc.git import UnrebasedPRs
+import pytest
+
+no_link_types = [None, -1]
+prefixes = [("to", "from"), ("from", "to")]
 
 
 class TestCheckDirectedLinks(object):
@@ -34,60 +38,53 @@ class TestCheckDirectedLinks(object):
     def testEmptyDictionaries(self):
         self.check_directed_links()
 
-    def testMatchingDictionaries(self):
-        self.links = {1: ['-to #2'], 2: ['-from #1']}
-        self.check_directed_links()
-
-    def testMissingSourceComment(self):
-        self.links = {1: ['-to #2'], 2: None}
-        self.mismatch = {2: ['-from #1']}
-        self.check_directed_links()
-
-    def testMissingTargetComment(self):
-        self.links = {1: ['-from #2'], 2: None}
-        self.mismatch = {2: ['-to #1']}
-        self.check_directed_links()
-
-    def testMultipleSources(self):
-        self.links = {1: ['-to #3'], 2: ['-to #3']}
-        self.mismatch = {3: ['-from #1', '-from #2']}
-        self.check_directed_links()
-
-    def testPartialMissingMultipleSources(self):
-        self.links = {1: ['-to #3'], 2: ['-to #3'], 3: ['-from #1']}
-        self.mismatch = {3: ['-from #2']}
-        self.check_directed_links()
-
-    def testFullMissingMultipleSources(self):
-        self.links = {1: ['-to #3'], 2: ['-to #3'], 3: None}
-        self.mismatch = {3: ['-from #1', '-from #2']}
-        self.check_directed_links()
-
-    def testMultipleTargets(self):
-        self.links = {1: ['-from #3'], 2: ['-from #3']}
-        self.mismatch = {3: ['-to #1', '-to #2']}
-        self.check_directed_links()
-
-    def testPartialMissingMultipleTargets(self):
-        self.links = {1: ['-from #3'], 2: ['-from #3'], 3: ['-to #1']}
-        self.mismatch = {3: ['-to #2']}
-        self.check_directed_links()
-
-    def testFullMissingMultipleTargets(self):
-        self.links = {1: ['-from #3'], 2: ['-from #3'], 3: None}
-        self.mismatch = {3: ['-to #1', '-to #2']}
-        self.check_directed_links()
-
-    def testTrailingWhitespace(self):
-        self.links = {1: ['-to #2'], 2: ['-from #1 ']}
-        self.check_directed_links()
-
-    def testTrailingComment(self):
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    def testSingleLink(self, source_prefix, target_prefix):
         self.links = {
-            1: ['-to #2 comment on the source'],
-            2: ['-from #1 comment on the target']}
+            1: ['-%s #2' % source_prefix],
+            2: ['-%s #1' % target_prefix]}
         self.check_directed_links()
 
-    def testTrailingPeriod(self):
-        self.links = {1: ['-to #2.'], 2: ['-from #1.']}
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    @pytest.mark.parametrize("no_link_type", no_link_types)
+    def testBrokenSingleLink(self, source_prefix, target_prefix,
+                             no_link_type):
+        self.links = {1: ['-%s #2' % source_prefix], 2: no_link_type}
+        self.mismatch = {2: ['-%s #1' % target_prefix]}
+        self.check_directed_links()
+
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    def testMultiLink(self, source_prefix, target_prefix):
+        self.links = {
+            1: ['-%s #3' % source_prefix],
+            2: ['-%s #3' % source_prefix],
+            3: ['-%s #1' % target_prefix, '-%s #2' % target_prefix]}
+        self.check_directed_links()
+
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    def testPartialMultiLink(self, source_prefix, target_prefix):
+        self.links = {
+            1: ['-%s #3' % source_prefix],
+            2: ['-%s #3' % source_prefix],
+            3: ['-%s #1' % target_prefix]}
+        self.mismatch = {3: ['-%s #2' % target_prefix]}
+        self.check_directed_links()
+
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    @pytest.mark.parametrize("no_link_type", no_link_types)
+    def testBrokenMultiLink(self, source_prefix, target_prefix, no_link_type):
+        self.links = {
+            1: ['-%s #3' % source_prefix],
+            2: ['-%s #3' % source_prefix],
+            3: no_link_type}
+        self.mismatch = {
+            3: ['-%s #1' % target_prefix, '-%s #2' % target_prefix]}
+        self.check_directed_links()
+
+    @pytest.mark.parametrize("source_prefix,target_prefix", prefixes)
+    @pytest.mark.parametrize("comment", ["  ", ".", " comment"])
+    def testTrailingComment(self, source_prefix, target_prefix, comment):
+        self.links = {
+            1: ['-%s #2' % source_prefix],
+            2: ['-%s #1%s' % (target_prefix, comment)]}
         self.check_directed_links()
