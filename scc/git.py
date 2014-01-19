@@ -2591,12 +2591,12 @@ command.
             pr = self.visit_pr(repo.origin, pr_number)
 
             # No rebase comment found on the PR
-            if pr_number not in self.links.keys():
+            if not self.links[pr_number]:
                 unrebased_prs.append(pr)
                 continue
 
             # PR marked as --no-rebase
-            if not self.links[pr_number]:
+            if self.links[pr_number] == -1:
                 self.log.debug("PR %s is marked as no-rebase" % pr_number)
                 continue
 
@@ -2658,18 +2658,24 @@ command.
 
         mismatch_dict = {}
         for source_pr in links.keys():
-            if links[source_pr] is None:
+            if links[source_pr] == -1 or links[source_pr] is None:
                 continue
 
             targets, target_links = \
                 UnrebasedPRs.read_links(links, source_pr)
             for target_pr, target_link in zip(targets, target_links):
 
-                if target_pr not in links.keys() or \
-                    links[target_pr] is None or \
-                    not any(x.startswith(target_link) for x
-                            in links[target_pr]):
+                if target_pr not in links.keys():
+                    mismatch = True
+                elif links[target_pr] is None or links[target_pr] == -1:
+                    mismatch = True
+                elif not any(x.startswith(target_link) for x
+                             in links[target_pr]):
+                    mismatch = True
+                else:
+                    mismatch = False
 
+                if mismatch:
                     if target_pr in mismatch_dict:
                         mismatch_dict[target_pr].append(target_link)
                     else:
@@ -2682,8 +2688,10 @@ command.
             pr = PullRequest(gh_repo.get_pull(pr_number))
             self.prs[pr_number] = pr
 
+        if pr_number not in self.links.keys():
+            self.links[pr_number] = None
             if pr.parse('no-rebase'):
-                self.links[pr_number] = None
+                self.links[pr_number] = -1
             else:
                 rebased_links = pr.parse(['rebased'])
                 if rebased_links:
@@ -2695,6 +2703,9 @@ command.
     def read_links(links, pr_number):
         to_pattern = r"-to #(\d+)"
         from_pattern = r"-from #(\d+)"
+
+        if not links[pr_number] or links[pr_number] == -1:
+            return None, None
 
         targets = []
         target_links = []
@@ -2708,8 +2719,6 @@ command.
                 if match:
                     targets.append(int(match.group(1)))
                     target_links.append('-to #%s' % pr_number)
-                else:
-                    return None, None
 
         return targets, target_links
 
