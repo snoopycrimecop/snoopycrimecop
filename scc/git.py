@@ -2597,16 +2597,19 @@ command.
 
             # PR marked as --no-rebase
             if not self.links[pr_number]:
+                self.log.debug("PR %s is marked as no-rebase" % pr_number)
                 continue
 
             # PR marked as --rebased
-            targets, target_links = self.read_links(pr_number)
+            targets, target_links = self.read_links(self.links, pr_number)
             for target in targets:
                 target_pr = self.visit_pr(repo.origin, target)
                 target_status = (target_pr.pull.state == 'open' or
                                  target_pr.pull.is_merged())
                 if (target_status and target_pr.get_base() == target_branch):
-                    continue
+                    self.log.debug("PR %s is rebased as %s on %s"
+                                   % (pr_number, target, target_branch))
+                    break
 
                 # No rebased PR has been found against the target branch
                 unrebased_prs.append(pr)
