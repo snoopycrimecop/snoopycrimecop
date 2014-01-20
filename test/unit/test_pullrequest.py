@@ -163,7 +163,6 @@ class TestPullRequest(MoxTestBase):
         for x in range(ncomments):
             self.create_issue_comment()
         if ncomments > 0:
-            self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
             self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.get_comments() == \
@@ -173,7 +172,6 @@ class TestPullRequest(MoxTestBase):
     def test_get_comments_whitelist(self, org_users):
         org = self.mox.CreateMock(Organization)
         self.create_issue()
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
 
         comments = []
@@ -274,7 +272,6 @@ class TestPullRequest(MoxTestBase):
         match = '-match1'
         self.create_issue()
         self.create_issue_comment("--%s%s\n" % (pattern, match))
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.parse_comments(pattern) == [match]
@@ -287,7 +284,6 @@ class TestPullRequest(MoxTestBase):
         self.create_issue()
         self.create_issue_comment("--%s%s\n--%s%s\n"
                                   % (pattern1, match1, pattern2, match2))
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.parse_comments([pattern1, pattern2]) == \
@@ -301,7 +297,6 @@ class TestPullRequest(MoxTestBase):
         self.create_issue()
         self.create_issue_comment("--%s%s\n" % (pattern1, match1))
         self.create_issue_comment("--%s%s\n" % (pattern2, match2))
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.parse_comments([pattern1, pattern2]) == \
@@ -324,7 +319,6 @@ class TestPullRequest(MoxTestBase):
         match = '-match'
         self.create_issue()
         self.create_issue_comment("--%s%s\n" % (pattern, match))
-        self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
         self.issue.get_comments().AndReturn(self.comments)
         self.mox.ReplayAll()
         assert self.pr.parse(pattern) == [match]

@@ -403,6 +403,8 @@ class PullRequest(object):
         self.dbg = self.log.debug
 
         self.pull = pull
+        self.issue = None
+        self.issue_comments = []
 
     def __contains__(self, key):
         return key in self.get_labels()
@@ -482,7 +484,9 @@ class PullRequest(object):
     @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self):
         """Return the issue corresponding to the Pull Request."""
-        return self.pull.base.repo.get_issue(self.get_number())
+        if not self.issue:
+            self.issue = self.pull.base.repo.get_issue(self.get_number())
+        return self.issue
 
     def get_head_login(self):
         """Return the login of the branch where the changes are implemented."""
@@ -515,11 +519,11 @@ class PullRequest(object):
     @retry_on_error(retries=SCC_RETRIES)
     def get_comments(self, whitelist=lambda x: True):
         """Return the labels of the Pull Request."""
-        if self.get_issue().comments:
-            return [comment.body for comment in
-                    self.get_issue().get_comments() if whitelist(comment)]
-        else:
-            return []
+        if not self.issue_comments and self.get_issue().comments:
+            self.issue_comments = self.get_issue().get_comments()
+
+        return [comment.body for comment in self.issue_comments
+                if whitelist(comment)]
 
     @retry_on_error(retries=SCC_RETRIES)
     def create_issue_comment(self, msg):
