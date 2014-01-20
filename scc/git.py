@@ -2604,20 +2604,8 @@ command.
                 self.log.debug("PR %s is marked as no-rebase" % pr_number)
                 continue
 
-            # PR marked as --rebased
-            targets, target_links = self.read_links(self.links, pr_number)
-            for target in targets:
-                target_pr = self.visit_pr(repo.origin, target)
-                target_status = (target_pr.pull.state == 'open' or
-                                 target_pr.pull.is_merged())
-
-                # Check  PR is open or merged against the target branch
-                if (target_status and target_pr.get_base() == target_branch):
-                    self.log.debug("PR %s is rebased on %s as %s"
-                                   % (pr_number, target, target_branch))
-                    break
-
-                # No valid comment has been found against the target branch
+            # Test PRs marked as --rebased
+            if not self.check_rebased_prs(repo, pr_number, target_branch):
                 unrebased_prs.append(pr)
 
         # Print list of unrebased PRs
@@ -2641,6 +2629,20 @@ command.
                     print pr
 
         return len(unrebased_prs)
+
+    def check_rebased_prs(self, repo, pr_number, target_branch):
+        targets, target_links = self.read_links(self.links, pr_number)
+        for target in targets:
+            target_pr = self.visit_pr(repo.origin, target)
+            target_status = (target_pr.pull.state == 'open' or
+                             target_pr.pull.merged)
+
+            # Check  PR is open or merged against the target branch
+            if (target_status and target_pr.get_base() == target_branch):
+                self.log.debug("PR %s is rebased as %s on %s"
+                               % (pr_number, target, target_branch))
+                return True
+        return False
 
     def check_links(self, gh_repo):
         """Return a dictionary of PRs with missing rebase comments"""
