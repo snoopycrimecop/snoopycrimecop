@@ -30,14 +30,13 @@ class TestUnrebasedPRs(SandboxTest):
     def setup_method(self, method):
         super(TestUnrebasedPRs, self).setup_method(method)
         self.branch1 = "dev_4_4"
-        self.args = None
+        self.branch2 = ""
+        self.args = ["unrebased-prs"]
 
-    def unrebased_prs(self, *args):
+    def unrebased_prs(self):
         self.sandbox.checkout_branch("origin/" + self.branch1)
-        args = ["unrebased-prs", self.branch1, self.branch2]
-        if self.args:
-            args += list(self.args)
-        main(args=args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
+        self.args += [self.branch1, self.branch2]
+        main(args=self.args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
 
     def create_issue_comment(self, HEAD, target_pr):
         parser, sub_parser = parsers()
@@ -57,38 +56,27 @@ class TestUnrebasedPRs(SandboxTest):
         self.unrebased_prs()
 
     @pytest.mark.parametrize('shallow', [False, True])
-    def testShallow(self, shallow):
-        """Test unrebased-prs using last first-parent commit"""
-
-        self.branch2 = "dev_4_4~"
-        self.init_submodules()
-        if shallow:
-            self.args = ['--shallow']
-        try:
-            self.unrebased_prs()
-            pytest.fail('should stop')
-        except Stop, s:
-            if shallow:
-                assert s.rc == 1
-            else:
-                assert s.rc == 2
-
-    @pytest.mark.parametrize('check', [False, True])
-    def testMismatch(self, check):
+    @pytest.mark.parametrize('checklinks', [False, True])
+    def testMultiBranch(self, shallow, checklinks):
         """Test unrebased-prs mismatching PRs"""
 
-        self.branch2 = "dev_4_4~2"
+        self.branch2 = "develop"
+        self.init_submodules()
         comment = self.create_issue_comment("origin/" + self.branch1, 1)
-        if not check:
-            self.args = ['--no-check']
+        if not checklinks:
+            self.args += ['--no-check']
+        if shallow:
+            self.args += ['--shallow']
         try:
             try:
                 self.unrebased_prs()
                 pytest.fail('should stop')
             except Stop, s:
-                if check:
-                    assert s.rc == 2
-                else:
-                    assert s.rc == 1
+                unrebased_count = 3
+                if checklinks:
+                    unrebased_count += 1
+                if not shallow:
+                    unrebased_count += 1
+                assert s.rc == unrebased_count
         finally:
             comment.delete()
