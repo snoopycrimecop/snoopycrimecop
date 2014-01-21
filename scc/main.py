@@ -29,9 +29,19 @@ import traceback
 import sys
 
 from framework import main, Stop
-from git import AlreadyMerged, CheckMilestone, CheckStatus, Label, Merge, \
-    Rebase, SetCommitStatus, TagRelease, Token, TravisMerge, UnrebasedPRs, \
-    UpdateSubmodules
+from git import AlreadyMerged
+from git import CheckMilestone
+from git import CheckStatus
+from git import DeleteTags
+from git import Label
+from git import Merge
+from git import Rebase
+from git import SetCommitStatus
+from git import TagRelease
+from git import Token
+from git import TravisMerge
+from git import UnrebasedPRs
+from git import UpdateSubmodules
 from deploy import Deploy
 from version import Version
 
@@ -47,11 +57,12 @@ def entry_point():
             (CheckMilestone.NAME, CheckMilestone),
             (CheckStatus.NAME, CheckStatus),
             (Deploy.NAME, Deploy),
+            (DeleteTags.NAME, DeleteTags),
             (Label.NAME, Label),
             (Merge.NAME, Merge),
             (Rebase.NAME, Rebase),
-            (Token.NAME, Token),
             (SetCommitStatus.NAME, SetCommitStatus),
+            (Token.NAME, Token),
             (TagRelease.NAME, TagRelease),
             (TravisMerge.NAME, TravisMerge),
             (Version.NAME, Version),
@@ -63,6 +74,9 @@ def entry_point():
         sys.exit(stop.rc)
     except SystemExit:
         raise
+    except KeyboardInterrupt:
+        print "Cancelled"
+        sys.exit(1)
     except:
         traceback.print_exc()
         sys.exit(1)

@@ -1049,6 +1049,15 @@ class GitRepository(object):
         except Exception:
             return False
 
+    def has_remote_tag(self, name, remote="origin"):
+        self.cd(self.path)
+        self.dbg("Check tag exists %s...", name)
+        p = self.call_no_wait(
+            "git", "ls-remote", "--tags", "--exit-code",
+            remote, name)
+        rcode = p.wait()
+        return 0 == rcode
+
     def is_valid_tag(self, tag):
         """Check the validity of a reference name for a tag"""
 
@@ -1375,6 +1384,31 @@ class GitRepository(object):
 
         return msg
 
+    def tagdelete(self, version):
+        tag_prefix = self.get_tag_prefix()
+        tag_string = ":%s%s" % (tag_prefix, version)
+        self.log.info(self.origin)
+        try:
+            if self.has_remote_tag(tag_string):
+                self.log.info("Pushing %s to %s", tag_string, self.remote)
+                self.push_branch(tag_string, remote=self.remote)
+        except:
+            self.log.warn("Failed to push", exc_info=1)
+
+        try:
+            tag_string = tag_string[1:]
+            if self.has_local_tag(tag_string):
+                self.log.info("Removing local tag %s", tag_string)
+                self.call("git", "tag", "-d", tag_string)
+        except:
+            self.log.warn("Failed to remove local tag", exc_info=1)
+
+    def rtagdelete(self, version):
+        """Recursively remove tag from repositories."""
+        self.tagdelete(version)
+        for repo in self.submodules:
+            repo.tagdelete(version)
+
     def unique_logins(self):
         """Return a set of unique logins."""
         unique_logins = set()
@@ -1533,6 +1567,7 @@ class GitRepoCommand(GithubCommand):
         if args.reset:
             self.main_repo.reset()
             self.main_repo.get_status()
+        return [self.main_repo] + self.main_repo.submodules
 
     def add_new_commit_args(self):
         self.parser.add_argument(
@@ -2798,7 +2833,51 @@ class SetCommitStatus(FilteredPullRequestsCommand):
             self.log.info(line)
 
 
-class TagRelease(GitRepoCommand):
+class _TagCommands(GitRepoCommand):
+
+    def __init__(self, sub_parsers):
+        super(_TagCommands, self).__init__(sub_parsers)
+
+        self.parser.add_argument(
+            'version', type=str,
+            help='Version number to use to construct the tag')
+
+    def __call__(self, args):
+        super(_TagCommands, self).__call__(args)
+
+        if not self.check_version_format(args):
+            raise Stop(23, '%s is not a valid version number. '
+                       'See http://semver.org for more information.'
+                       % args.version)
+
+        self.login(args)
+        self.init_main_repo(args)
+        # Subclasses take over here
+
+    def check_version_format(self, args):
+        """Check format of version number"""
+
+        import re
+        pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
+        return re.match(pattern, args.version) is not None
+
+
+class DeleteTags(_TagCommands):
+    """
+    Remove tags recursively across submodules.
+    """
+
+    NAME = "rm-tags"
+
+    def __call__(self, args):
+        super(DeleteTags, self).__call__(args)
+        if args.remote in ("origin", "upstream"):
+            raise Stop(2, ('"origin" and "upstream" are disabled. '
+                           'Create a secondary remote for removing tags.'))
+        self.main_repo.rtagdelete(args.version)
+
+
+class TagRelease(_TagCommands):
     """
     Tag a release recursively across submodules.
     """
@@ -2809,9 +2888,6 @@ class TagRelease(GitRepoCommand):
         super(TagRelease, self).__init__(sub_parsers)
 
         self.parser.add_argument(
-            'version', type=str,
-            help='Version number to use to construct the tag')
-        self.parser.add_argument(
             '--message', '-m', type=str,
             help='Tag message')
         self.parser.add_argument(
@@ -2821,15 +2897,9 @@ class TagRelease(GitRepoCommand):
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
 
-        if not self.check_version_format(args):
-            raise Stop(23, '%s is not a valid version number. '
-                       'See http://semver.org for more information.'
-                       % args.version)
-
-        self.login(args)
-        self.init_main_repo(args)
         if args.message is None:
             args.message = 'Tag version %s' % args.version
+
         msg = self.main_repo.rtag(args.version, message=args.message)
 
         for line in msg.split("\n"):
@@ -2839,10 +2909,3 @@ class TagRelease(GitRepoCommand):
             user = self.gh.get_login()
             remote = "git@github.com:%s/" % (user) + "%s.git"
             self.main_repo.rpush('--tags', remote, force=True)
-
-    def check_version_format(self, args):
-        """Check format of version number"""
-
-        import re
-        pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
-        return re.match(pattern, args.version) is not None
