@@ -37,6 +37,7 @@ from git import Label
 from git import Merge
 from git import Rebase
 from git import SetCommitStatus
+from git import SetLabels
 from git import TagRelease
 from git import Token
 from git import TravisMerge
@@ -62,6 +63,7 @@ def entry_point():
             (Merge.NAME, Merge),
             (Rebase.NAME, Rebase),
             (SetCommitStatus.NAME, SetCommitStatus),
+            (SetLabels.NAME, SetLabels),
             (Token.NAME, Token),
             (TagRelease.NAME, TagRelease),
             (TravisMerge.NAME, TravisMerge),

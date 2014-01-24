@@ -2887,6 +2887,32 @@ class SetCommitStatus(FilteredPullRequestsCommand):
             self.log.info(line)
 
 
+class SetLabels(GitRepoCommand):
+    """
+    Set a base-based label on all pull requests.
+    """
+
+    NAME = "set-labels"
+
+    def __init__(self, sub_parsers):
+        super(SetLabels, self).__init__(sub_parsers)
+
+    def __call__(self, args):
+        super(SetLabels, self).__call__(args)
+        self.login(args)
+        all_repos = self.init_main_repo(args)
+        for repo in all_repos:
+            pulls = repo.origin.get_pulls()
+            for pull in pulls:
+                pr = PullRequest(pull)
+                label = pr.base.ref
+                # Read existing labels
+                pr_labels = [x for x in pr.get_labels()]
+                if label not in pr_labels:
+                    print "Labelling PR %s with label %s" % (pr.number, label)
+                    #pr.get_issue().add_to_labels(repo.origin.get_label(label))
+
+
 class _TagCommands(GitRepoCommand):
 
     def __init__(self, sub_parsers):
