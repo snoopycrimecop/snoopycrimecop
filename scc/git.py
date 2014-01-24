@@ -2909,8 +2909,8 @@ class SetLabels(GitRepoCommand):
                 # Read existing labels
                 pr_labels = [x for x in pr.get_labels()]
                 if label not in pr_labels:
-                    print "Labelling PR %s with label %s" % (pr.number, label)
-                    #pr.get_issue().add_to_labels(repo.origin.get_label(label))
+                    print "%s: add label %s to %s" % (repo.origin, label, pr.number)
+                    pr.get_issue().add_to_labels(repo.origin.get_label(label))
 
 
 class _TagCommands(GitRepoCommand):
