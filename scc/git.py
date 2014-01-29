@@ -1779,7 +1779,8 @@ Usage:
 
     def __init__(self, sub_parsers):
         super(CheckMilestone, self).__init__(sub_parsers)
-        self.parser.add_argument('tag', help="Start tag for searching")
+        self.parser.add_argument(
+            'release', help="Start release for searching")
         self.parser.add_argument('head', help="Branch to use check")
         self.parser.add_argument('--set', help="Milestone to use if unset",
                                  dest="milestone_name")
@@ -1803,12 +1804,13 @@ Usage:
                 raise Stop(3, "Unknown milestone: %s" %
                            args.milestone_name)
 
-        if not repo.has_local_tag(args.tag):
-            raise Stop(21, "Tag %s does not exist." % args.tag)
+        tag = repo.get_tag_prefix() + args.release
+        if not repo.has_local_tag(tag):
+            raise Stop(21, "Tag %s does not exist." % tag)
 
         o, e = repo.communicate(
             "git", "log", "--oneline", "--first-parent",
-            "%s...%s" % (args.tag, args.head))
+            "%s...%s" % (tag, args.head))
 
         for line in o.split("\n"):
             if line.split():
