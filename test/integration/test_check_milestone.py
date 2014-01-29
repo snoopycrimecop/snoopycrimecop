@@ -34,11 +34,11 @@ class TestCheckMilestone(SandboxTest):
 
     def testNonExistingTag(self):
         with pytest.raises(Stop):
-            self.check_milestone("v.0.0.0", "HEAD")
+            self.check_milestone("0.0.0", "HEAD")
 
     def testNonExistingMilestone(self):
         with pytest.raises(Stop):
-            self.check_milestone("v.1.0.0", "HEAD", "--set", "0.0.0")
+            self.check_milestone("1.0.0", "HEAD", "--set", "0.0.0")
 
     def testCheckMilestone(self):
-        self.check_milestone("v.1.0.0", "v.1.1.1-TEST")
+        self.check_milestone("1.0.0", "v.1.1.1-TEST")
