@@ -1749,20 +1749,22 @@ class CheckLabels(GitRepoCommand):
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
+            print repo.origin
             pulls = repo.origin.get_pulls()
             for pull in pulls:
                 pr = PullRequest(pull)
-                label = pr.base.ref
-                # Read existing labels
-                pr_labels = [x for x in pr.get_labels()]
-                if label not in pr_labels:
-                    if args.set:
-                        print "%s: add label %s to %s" % \
-                            (repo.origin, label, pr.number)
-                        pr.get_issue().add_to_labels(label)
-                    else:
-                        print "%s: missing label %s on %s" % \
-                            (repo.origin, label, pr.number)
+                self.check_pr_label(pr, args.set and repo.permissions.push)
+
+    def check_pr_label(self, pr, set_label=False):
+        label = pr.base.ref
+        # Read existing labels
+        pr_labels = [x for x in pr.get_labels()]
+        if label not in pr_labels:
+            if set_label:
+                print "Add label %s to %s" % (label, pr.number)
+                pr.get_issue().add_to_labels(label)
+            else:
+                print "Missing label %s on %s" % (label, pr.number)
 
 
 class CheckMilestone(GitRepoCommand):
