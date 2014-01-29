@@ -2887,18 +2887,24 @@ class SetCommitStatus(FilteredPullRequestsCommand):
             self.log.info(line)
 
 
-class SetLabels(GitRepoCommand):
+class CheckLabels(GitRepoCommand):
     """
-    Set a base-based label on all pull requests.
+    Lists which PRs are not labelled with a base branch label.
+    For admins, allow setting a base-based label on all pull requests.
     """
 
-    NAME = "set-labels"
+    NAME = "check-labels"
 
     def __init__(self, sub_parsers):
-        super(SetLabels, self).__init__(sub_parsers)
+        super(CheckLabels, self).__init__(sub_parsers)
+        self.parser.add_argument(
+            '--set',
+            action='store_true',
+            default=False,
+            help='Whether or not to set labels (Admin-only)')
 
     def __call__(self, args):
-        super(SetLabels, self).__call__(args)
+        super(CheckLabels, self).__call__(args)
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
@@ -2909,10 +2915,13 @@ class SetLabels(GitRepoCommand):
                 # Read existing labels
                 pr_labels = [x for x in pr.get_labels()]
                 if label not in pr_labels:
-                    print "%s: add label %s to %s" % \
-                        (repo.origin, label, pr.number)
-                    pr.get_issue().add_to_labels(
-                        repo.origin.get_label(label))
+                    if args.set:
+                        print "%s: add label %s to %s" % \
+                            (repo.origin, label, pr.number)
+                        pr.get_issue().add_to_labels(label)
+                    else:
+                        print "%s: missing label %s on %s" % \
+                            (repo.origin, label, pr.number)
 
 
 class _TagCommands(GitRepoCommand):

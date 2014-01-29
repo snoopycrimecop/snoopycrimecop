@@ -30,6 +30,7 @@ import sys
 
 from framework import main, Stop
 from git import AlreadyMerged
+from git import CheckLabels
 from git import CheckMilestone
 from git import CheckStatus
 from git import DeleteTags
@@ -37,7 +38,6 @@ from git import Label
 from git import Merge
 from git import Rebase
 from git import SetCommitStatus
-from git import SetLabels
 from git import TagRelease
 from git import Token
 from git import TravisMerge
@@ -55,6 +55,7 @@ def entry_point():
     try:
         main(items=[
             (AlreadyMerged.NAME, AlreadyMerged),
+            (CheckLabels.NAME, CheckLabels),
             (CheckMilestone.NAME, CheckMilestone),
             (CheckStatus.NAME, CheckStatus),
             (Deploy.NAME, Deploy),
@@ -63,7 +64,6 @@ def entry_point():
             (Merge.NAME, Merge),
             (Rebase.NAME, Rebase),
             (SetCommitStatus.NAME, SetCommitStatus),
-            (SetLabels.NAME, SetLabels),
             (Token.NAME, Token),
             (TagRelease.NAME, TagRelease),
             (TravisMerge.NAME, TravisMerge),
