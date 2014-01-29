@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012-2013 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2014 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -1855,6 +1855,334 @@ Usage:
         return None
 
 
+class CheckPRs(GitRepoCommand):
+    """Check that PRs in one branch have been merged to another.
+
+This makes use of git notes to detect links between PRs on two
+different branches. These have likely be migrated via the rebase
+command.
+
+    """
+
+    NAME = "check-prs"
+
+    def __init__(self, sub_parsers):
+        super(CheckPRs, self).__init__(sub_parsers)
+        group = self.parser.add_mutually_exclusive_group()
+        group.add_argument(
+            '--parse', action='store_true',
+            help="Parse generated files into git commands")
+        group.add_argument(
+            '--write', action='store_true',
+            help="Write PRs to files.")
+        group.add_argument(
+            '--no-check', action='store_true',
+            help="Do not check mismatching rebased PR comments.")
+
+        self.parser.add_argument('a', help="First branch to compare")
+        self.parser.add_argument('b', help="Second branch to compare")
+
+    def fname(self, branch):
+        return "%s_prs.txt" % branch
+
+    def __call__(self, args):
+        super(CheckPRs, self).__call__(args)
+        self.login(args)
+
+        if args.parse:
+            self.parse(args.a, args.b)
+            return
+
+        self.init_main_repo(args)
+
+        try:
+            unrebased_count = 0
+            mismatch_count = 0
+            repos = [self.main_repo]
+            repos.extend(self.main_repo.submodules)
+            for repo in repos:
+                print repo.origin
+                self.prs = {}
+                self.links = {}
+                s_unrebased, s_mismatch = self.notes(repo, args)
+                unrebased_count += s_unrebased
+                mismatch_count += s_mismatch
+
+            if unrebased_count + mismatch_count > 0:
+                raise Stop(unrebased_count + mismatch_count,
+                           'Found %s unrebased PR(s) and %s mismatching PR(s)'
+                           % (unrebased_count, mismatch_count))
+        finally:
+            self.main_repo.cleanup()
+
+    def notes(self, repo, args):
+
+        # List unrebased PRs
+        count1 = self.list_prs(
+            repo, args.a, args.b, remote=args.remote, write=args.write)
+        count2 = self.list_prs(
+            repo, args.b, args.a, remote=args.remote, write=args.write)
+        unrebased_count = count1 + count2
+
+        if not args.no_check:
+            # Check mismatching rebased PRs links
+            m = self.check_links(repo.origin)
+            if not m:
+                mismatch_count = 0
+            else:
+                print "*"*100
+                print "Mismatching rebased PR comments"
+                print "*"*100
+
+                for key in m.keys():
+                    comments = ", ".join(['--rebased'+x for x in m[key]])
+                    print "  # PR %s: expected '%s' comment(s)" %  \
+                        (key, comments)
+                mismatch_count = len(m.keys())
+        else:
+            mismatch_count = 0
+
+        return unrebased_count, mismatch_count
+
+    def parse(self, branch1, branch2):
+        aname = self.fname(branch1)
+        bname = self.fname(branch2)
+        if not os.path.exists(aname) or not os.path.exists(bname):
+            print 'Use --write to create files first'
+
+        alines = open(aname, "r").read().strip().split("\n")
+        blines = open(bname, "r").read().strip().split("\n")
+
+        if len(alines) != len(blines):
+            print 'Size of files does not match! (%s <> %s)' \
+                % (len(alines), len(blines))
+            print 'Edit files so that lines match'
+
+        fmt_gh = "git notes --ref=see_also/%s append" \
+            " -m 'See gh-%s on %s (%s)' %s"
+        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
+        for i, a in enumerate(alines):
+            b = blines[i]
+            try:
+                aid, apr, arest = self.parse_pr(a)
+            except Exception, e:
+                try:
+                    aid, arest = self.parse_commit(a)
+                except:
+                    aid = None
+                    apr = None
+                    arest = e.line
+
+            try:
+                bid, bpr, brest = self.parse_pr(b)
+            except Exception, e:
+                try:
+                    bid, brest = self.parse_commit(b)
+                except:
+                    bid = None
+                    bpr = None
+                    brest = e.line
+
+            if aid and bid:
+                print fmt_gh % (branch2, bpr, branch2, bid, aid)
+                print fmt_gh % (branch1, apr, branch1, aid, bid)
+            elif aid:
+                print fmt_na % (branch2, brest, aid)
+            elif bid:
+                print fmt_na % (branch1, arest, bid)
+            else:
+                raise Exception("No IDs found for line %s!" % i)
+
+    def list_prs(self, repo, source_branch, target_branch, remote="origin",
+                 write=False):
+        """
+        Method for listing PRs while filtering out those which
+        have a seealso note
+        """
+        git_notes_ref = "refs/notes/see_also/" + target_branch
+        merge_base = repo.merge_base(
+            "%s/%s" % (remote, source_branch),
+            "%s/%s" % (remote, target_branch))
+        merge_range = "%s...%s/%s" % (merge_base, remote, source_branch)
+        middle_marker = str(uuid.uuid4()).replace("-", "")
+        end_marker = str(uuid.uuid4()).replace("-", "")
+
+        popen = repo.call_no_wait(
+            "git", "log",
+            "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
+            "--notes=%s" % git_notes_ref,
+            "--first-parent", merge_range,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # List PRs without seealso notes
+        pr_list = []
+        out, err = popen.communicate()
+        for line in out.split(end_marker):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                line, rest = line.split(middle_marker)
+            except:
+                raise Exception("can't split on ##: " + line)
+            if "See gh-" in rest or "n/a" in rest:
+                continue
+
+            try:
+                sha1, num, rest = self.parse_pr(line)
+                pr_list.append(num)
+            except:
+                self.log.info("Unknown merge: %s", line)
+                continue
+        self.log.debug(
+            "Found %s first-parent PRs merged on %s without a see_also note"
+            " for %s" % (len(pr_list), source_branch, target_branch))
+
+        # Look into PR body/comment for rebase notes and fill match dictionary
+        unrebased_prs = []
+        for pr_number in pr_list:
+            pr = self.visit_pr(repo.origin, pr_number)
+
+            # No rebase comment found on the PR
+            if not self.links[pr_number]:
+                unrebased_prs.append(pr)
+                continue
+
+            # PR marked as no-rebase
+            if self.links[pr_number] == -1:
+                self.log.debug("PR %s is marked as no-rebase" % pr_number)
+                continue
+
+            # Test PRs marked as --rebased
+            if not self.check_rebased_prs(repo, pr_number, target_branch):
+                unrebased_prs.append(pr)
+
+        # Print list of unrebased PRs
+        if unrebased_prs:
+            self.log.debug(
+                "Found %s unrebased PRs from %s to %s"
+                % (len(unrebased_prs), source_branch, target_branch))
+            if write:
+                fname = self.fname(source_branch)
+                if os.path.exists(fname):
+                    raise Stop("File already exists: %s" % fname)
+                f = open(fname, "w")
+                for pr in unrebased_prs:
+                    print >>f, pr
+            else:
+                print "*"*100
+                print "PRs on %s without note/comment for %s" \
+                    % (source_branch, target_branch)
+                print "*"*100
+                for pr in unrebased_prs:
+                    print pr
+
+        return len(unrebased_prs)
+
+    def check_rebased_prs(self, repo, pr_number, target_branch):
+        targets, target_links = self.read_links(self.links, pr_number)
+        for target in targets:
+            target_pr = self.visit_pr(repo.origin, target)
+            target_status = (target_pr.pull.state == 'open' or
+                             target_pr.pull.merged)
+
+            # Check  PR is open or merged against the target branch
+            if (target_status and target_pr.get_base() == target_branch):
+                self.log.debug("PR %s is rebased as %s on %s"
+                               % (pr_number, target, target_branch))
+                return True
+        return False
+
+    def check_links(self, gh_repo):
+        """Return a dictionary of PRs with missing rebase comments"""
+
+        m = self.check_directed_links(self.links)
+
+        # Ensure all nodes (PRs) are visited - handling chained links
+        while not all(x in self.links.keys() for x in m.keys()):
+
+            for pr_number in [key for key in m.keys()
+                              if not key in self.links.keys()]:
+                self.visit_pr(gh_repo, pr_number)
+
+            m = self.check_directed_links(self.links)
+
+        return m
+
+    @staticmethod
+    def check_directed_links(links):
+        """Find mismatching comments in rebased PRs"""
+
+        mismatch_dict = {}
+        for source_pr in links.keys():
+            # Do not check PRs without rebase comments or marked as no-rebase
+            if links[source_pr] == -1 or links[source_pr] is None:
+                continue
+
+            targets, target_links = CheckPRs.read_links(links, source_pr)
+            for target_pr, target_link in zip(targets, target_links):
+
+                if target_pr not in links.keys():
+                    # Target PR has not been visited
+                    mismatch = True
+                elif links[target_pr] is None or links[target_pr] == -1:
+                    # Target PR has no rebase comment or marked as non-rebase
+                    mismatch = True
+                elif not any(x.startswith(target_link) for x
+                             in links[target_pr]):
+                    # Non-matching target PR rebase comments
+                    mismatch = True
+                else:
+                    mismatch = False
+
+                if mismatch:
+                    if target_pr in mismatch_dict:
+                        mismatch_dict[target_pr].append(target_link)
+                    else:
+                        mismatch_dict[target_pr] = [target_link]
+
+        return mismatch_dict
+
+    def visit_pr(self, gh_repo, pr_number):
+        if pr_number not in self.prs.keys():
+            pr = PullRequest(gh_repo.get_pull(pr_number))
+            self.prs[pr_number] = pr
+
+        if pr_number not in self.links.keys():
+            self.links[pr_number] = None
+            if pr.parse('no-rebase'):
+                self.links[pr_number] = -1
+            else:
+                rebased_links = pr.parse(['rebased'])
+                if rebased_links:
+                    self.links[pr_number] = rebased_links
+
+        return self.prs[pr_number]
+
+    @staticmethod
+    def read_links(links, pr_number):
+        to_pattern = r"-to #(\d+)"
+        from_pattern = r"-from #(\d+)"
+
+        if not links[pr_number] or links[pr_number] == -1:
+            return None, None
+
+        targets = []
+        target_links = []
+        for link in links[pr_number]:
+            match = re.match(to_pattern, link)
+            if match:
+                targets.append(int(match.group(1)))
+                target_links.append('-from #%s' % pr_number)
+            else:
+                match = re.match(from_pattern, link)
+                if match:
+                    targets.append(int(match.group(1)))
+                    target_links.append('-to #%s' % pr_number)
+
+        return targets, target_links
+
+
 class CheckStatus(GithubCommand):
     """
     Check GitHub API status
@@ -2490,334 +2818,6 @@ class TravisMerge(GitRepoCommand):
                     self.filters["include"]["pr"].append(pr)
                 else:
                     self.filters["include"]["pr"] = [pr]
-
-
-class UnrebasedPRs(GitRepoCommand):
-    """Check that PRs in one branch have been merged to another.
-
-This makes use of git notes to detect links between PRs on two
-different branches. These have likely be migrated via the rebase
-command.
-
-    """
-
-    NAME = "unrebased-prs"
-
-    def __init__(self, sub_parsers):
-        super(UnrebasedPRs, self).__init__(sub_parsers)
-        group = self.parser.add_mutually_exclusive_group()
-        group.add_argument(
-            '--parse', action='store_true',
-            help="Parse generated files into git commands")
-        group.add_argument(
-            '--write', action='store_true',
-            help="Write PRs to files.")
-        group.add_argument(
-            '--no-check', action='store_true',
-            help="Do not check mismatching rebased PR comments.")
-
-        self.parser.add_argument('a', help="First branch to compare")
-        self.parser.add_argument('b', help="Second branch to compare")
-
-    def fname(self, branch):
-        return "%s_prs.txt" % branch
-
-    def __call__(self, args):
-        super(UnrebasedPRs, self).__call__(args)
-        self.login(args)
-
-        if args.parse:
-            self.parse(args.a, args.b)
-            return
-
-        self.init_main_repo(args)
-
-        try:
-            unrebased_count = 0
-            mismatch_count = 0
-            repos = [self.main_repo]
-            repos.extend(self.main_repo.submodules)
-            for repo in repos:
-                print repo.origin
-                self.prs = {}
-                self.links = {}
-                s_unrebased, s_mismatch = self.notes(repo, args)
-                unrebased_count += s_unrebased
-                mismatch_count += s_mismatch
-
-            if unrebased_count + mismatch_count > 0:
-                raise Stop(unrebased_count + mismatch_count,
-                           'Found %s unrebased PR(s) and %s mismatching PR(s)'
-                           % (unrebased_count, mismatch_count))
-        finally:
-            self.main_repo.cleanup()
-
-    def notes(self, repo, args):
-
-        # List unrebased PRs
-        count1 = self.list_prs(
-            repo, args.a, args.b, remote=args.remote, write=args.write)
-        count2 = self.list_prs(
-            repo, args.b, args.a, remote=args.remote, write=args.write)
-        unrebased_count = count1 + count2
-
-        if not args.no_check:
-            # Check mismatching rebased PRs links
-            m = self.check_links(repo.origin)
-            if not m:
-                mismatch_count = 0
-            else:
-                print "*"*100
-                print "Mismatching rebased PR comments"
-                print "*"*100
-
-                for key in m.keys():
-                    comments = ", ".join(['--rebased'+x for x in m[key]])
-                    print "  # PR %s: expected '%s' comment(s)" %  \
-                        (key, comments)
-                mismatch_count = len(m.keys())
-        else:
-            mismatch_count = 0
-
-        return unrebased_count, mismatch_count
-
-    def parse(self, branch1, branch2):
-        aname = self.fname(branch1)
-        bname = self.fname(branch2)
-        if not os.path.exists(aname) or not os.path.exists(bname):
-            print 'Use --write to create files first'
-
-        alines = open(aname, "r").read().strip().split("\n")
-        blines = open(bname, "r").read().strip().split("\n")
-
-        if len(alines) != len(blines):
-            print 'Size of files does not match! (%s <> %s)' \
-                % (len(alines), len(blines))
-            print 'Edit files so that lines match'
-
-        fmt_gh = "git notes --ref=see_also/%s append" \
-            " -m 'See gh-%s on %s (%s)' %s"
-        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
-        for i, a in enumerate(alines):
-            b = blines[i]
-            try:
-                aid, apr, arest = self.parse_pr(a)
-            except Exception, e:
-                try:
-                    aid, arest = self.parse_commit(a)
-                except:
-                    aid = None
-                    apr = None
-                    arest = e.line
-
-            try:
-                bid, bpr, brest = self.parse_pr(b)
-            except Exception, e:
-                try:
-                    bid, brest = self.parse_commit(b)
-                except:
-                    bid = None
-                    bpr = None
-                    brest = e.line
-
-            if aid and bid:
-                print fmt_gh % (branch2, bpr, branch2, bid, aid)
-                print fmt_gh % (branch1, apr, branch1, aid, bid)
-            elif aid:
-                print fmt_na % (branch2, brest, aid)
-            elif bid:
-                print fmt_na % (branch1, arest, bid)
-            else:
-                raise Exception("No IDs found for line %s!" % i)
-
-    def list_prs(self, repo, source_branch, target_branch, remote="origin",
-                 write=False):
-        """
-        Method for listing PRs while filtering out those which
-        have a seealso note
-        """
-        git_notes_ref = "refs/notes/see_also/" + target_branch
-        merge_base = repo.merge_base(
-            "%s/%s" % (remote, source_branch),
-            "%s/%s" % (remote, target_branch))
-        merge_range = "%s...%s/%s" % (merge_base, remote, source_branch)
-        middle_marker = str(uuid.uuid4()).replace("-", "")
-        end_marker = str(uuid.uuid4()).replace("-", "")
-
-        popen = repo.call_no_wait(
-            "git", "log",
-            "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
-            "--notes=%s" % git_notes_ref,
-            "--first-parent", merge_range,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        # List PRs without seealso notes
-        pr_list = []
-        out, err = popen.communicate()
-        for line in out.split(end_marker):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                line, rest = line.split(middle_marker)
-            except:
-                raise Exception("can't split on ##: " + line)
-            if "See gh-" in rest or "n/a" in rest:
-                continue
-
-            try:
-                sha1, num, rest = self.parse_pr(line)
-                pr_list.append(num)
-            except:
-                self.log.info("Unknown merge: %s", line)
-                continue
-        self.log.debug(
-            "Found %s first-parent PRs merged on %s without a see_also note"
-            " for %s" % (len(pr_list), source_branch, target_branch))
-
-        # Look into PR body/comment for rebase notes and fill match dictionary
-        unrebased_prs = []
-        for pr_number in pr_list:
-            pr = self.visit_pr(repo.origin, pr_number)
-
-            # No rebase comment found on the PR
-            if not self.links[pr_number]:
-                unrebased_prs.append(pr)
-                continue
-
-            # PR marked as no-rebase
-            if self.links[pr_number] == -1:
-                self.log.debug("PR %s is marked as no-rebase" % pr_number)
-                continue
-
-            # Test PRs marked as --rebased
-            if not self.check_rebased_prs(repo, pr_number, target_branch):
-                unrebased_prs.append(pr)
-
-        # Print list of unrebased PRs
-        if unrebased_prs:
-            self.log.debug(
-                "Found %s unrebased PRs from %s to %s"
-                % (len(unrebased_prs), source_branch, target_branch))
-            if write:
-                fname = self.fname(source_branch)
-                if os.path.exists(fname):
-                    raise Stop("File already exists: %s" % fname)
-                f = open(fname, "w")
-                for pr in unrebased_prs:
-                    print >>f, pr
-            else:
-                print "*"*100
-                print "PRs on %s without note/comment for %s" \
-                    % (source_branch, target_branch)
-                print "*"*100
-                for pr in unrebased_prs:
-                    print pr
-
-        return len(unrebased_prs)
-
-    def check_rebased_prs(self, repo, pr_number, target_branch):
-        targets, target_links = self.read_links(self.links, pr_number)
-        for target in targets:
-            target_pr = self.visit_pr(repo.origin, target)
-            target_status = (target_pr.pull.state == 'open' or
-                             target_pr.pull.merged)
-
-            # Check  PR is open or merged against the target branch
-            if (target_status and target_pr.get_base() == target_branch):
-                self.log.debug("PR %s is rebased as %s on %s"
-                               % (pr_number, target, target_branch))
-                return True
-        return False
-
-    def check_links(self, gh_repo):
-        """Return a dictionary of PRs with missing rebase comments"""
-
-        m = self.check_directed_links(self.links)
-
-        # Ensure all nodes (PRs) are visited - handling chained links
-        while not all(x in self.links.keys() for x in m.keys()):
-
-            for pr_number in [key for key in m.keys()
-                              if not key in self.links.keys()]:
-                self.visit_pr(gh_repo, pr_number)
-
-            m = self.check_directed_links(self.links)
-
-        return m
-
-    @staticmethod
-    def check_directed_links(links):
-        """Find mismatching comments in rebased PRs"""
-
-        mismatch_dict = {}
-        for source_pr in links.keys():
-            # Do not check PRs without rebase comments or marked as no-rebase
-            if links[source_pr] == -1 or links[source_pr] is None:
-                continue
-
-            targets, target_links = UnrebasedPRs.read_links(links, source_pr)
-            for target_pr, target_link in zip(targets, target_links):
-
-                if target_pr not in links.keys():
-                    # Target PR has not been visited
-                    mismatch = True
-                elif links[target_pr] is None or links[target_pr] == -1:
-                    # Target PR has no rebase comment or marked as non-rebase
-                    mismatch = True
-                elif not any(x.startswith(target_link) for x
-                             in links[target_pr]):
-                    # Non-matching target PR rebase comments
-                    mismatch = True
-                else:
-                    mismatch = False
-
-                if mismatch:
-                    if target_pr in mismatch_dict:
-                        mismatch_dict[target_pr].append(target_link)
-                    else:
-                        mismatch_dict[target_pr] = [target_link]
-
-        return mismatch_dict
-
-    def visit_pr(self, gh_repo, pr_number):
-        if pr_number not in self.prs.keys():
-            pr = PullRequest(gh_repo.get_pull(pr_number))
-            self.prs[pr_number] = pr
-
-        if pr_number not in self.links.keys():
-            self.links[pr_number] = None
-            if pr.parse('no-rebase'):
-                self.links[pr_number] = -1
-            else:
-                rebased_links = pr.parse(['rebased'])
-                if rebased_links:
-                    self.links[pr_number] = rebased_links
-
-        return self.prs[pr_number]
-
-    @staticmethod
-    def read_links(links, pr_number):
-        to_pattern = r"-to #(\d+)"
-        from_pattern = r"-from #(\d+)"
-
-        if not links[pr_number] or links[pr_number] == -1:
-            return None, None
-
-        targets = []
-        target_links = []
-        for link in links[pr_number]:
-            match = re.match(to_pattern, link)
-            if match:
-                targets.append(int(match.group(1)))
-                target_links.append('-from #%s' % pr_number)
-            else:
-                match = re.match(from_pattern, link)
-                if match:
-                    targets.append(int(match.group(1)))
-                    target_links.append('-to #%s' % pr_number)
-
-        return targets, target_links
 
 
 class UpdateSubmodules(GitRepoCommand):

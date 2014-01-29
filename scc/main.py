@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2013 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2013-2014 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -32,6 +32,7 @@ from framework import main, Stop
 from git import AlreadyMerged
 from git import CheckLabels
 from git import CheckMilestone
+from git import CheckPRs
 from git import CheckStatus
 from git import DeleteTags
 from git import Label
@@ -41,7 +42,6 @@ from git import SetCommitStatus
 from git import TagRelease
 from git import Token
 from git import TravisMerge
-from git import UnrebasedPRs
 from git import UpdateSubmodules
 from deploy import Deploy
 from version import Version
@@ -57,6 +57,7 @@ def entry_point():
             (AlreadyMerged.NAME, AlreadyMerged),
             (CheckLabels.NAME, CheckLabels),
             (CheckMilestone.NAME, CheckMilestone),
+            (CheckPRs.NAME, CheckPRs),
             (CheckStatus.NAME, CheckStatus),
             (Deploy.NAME, Deploy),
             (DeleteTags.NAME, DeleteTags),
@@ -68,7 +69,6 @@ def entry_point():
             (TagRelease.NAME, TagRelease),
             (TravisMerge.NAME, TravisMerge),
             (Version.NAME, Version),
-            (UnrebasedPRs.NAME, UnrebasedPRs),
             (UpdateSubmodules.NAME, UpdateSubmodules),
             ])
     except Stop, stop:

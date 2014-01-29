@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2013 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2013-2014 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from scc.git import UnrebasedPRs
+from scc.git import CheckPRs
 import pytest
 
 no_link_types = [None, -1]
@@ -33,7 +33,7 @@ class TestCheckDirectedLinks(object):
         self.mismatch = {}
 
     def check_directed_links(self):
-        assert UnrebasedPRs.check_directed_links(self.links) == self.mismatch
+        assert CheckPRs.check_directed_links(self.links) == self.mismatch
 
     def testEmptyDictionaries(self):
         self.check_directed_links()
