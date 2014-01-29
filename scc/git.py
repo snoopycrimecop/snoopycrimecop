@@ -1768,11 +1768,11 @@ class CheckLabels(GitRepoCommand):
 class CheckMilestone(GitRepoCommand):
     """Check all merged PRs for a set milestone
 
-Find all GitHub-merged PRs between head and tag, i.e.
+Find all GitHub-merged PRs between tagged release and sha1, i.e.
 git log --first-parent TAG...HEAD
 
 Usage:
-    check-milestone 0.2.0 0.2.1 --set=0.2.1
+    check-milestone 0.2.0 origin/master --set=0.2.1
     """
 
     NAME = "check-milestone"
@@ -1782,8 +1782,9 @@ Usage:
         self.parser.add_argument(
             'release', help="Start release for searching")
         self.parser.add_argument('head', help="Branch to use check")
-        self.parser.add_argument('--set', help="Milestone to use if unset",
-                                 dest="milestone_name")
+        self.parser.add_argument(
+            '--set', dest="milestone_name",
+            help="Milestone to use if unset (requires write permissions)")
 
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
@@ -1791,18 +1792,21 @@ Usage:
         all_repos = self.init_main_repo(args)
         try:
             for repo in all_repos:
-                prs = self.check_milestone(repo, args)
+                print repo.origin
+                self.check_milestone(repo, args)
 
         finally:
             self.main_repo.cleanup()
 
     def check_milestone(self, repo, args):
 
+        milestone = None
         if args.milestone_name:
             milestone = self.get_milestone(repo.origin, args.milestone_name)
             if not milestone:
-                raise Stop(3, "Unknown milestone: %s" %
-                           args.milestone_name)
+                raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
+            if not repo.origin.permissions.push:
+                raise Stop(4, "Authenticated user does not have write access")
 
         tag = repo.get_tag_prefix() + args.release
         if not repo.has_local_tag(tag):
@@ -1819,23 +1823,24 @@ Usage:
                 except:
                     self.log.info("Unknown merge: %s", line)
                     continue
-                pr = repo.origin.get_issue(num)
-                if pr.milestone:
-                    self.log.debug("PR %s in milestone %s",
-                                   pr.number, pr.milestone.title)
-                else:
-                    if args.milestone_name:
-                        try:
-                            pr.edit(milestone=milestone)
-                            print "Set milestone for PR %s to %s" \
-                                % (pr.number, milestone.title)
-                        except github.GithubException, ge:
-                            if self.gh.exc_is_not_found(ge):
-                                raise Stop(10, "Can't edit milestone")
-                            raise
-                    else:
-                        print "No milestone for PR %s ('%s')" \
-                            % (pr.number, line)
+                pr = PullRequest(repo.origin.get_pull(num))
+                self.check_pr_milestone(pr, milestone)
+
+    def check_pr_milestone(self, pr, milestone=None):
+        if pr.milestone:
+            self.log.debug("PR %s in milestone %s",
+                           pr.number, pr.milestone.title)
+        elif milestone:
+            try:
+                pr.get_issue().edit(milestone=milestone)
+                print "Set milestone for PR %s to %s" \
+                    % (pr.number, milestone.title)
+            except github.GithubException, ge:
+                if self.gh.exc_is_not_found(ge):
+                    raise Stop(10, "Can't edit milestone")
+                raise
+        else:
+            print "No milestone for PR %s: %s" % (pr.number, pr.title)
 
     def get_milestone(self, gh_repo, name):
 
