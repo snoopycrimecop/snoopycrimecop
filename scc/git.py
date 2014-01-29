@@ -1728,6 +1728,43 @@ created by a public member of the organization. Default: org.""")
                 self.log.info('Excluding PR with error or failure status')
 
 
+class CheckLabels(GitRepoCommand):
+    """
+    Lists which PRs are not labelled with a base branch label.
+    For admins, allow setting a base-based label on all pull requests.
+    """
+
+    NAME = "check-labels"
+
+    def __init__(self, sub_parsers):
+        super(CheckLabels, self).__init__(sub_parsers)
+        self.parser.add_argument(
+            '--set',
+            action='store_true',
+            default=False,
+            help='Whether or not to set labels (Admin-only)')
+
+    def __call__(self, args):
+        super(CheckLabels, self).__call__(args)
+        self.login(args)
+        all_repos = self.init_main_repo(args)
+        for repo in all_repos:
+            pulls = repo.origin.get_pulls()
+            for pull in pulls:
+                pr = PullRequest(pull)
+                label = pr.base.ref
+                # Read existing labels
+                pr_labels = [x for x in pr.get_labels()]
+                if label not in pr_labels:
+                    if args.set:
+                        print "%s: add label %s to %s" % \
+                            (repo.origin, label, pr.number)
+                        pr.get_issue().add_to_labels(label)
+                    else:
+                        print "%s: missing label %s on %s" % \
+                            (repo.origin, label, pr.number)
+
+
 class CheckMilestone(GitRepoCommand):
     """Check all merged PRs for a set milestone
 
@@ -2885,43 +2922,6 @@ class SetCommitStatus(FilteredPullRequestsCommand):
             args.url, info=args.info)
         for line in msg.split("\n"):
             self.log.info(line)
-
-
-class CheckLabels(GitRepoCommand):
-    """
-    Lists which PRs are not labelled with a base branch label.
-    For admins, allow setting a base-based label on all pull requests.
-    """
-
-    NAME = "check-labels"
-
-    def __init__(self, sub_parsers):
-        super(CheckLabels, self).__init__(sub_parsers)
-        self.parser.add_argument(
-            '--set',
-            action='store_true',
-            default=False,
-            help='Whether or not to set labels (Admin-only)')
-
-    def __call__(self, args):
-        super(CheckLabels, self).__call__(args)
-        self.login(args)
-        all_repos = self.init_main_repo(args)
-        for repo in all_repos:
-            pulls = repo.origin.get_pulls()
-            for pull in pulls:
-                pr = PullRequest(pull)
-                label = pr.base.ref
-                # Read existing labels
-                pr_labels = [x for x in pr.get_labels()]
-                if label not in pr_labels:
-                    if args.set:
-                        print "%s: add label %s to %s" % \
-                            (repo.origin, label, pr.number)
-                        pr.get_issue().add_to_labels(label)
-                    else:
-                        print "%s: missing label %s on %s" % \
-                            (repo.origin, label, pr.number)
 
 
 class _TagCommands(GitRepoCommand):
