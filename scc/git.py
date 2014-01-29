@@ -1787,53 +1787,58 @@ Usage:
     def __call__(self, args):
         super(CheckMilestone, self).__call__(args)
         self.login(args)
-        self.init_main_repo(args)
+        all_repos = self.init_main_repo(args)
         try:
+            for repo in all_repos:
+                prs = self.check_milestone(repo, args)
 
-            if args.milestone_name:
-                milestone = self.get_milestone(args.milestone_name)
-                if not milestone:
-                    raise Stop(3, "Unknown milestone: %s" %
-                               args.milestone_name)
-
-            if not self.main_repo.has_local_tag(args.tag):
-                raise Stop(21, "Tag %s does not exist." % args.tag)
-
-            o, e = self.main_repo.communicate(
-                "git", "log", "--oneline", "--first-parent",
-                "%s...%s" % (args.tag, args.head))
-
-            for line in o.split("\n"):
-                if line.split():
-                    try:
-                        sha1, num, rest = self.parse_pr(line)
-                    except:
-                        self.log.info("Unknown merge: %s", line)
-                        continue
-                    pr = self.main_repo.origin.get_issue(num)
-                    if pr.milestone:
-                        self.log.debug("PR %s in milestone %s",
-                                       pr.number, pr.milestone.title)
-                    else:
-                        if args.milestone_name:
-                            try:
-                                pr.edit(milestone=milestone)
-                                print "Set milestone for PR %s to %s" \
-                                    % (pr.number, milestone.title)
-                            except github.GithubException, ge:
-                                if self.gh.exc_is_not_found(ge):
-                                    raise Stop(10, "Can't edit milestone")
-                                raise
-                        else:
-                            print "No milestone for PR %s ('%s')" \
-                                % (pr.number, line)
         finally:
             self.main_repo.cleanup()
 
-    def get_milestone(self, name):
+    def check_milestone(self, repo, args):
+
+        if args.milestone_name:
+            milestone = self.get_milestone(repo.origin, args.milestone_name)
+            if not milestone:
+                raise Stop(3, "Unknown milestone: %s" %
+                           args.milestone_name)
+
+        if not repo.has_local_tag(args.tag):
+            raise Stop(21, "Tag %s does not exist." % args.tag)
+
+        o, e = repo.communicate(
+            "git", "log", "--oneline", "--first-parent",
+            "%s...%s" % (args.tag, args.head))
+
+        for line in o.split("\n"):
+            if line.split():
+                try:
+                    sha1, num, rest = self.parse_pr(line)
+                except:
+                    self.log.info("Unknown merge: %s", line)
+                    continue
+                pr = repo.origin.get_issue(num)
+                if pr.milestone:
+                    self.log.debug("PR %s in milestone %s",
+                                   pr.number, pr.milestone.title)
+                else:
+                    if args.milestone_name:
+                        try:
+                            pr.edit(milestone=milestone)
+                            print "Set milestone for PR %s to %s" \
+                                % (pr.number, milestone.title)
+                        except github.GithubException, ge:
+                            if self.gh.exc_is_not_found(ge):
+                                raise Stop(10, "Can't edit milestone")
+                            raise
+                    else:
+                        print "No milestone for PR %s ('%s')" \
+                            % (pr.number, line)
+
+    def get_milestone(self, gh_repo, name):
 
         for state in ("open", "closed"):
-            milestones = self.main_repo.origin.get_milestones(state=state)
+            milestones = gh_repo.get_milestones(state=state)
             for m in milestones:
                 if m.title == name:
                     return m
