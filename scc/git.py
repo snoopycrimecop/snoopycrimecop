@@ -1753,7 +1753,8 @@ class CheckLabels(GitRepoCommand):
             pulls = repo.origin.get_pulls()
             for pull in pulls:
                 pr = PullRequest(pull)
-                self.check_pr_label(pr, args.set and repo.permissions.push)
+                self.check_pr_label(pr,
+                                    args.set and repo.origin.permissions.push)
 
     def check_pr_label(self, pr, set_label=False):
         label = pr.base.ref
