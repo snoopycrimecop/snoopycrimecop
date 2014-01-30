@@ -32,13 +32,17 @@ class TestCheckMilestone(SandboxTest):
         args = ["check-milestone", "--no-ask"] + list(args)
         main(args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
 
-    def testNonExistingTag(self):
+    def testNonExistingStartTag(self):
         with pytest.raises(Stop):
-            self.check_milestone("0.0.0", "HEAD")
+            self.check_milestone("0.0.0", "1.0.0")
+
+    def testNonExistingEndTag(self):
+        with pytest.raises(Stop):
+            self.check_milestone("1.0.0", "0.0.0")
 
     def testNonExistingMilestone(self):
         with pytest.raises(Stop):
             self.check_milestone("1.0.0", "HEAD", "--set", "0.0.0")
 
     def testCheckMilestone(self):
-        self.check_milestone("1.0.0", "v.1.1.1-TEST")
+        self.check_milestone("1.0.0", "1.1.1-TEST")

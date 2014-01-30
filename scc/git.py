@@ -1783,8 +1783,11 @@ Usage:
     def __init__(self, sub_parsers):
         super(CheckMilestone, self).__init__(sub_parsers)
         self.parser.add_argument(
-            'release', help="Start release for searching")
-        self.parser.add_argument('head', help="Branch to use check")
+            'release1',
+            help="Release number to use as the search starting point")
+        self.parser.add_argument(
+            'release2',
+            help="Release number to use as the search ending point")
         self.parser.add_argument(
             '--set', dest="milestone_name",
             help="Milestone to use if unset (requires write permissions)")
@@ -1811,13 +1814,19 @@ Usage:
             if not repo.origin.permissions.push:
                 raise Stop(4, "Authenticated user does not have write access")
 
-        tag = repo.get_tag_prefix() + args.release
-        if not repo.has_local_tag(tag):
-            raise Stop(21, "Tag %s does not exist." % tag)
+        # Construct tag 1 and check its validity
+        tag1 = repo.get_tag_prefix() + args.release1
+        if not repo.has_local_tag(tag1):
+            raise Stop(21, "Tag %s does not exist." % tag1)
+
+        # Construct tag 2 and check its validity
+        tag2 = repo.get_tag_prefix() + args.release2
+        if not repo.has_local_tag(tag2):
+            raise Stop(21, "Tag %s does not exist." % tag2)
 
         o, e = repo.communicate(
             "git", "log", "--oneline", "--first-parent",
-            "%s...%s" % (tag, args.head))
+            "%s...%s" % (tag1, tag2))
 
         for line in o.split("\n"):
             if line.split():
