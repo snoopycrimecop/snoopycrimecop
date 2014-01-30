@@ -1730,7 +1730,7 @@ created by a public member of the organization. Default: org.""")
 
 class CheckLabels(GitRepoCommand):
     """
-    Lists which PRs are not labelled with a base branch label.
+    Check which PRs are not labelled with a base branch label.
     For admins, allow setting a base-based label on all pull requests.
     """
 
@@ -1762,8 +1762,8 @@ class CheckLabels(GitRepoCommand):
         pr_labels = [x for x in pr.get_labels()]
         if label not in pr_labels:
             if set_label:
-                print "Add label %s to %s" % (label, pr.number)
                 pr.get_issue().add_to_labels(label)
+                print "Added label %s to %s" % (label, pr.number)
             else:
                 print "Missing label %s on %s" % (label, pr.number)
 
@@ -1775,7 +1775,7 @@ Find all GitHub-merged PRs between tagged release and sha1, i.e.
 git log --first-parent TAG...HEAD
 
 Usage:
-    check-milestone 0.2.0 origin/master --set=0.2.1
+    check-milestone 0.2.0 0.2.1 --set=0.2.1
     """
 
     NAME = "check-milestone"
