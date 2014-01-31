@@ -678,13 +678,13 @@ class GitHubRepository(object):
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
-        is_whitelisted_comment = lambda x: self.is_whitelisted(
-            x.user, filters["default"])
+        is_whitelisted_comment = lambda x: self.is_whitelisted(x.user, "org")
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
 
-            if pullrequest.parse('exclude', whitelist=is_whitelisted_comment):
+            if pullrequest.parse(filters["exclude"]["label"],
+                                 whitelist=is_whitelisted_comment):
                 excluded_pulls[pullrequest] = 'exclude comment'
                 continue
 
@@ -699,7 +699,9 @@ class GitHubRepository(object):
                 # Allow filter PR inclusion using include filter
                 include, reason = self.run_filter(
                     filters["include"], pr_attributes, action="Include")
-                if not include:
+                if not include and not \
+                        pullrequest.parse(filters["include"]["label"],
+                                          whitelist=is_whitelisted_comment):
                     excluded_pulls[pullrequest] = "user: %s" \
                         % pullrequest_user.login
                     continue
@@ -1641,7 +1643,7 @@ created by a public member of the organization. Default: org.""")
             help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument(
             '--exclude', '-E', type=str, action='append',
-            default=DefaultList(["exclude"]),
+            default=DefaultList(["exclude", "breaking"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument(
             '--check-commit-status', '-S', type=str,

@@ -72,7 +72,8 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
 
     def get_default_filters(self):
         include_default = {'pr': None, 'user': None, 'label': ['include']}
-        exclude_default = {'pr': None, 'user': None, 'label': ['exclude']}
+        exclude_default = {'pr': None, 'user': None,
+                           'label': ['exclude', 'breaking']}
         return {'base': self.base, 'default': 'org', 'status': 'none',
                 'include': include_default, 'exclude': exclude_default}
 
