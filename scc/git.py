@@ -1169,10 +1169,10 @@ class GitRepository(object):
 
                 msg = "Conflicting PR."
                 if IS_JENKINS_JOB:
-                    msg += "Removed from build [%s#%s](%s). See the " \
+                    msg += " Removed from build [%s#%s](%s). See the " \
                            "[console output](%s) for more details." \
                            % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
-                              BUILD_URL + "/consoleText")
+                              BUILD_URL + "consoleText")
                 self.dbg(msg)
 
                 if comment and get_token():
