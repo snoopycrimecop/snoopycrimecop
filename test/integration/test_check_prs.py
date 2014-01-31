@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2013 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2013-2014 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -21,26 +21,26 @@
 
 import pytest
 from scc.framework import main, Stop, parsers
-from scc.git import UnrebasedPRs, PullRequest
+from scc.git import CheckPRs, PullRequest
 from Sandbox import SandboxTest
 
 
-class TestUnrebasedPRs(SandboxTest):
+class TestCheckPRs(SandboxTest):
 
     def setup_method(self, method):
-        super(TestUnrebasedPRs, self).setup_method(method)
+        super(TestCheckPRs, self).setup_method(method)
         self.branch1 = "dev_4_4"
         self.branch2 = ""
-        self.args = ["unrebased-prs"]
+        self.args = ["check-prs"]
 
     def unrebased_prs(self):
         self.sandbox.checkout_branch("origin/" + self.branch1)
         self.args += [self.branch1, self.branch2]
-        main(args=self.args, items=[(UnrebasedPRs.NAME, UnrebasedPRs)])
+        main(args=self.args, items=[(CheckPRs.NAME, CheckPRs)])
 
     def create_issue_comment(self, HEAD, target_pr):
         parser, sub_parser = parsers()
-        command = UnrebasedPRs(sub_parser)
+        command = CheckPRs(sub_parser)
         o, e = self.sandbox.communicate(
             "git", "log", "--oneline", "-n", "1", HEAD)
         sha1, num, rest = command.parse_pr(o.split("\n")[0])
@@ -50,7 +50,7 @@ class TestUnrebasedPRs(SandboxTest):
         return comment
 
     def testSelf(self):
-        """Test unrebased-prs on same branch"""
+        """Test unrebased PRs on same branch"""
 
         self.branch2 = "dev_4_4"
         self.unrebased_prs()
@@ -58,7 +58,7 @@ class TestUnrebasedPRs(SandboxTest):
     @pytest.mark.parametrize('shallow', [False, True])
     @pytest.mark.parametrize('checklinks', [False, True])
     def testMultiBranch(self, shallow, checklinks):
-        """Test unrebased-prs mismatching PRs"""
+        """Test unrebased and mismatching PRs"""
 
         self.branch2 = "develop"
         self.init_submodules()
