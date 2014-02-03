@@ -126,6 +126,14 @@ class TestMerge(SandboxTest):
         self.merge()
         assert not self.isMerged()
 
+    def testIncludeComment(self):
+
+        self.pr.create_issue_comment('--breaking')
+        self.merge()
+        assert not self.isMerged()
+        self.merge('-Dnone', '-Ibreaking', '-Eexclude')
+        assert self.isMerged()
+
     def testExcludeDescription(self):
 
         self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
