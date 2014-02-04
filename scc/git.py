@@ -714,9 +714,13 @@ class GitHubRepository(object):
         if "#all" in whitelist:
             return True
 
-        if "#org" in whitelist and self.org and \
-                self.org.has_in_public_members(user):
-            return True
+        if "#org" in whitelist:
+            # Whitelist all public members of the organization
+            if self.org and self.org.has_in_public_members(user):
+                return True
+            # Whitelist the owner of a non-organization repository
+            elif not self.org and user.login == self.gh.get_login():
+                return True
 
         for whitelist_user in whitelist:
             if user.login == whitelist_user:
