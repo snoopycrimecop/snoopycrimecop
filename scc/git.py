@@ -790,7 +790,7 @@ class GitRepository(object):
             os.chdir(directory)
 
     def communicate(self, *command, **kwargs):
-        p = self.wrap_call(subprocess.PIP, *command, **kwargs)
+        p = self.wrap_call(subprocess.PIPE, *command, **kwargs)
         o, e = p.communicate()
         if p.returncode:
             msg = """Failed to run '%s'
