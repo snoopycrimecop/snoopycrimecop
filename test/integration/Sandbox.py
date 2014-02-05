@@ -20,8 +20,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import pytest
 import uuid
+import shutil
+import tempfile
 
 from scc.git import get_github, get_token_or_user
 from subprocess import Popen, PIPE
@@ -34,13 +35,11 @@ class SandboxTest(object):
     def setup_method(self, method):
         self.method = method.__name__
         self.cwd = os.getcwd()
-
-    @pytest.fixture(autouse=True)
-    def initdir(self, tmpdir):
         self.token = get_token_or_user(local=False)
         self.gh = get_github(self.token, dont_ask=True)
         self.user = self.gh.get_login()
-        self.path = str(tmpdir.mkdir("sandbox"))
+        self.path = tempfile.mkdtemp("", "sandbox-", ".")
+        self.path = os.path.abspath(self.path)
         try:
             p = Popen(["git", "clone", sandbox_url, self.path],
                       stdout=PIPE, stderr=PIPE)
@@ -48,8 +47,11 @@ class SandboxTest(object):
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
         except:
-           # Return to cwd regardless.
-            os.chdir(self.cwd)
+            try:
+                shutil.rmtree(self.path)
+            finally:
+                # Return to cwd regardless.
+                os.chdir(self.cwd)
             raise
         # If we succeed, then we change to this dir.
         os.chdir(self.path)
@@ -138,4 +140,8 @@ class SandboxTest(object):
         try:
             self.sandbox.cleanup()
         finally:
-            os.chdir(self.cwd)
+            try:
+                shutil.rmtree(self.path)
+            finally:
+                # Return to cwd regardless.
+                os.chdir(self.cwd)
