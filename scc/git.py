@@ -761,7 +761,7 @@ class GitRepository(object):
         self.infoWrap = LoggerWrapper(self.log, logging.INFO)
 
         self.gh = gh
-        self.cd(path)
+        self.path = path
         root_path, e = self.communicate("git", "rev-parse", "--show-toplevel")
         self.path = os.path.abspath(root_path.strip())
 
@@ -789,11 +789,8 @@ class GitRepository(object):
             self.dbg("cd %s", directory)
             os.chdir(directory)
 
-    def communicate(self, *command):
-        self.dbg("Calling '%s' for stdout/err" % " ".join(command))
-        p = subprocess.Popen(command,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+    def communicate(self, *command, **kwargs):
+        p = self.wrap_call(subprocess.PIPE, *command, **kwargs)
         o, e = p.communicate()
         if p.returncode:
             msg = """Failed to run '%s'
@@ -832,6 +829,7 @@ class GitRepository(object):
         except:
             no_wait = False
 
+        self.cd(self.path)
         self.dbg("Calling '%s'" % " ".join(command))
         p = subprocess.Popen(command, **kwargs)
         if not no_wait:
@@ -864,8 +862,6 @@ class GitRepository(object):
 
     def get_current_head(self):
         """Return the symbolic name for the current branch"""
-        self.cd(self.path)
-        self.dbg("Get current head")
         o, e = self.communicate("git", "symbolic-ref", "HEAD")
         o = o.strip()
         refsheads = "refs/heads/"
@@ -876,7 +872,6 @@ class GitRepository(object):
     def get_sha1(self, branch):
         """Return the sha1 for the specified branch"""
 
-        self.cd(self.path)
         self.dbg("Get sha1 of %s")
         o, e = self.communicate("git", "rev-parse", branch)
         return o.strip()
@@ -888,7 +883,6 @@ class GitRepository(object):
 
     def get_status(self):
         """Return the status of the git repository including its submodules"""
-        self.cd(self.path)
         self.dbg("Check current status")
         self.call("git", "log", "--oneline", "-n", "1", "HEAD")
         self.call("git", "submodule", "status")
@@ -898,18 +892,15 @@ class GitRepository(object):
         Add a file to the repository. The path should
         be relative to the top of the repository.
         """
-        self.cd(self.path)
         self.dbg("Adding %s...", file)
         self.call("git", "add", file)
 
     def commit(self, msg):
-        self.cd(self.path)
         self.dbg("Committing %s...", msg)
         self.call("git", "commit", "-m", msg)
 
     def tag(self, tag, message=None, force=False):
         """Tag the HEAD of the git repository"""
-        self.cd(self.path)
         if message is None:
             message = "Tag with version %s" % tag
 
@@ -926,17 +917,14 @@ class GitRepository(object):
             self.call("git", "tag", tag, "-m", message)
 
     def new_branch(self, name, head="HEAD"):
-        self.cd(self.path)
         self.dbg("New branch %s from %s...", name, head)
         self.call("git", "checkout", "-b", name, head)
 
     def checkout_branch(self, name):
-        self.cd(self.path)
         self.dbg("Checkout branch %s...", name)
         self.call("git", "checkout", name)
 
     def add_remote(self, name, url=None):
-        self.cd(self.path)
         if url is None:
             repo_name = self.origin.repo.name
             url = "git@github.com:%s/%s.git" % (name, repo_name)
@@ -944,12 +932,10 @@ class GitRepository(object):
         self.call("git", "remote", "add", name, url)
 
     def fetch(self, remote="origin"):
-        self.cd(self.path)
         self.dbg("Fetching remote %s...", remote)
         self.call("git", "fetch", remote)
 
     def push_branch(self, name, remote="origin", force=False):
-        self.cd(self.path)
         self.dbg("Pushing branch %s to %s..." % (name, remote))
         if force:
             self.call("git", "push", "-f", remote, name)
@@ -957,19 +943,16 @@ class GitRepository(object):
             self.call("git", "push", remote, name)
 
     def delete_local_branch(self, name, force=False):
-        self.cd(self.path)
         self.dbg("Deleting branch %s locally..." % name)
         d_switch = force and "-D" or "-d"
         self.call("git", "branch", d_switch, name)
 
     def delete_branch(self, name, remote="origin"):
-        self.cd(self.path)
         self.dbg("Deleting branch %s from %s..." % (name, remote))
         self.call("git", "push", remote, ":%s" % name)
 
     def reset(self):
         """Reset the git repository to its HEAD"""
-        self.cd(self.path)
         self.dbg("Resetting...")
         self.call("git", "reset", "--hard", "HEAD")
         self.call("git", "submodule", "update", "--recursive")
@@ -1011,7 +994,6 @@ class GitRepository(object):
 
     def has_local_changes(self):
         """Check for local changes in the Git repository"""
-        self.cd(self.path)
         try:
             self.call("git", "diff-index", "--quiet", "HEAD")
             self.dbg("%s has no local changes", self)
@@ -1023,7 +1005,6 @@ class GitRepository(object):
     def has_ref(self, ref):
         """Check for reference existence in the local Git repository"""
 
-        self.cd(self.path)
         try:
             self.call("git", "show-ref", "--verify", "--quiet", ref)
             return True
@@ -1048,7 +1029,6 @@ class GitRepository(object):
     def has_local_object(self, commit):
         """Check for object existence in the local Git repository"""
 
-        self.cd(self.path)
         try:
             self.call("git", "cat-file", "-e", commit)
             return True
@@ -1056,7 +1036,6 @@ class GitRepository(object):
             return False
 
     def has_remote_tag(self, name, remote="origin"):
-        self.cd(self.path)
         self.dbg("Check tag exists %s...", name)
         p = self.call_no_wait(
             "git", "ls-remote", "--tags", "--exit-code",
@@ -1067,7 +1046,6 @@ class GitRepository(object):
     def is_valid_tag(self, tag):
         """Check the validity of a reference name for a tag"""
 
-        self.cd(self.path)
         try:
             self.call("git", "check-ref-format", "refs/tags/%s" % tag)
             return True
@@ -1087,7 +1065,6 @@ class GitRepository(object):
     def merge_base(self, a, b):
         """Return the first ancestor between two branches"""
 
-        self.cd(self.path)
         mrg, err = self.call("git", "merge-base", a, b,
                              stdout=subprocess.PIPE).communicate()
         return mrg.strip()
@@ -1095,7 +1072,6 @@ class GitRepository(object):
     def list_remotes(self):
         """Return a list of existing remotes"""
 
-        self.cd(self.path)
         remotes = self.call("git", "remote",
                             stdout=subprocess.PIPE).communicate()[0]
         remotes = remotes.split("\n")[:-1]
@@ -1362,7 +1338,6 @@ class GitRepository(object):
     def get_tag_prefix(self):
         "Return the tag prefix for this repository using git describe"
 
-        self.cd(self.path)
         try:
             version, e = self.call("git", "describe",
                                    stdout=subprocess.PIPE).communicate()
@@ -1447,7 +1422,6 @@ class GitRepository(object):
 
     def cleanup(self):
         """Remove remote branches created for merging."""
-        self.cd(self.path)
         if self.gh:  # no gh implies no connection
             remotes = self.list_remotes()
             merge_remotes = [x for x in self.get_merge_remotes().keys()
