@@ -116,7 +116,7 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
     def testSubmodulePRFilter(self, filter_type):
         self.parse_filters(['--%s' % filter_type, 'org/repo#1'])
-        self.filters[filter_type] = {"pr": ['org/repo1']}
+        self.filters[filter_type] = {"org/repo": ['1']}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
@@ -136,8 +136,9 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
              '--%s' % filter_type, 'user:user'])
         self.filters[filter_type] = {
             "label": ['test', 'test2'],
-            "pr": ["1", '2', 'org/repo1'],
-            "user": ["user"]}
+            "pr": ["1", '2'],
+            "user": ["user"],
+            "org/repo": ['1']}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
@@ -220,11 +221,12 @@ class TestTravisMerge(MoxTestBase):
     def testIncludeSubmodulePR(self):
         # --depends-on ome/scripts#21 changes filters
         self.parse_dependencies(['ome/scripts#21'])
-        self.filters["include"]["pr"] = ['ome/scripts21']
+        self.filters["include"]["ome/scripts"] = ['21']
         assert self.command.filters == self.filters
 
     def testIncludeMultiplePRs(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
-        self.filters["include"]["pr"] = ['21', '22', 'ome/scripts21']
+        self.filters["include"]["pr"] = ['21', '22']
+        self.filters["include"]['ome/scripts'] = ['21']
         assert self.command.filters == self.filters
