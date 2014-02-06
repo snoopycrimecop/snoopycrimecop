@@ -657,7 +657,7 @@ class GitHubRepository(object):
     def run_filter(self, filters, pr_attributes, action="Include"):
 
         for key, value in pr_attributes.iteritems():
-            intersect_set = self.intersect(filters[key], value)
+            intersect_set = self.intersect(filters.get(key, None), value)
             if intersect_set:
                 self.dbg("  # ... %s %s: %s", action, key,
                          " ".join(intersect_set))
@@ -683,7 +683,7 @@ class GitHubRepository(object):
         for pull in pulls:
             pullrequest = PullRequest(pull)
 
-            if pullrequest.parse(filters["exclude"]["label"],
+            if pullrequest.parse(filters["exclude"].get("label", None),
                                  whitelist=is_whitelisted_comment):
                 excluded_pulls[pullrequest] = 'exclude comment'
                 continue
@@ -699,9 +699,9 @@ class GitHubRepository(object):
                 # Allow filter PR inclusion using include filter
                 include, reason = self.run_filter(
                     filters["include"], pr_attributes, action="Include")
-                if not include and not \
-                        pullrequest.parse(filters["include"]["label"],
-                                          whitelist=is_whitelisted_comment):
+                if not include and not pullrequest.parse(
+                        filters["include"].get("label", None),
+                        whitelist=is_whitelisted_comment):
                     excluded_pulls[pullrequest] = "user: %s" \
                         % pullrequest_user.login
                     continue
@@ -743,6 +743,7 @@ class GitHubRepository(object):
 
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
+
         return msg
 
 
@@ -1251,14 +1252,12 @@ class GitRepository(object):
             submodule_filters = copy.deepcopy(filters)
 
             for ftype in ["include", "exclude"]:
-                if submodule_filters[ftype]["pr"]:
+                if submodule_filters[ftype].get("pr", None):
                     submodule_prs = [x.replace(submodule_name, '')
                                      for x in submodule_filters[ftype]["pr"]
                                      if x.startswith(submodule_name)]
                     if len(submodule_prs) > 0:
                         submodule_filters[ftype]["pr"] = submodule_prs
-                    else:
-                        submodule_filters[ftype]["pr"] = None
 
             msg += submodule_repo.rset_commit_status(
                 submodule_filters, status, message, url, info)
@@ -1308,14 +1307,12 @@ class GitRepository(object):
             submodule_filters = copy.deepcopy(filters)
 
             for ftype in ["include", "exclude"]:
-                if submodule_filters[ftype]["pr"]:
+                if submodule_filters[ftype].get("pr", []):
                     submodule_prs = [x.replace(submodule_name, '')
                                      for x in submodule_filters[ftype]["pr"]
                                      if x.startswith(submodule_name)]
                     if len(submodule_prs) > 0:
                         submodule_filters[ftype]["pr"] = submodule_prs
-                    else:
-                        submodule_filters[ftype]["pr"] = None
 
             try:
                 submodule_updated, submodule_msg = submodule_repo.rmerge(
@@ -1674,12 +1671,14 @@ created by a public member of the organization. Default: org.""")
 
         self._log_parse_filters(args, default_user)
 
-        descr = {"label": " labelled as", "pr": "", "user": " opened by"}
+        descr = {
+            "label": "PR labelled as",
+            "pr": "PR",
+            "user": "PR opened by"}
         keys = descr.keys()
-        default_key = "label"
 
         for ftype in ["include", "exclude"]:
-            self.filters[ftype] = dict.fromkeys(keys)
+            self.filters[ftype] = {}
 
             if not getattr(args, ftype):
                 continue
@@ -1691,10 +1690,7 @@ created by a public member of the organization. Default: org.""")
                     pattern = key + ":"
                     if filt.find(pattern) == 0:
                         value = filt.replace(pattern, '', 1)
-                        if self.filters[ftype][key]:
-                            self.filters[ftype][key].append(value)
-                        else:
-                            self.filters[ftype][key] = [value]
+                        self.filters[ftype].setdefault(key, []).append(value)
                         found = True
                         continue
 
@@ -1703,24 +1699,16 @@ created by a public member of the organization. Default: org.""")
                     pattern = "#"
                     if filt.find(pattern) != -1:
                         value = filt.replace(pattern, '', 1)
-                        if self.filters[ftype]["pr"]:
-                            self.filters[ftype]["pr"].append(value)
-                        else:
-                            self.filters[ftype]["pr"] = [value]
+                        self.filters[ftype].setdefault("pr", []).append(value)
                         found = True
-                        continue
 
                 if not found:
-                    if self.filters[ftype][key]:
-                        self.filters[ftype][default_key].append(filt)
-                    else:
-                        self.filters[ftype][default_key] = [filt]
+                    self.filters[ftype].setdefault("label", []).append(filt)
 
             action = ftype[0].upper() + ftype[1:-1] + "ing"
-            for key in keys:
-                if self.filters[ftype][key]:
-                    self.log.info("%s PR%s: %s", action, descr[key],
-                                  " ".join(self.filters[ftype][key]))
+            for key in self.filters[ftype].keys():
+                self.log.info("%s %s: %s", action, descr[key],
+                              " ".join(self.filters[ftype][key]))
 
         self.filters["status"] = args.check_commit_status
         if args.check_commit_status != "none":
@@ -2817,8 +2805,8 @@ class TravisMerge(GitRepoCommand):
         self.filters = {}
         self.filters["base"] = base
         self.filters["default"] = "none"
-        self.filters["include"] = {"label": None, "user": None, "pr": None}
-        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+        self.filters["include"] = {}
+        self.filters["exclude"] = {}
 
         for comment in comments:
             dep = comment.strip()
@@ -2826,10 +2814,7 @@ class TravisMerge(GitRepoCommand):
             pattern = "#"
             if dep.find(pattern) != -1:
                 pr = dep.replace(pattern, '', 1)
-                if self.filters["include"]["pr"]:
-                    self.filters["include"]["pr"].append(pr)
-                else:
-                    self.filters["include"]["pr"] = [pr]
+                self.filters["include"].setdefault("pr", []).append(pr)
 
 
 class UpdateSubmodules(GitRepoCommand):

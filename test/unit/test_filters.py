@@ -68,14 +68,13 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
         super(FilteredPullRequestsCommandTest, self).setup_method(method)
         self.scc_parser, self.sub_parser = parsers()
         self.base = 'master'
-        self.filters = self.get_default_filters()
-
-    def get_default_filters(self):
-        include_default = {'pr': None, 'user': None, 'label': ['include']}
-        exclude_default = {'pr': None, 'user': None,
-                           'label': ['exclude', 'breaking']}
-        return {'base': self.base, 'default': 'org', 'status': 'none',
-                'include': include_default, 'exclude': exclude_default}
+        self.filters = {
+            'base': self.base,
+            'default': 'org',
+            'status': 'none',
+            'include': {'label': ['include']},
+            'exclude': {'label': ['exclude', 'breaking']}
+            }
 
     def parse_filters(self, args):
         ns = self.scc_parser.parse_args(self.get_main_cmd() + args)
@@ -88,7 +87,7 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
 
     def testBase(self):
         self.base = 'develop'
-        self.filters = self.get_default_filters()  # Regenerate default
+        self.filters["base"] = "develop"  # Regenerate default
         self.parse_filters([])
         assert self.command.filters == self.filters
 
@@ -104,29 +103,26 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
     def testLabelFilter(self, filter_type, prefix):
         self.parse_filters(['--%s' % filter_type, '%stest' % prefix])
-        self.filters[filter_type]["label"] = ['test']
+        self.filters[filter_type] = {"label": ['test']}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('prefix', ['#', 'pr:'])
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
     def testPRFilter(self, filter_type, prefix):
         self.parse_filters(['--%s' % filter_type, '%s1' % prefix])
-        self.filters[filter_type]["label"] = None
-        self.filters[filter_type]["pr"] = ['1']
+        self.filters[filter_type] = {"pr": ['1']}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
     def testSubmodulePRFilter(self, filter_type):
         self.parse_filters(['--%s' % filter_type, 'org/repo#1'])
-        self.filters[filter_type]["label"] = None
-        self.filters[filter_type]["pr"] = ['org/repo1']
+        self.filters[filter_type] = {"pr": ['org/repo1']}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
     def testUserFilter(self, filter_type):
         self.parse_filters(['--%s' % filter_type, 'user:user'])
-        self.filters[filter_type]["label"] = None
-        self.filters[filter_type]["user"] = ["user"]
+        self.filters[filter_type] = {"user": ["user"]}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
@@ -138,9 +134,10 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
              '--%s' % filter_type, 'pr:2',
              '--%s' % filter_type, 'org/repo#1',
              '--%s' % filter_type, 'user:user'])
-        self.filters[filter_type]["label"] = ['test', 'test2']
-        self.filters[filter_type]["pr"] = ["1", '2', 'org/repo1']
-        self.filters[filter_type]["user"] = ["user"]
+        self.filters[filter_type] = {
+            "label": ['test', 'test2'],
+            "pr": ["1", '2', 'org/repo1'],
+            "user": ["user"]}
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
@@ -188,13 +185,12 @@ class TestTravisMerge(MoxTestBase):
         self.scc_parser, self.sub_parser = parsers()
         self.command = TravisMerge(self.sub_parser)
         self.base = 'master'
-        self.filters = self.get_default_filters()
-
-    def get_default_filters(self):
-        include_default = {'pr': None, 'user': None, 'label': None}
-        exclude_default = {'pr': None, 'user': None, 'label': None}
-        return {'base': self.base, 'default': 'none',
-                'include': include_default, 'exclude': exclude_default}
+        self.filters = {
+            'base': self.base,
+            'default': 'none',
+            'include': {},
+            'exclude': {}
+            }
 
     def parse_dependencies(self, comments):
         self.command._parse_dependencies(self.base, comments)
@@ -206,7 +202,7 @@ class TestTravisMerge(MoxTestBase):
 
     def testBase(self):
         self.base = 'develop'
-        self.filters = self.get_default_filters()  # Regenerate default
+        self.filters['base'] = 'develop'  # Regenerate default
         self.parse_dependencies([])
         assert self.command.filters == self.filters
 
