@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012-2013 Glencoe Software, Inc. All Rights Reserved.
+# Copyright (C) 2012-2014 Glencoe Software, Inc. All Rights Reserved.
 # Use is subject to license terms supplied in LICENSE.txt
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,121 +19,109 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import os
-import shutil
 import pytest
 
 from scc.framework import main, Stop
 from scc.deploy import Deploy
 
 
-class TestDeployCommand(object):
+class TestDeployInit(object):
 
-    def setup_method(self, method):
-        self.folder = os.path.abspath("deploy_test")
-        self.live_folder = self.folder + ".live"
-        self.tmp_folder = self.folder + ".tmp"
-
-        # Initialize old folder with file and directory
-        os.mkdir(self.folder)
-        oldfile = os.path.join(self.folder, "a")
-        open(oldfile, "w")
-        self.oldtargetfile = os.path.join(self.live_folder, "a")
-        olddir = os.path.join(self.folder, "d")
-        os.mkdir(olddir)
-        self.oldtargetdir = os.path.join(self.live_folder, "d")
-
-    def deploy(self, *args):
-        args = ["deploy"] + list(args)
+    def deploy(self, tmpdir):
+        args = ["deploy", "--init", str(tmpdir.join('test'))]
         main(args=args, items=[("deploy", Deploy)])
 
-    def createBrokenSymlink(self, folder):
-
-        # Create broken symboic link
-        brokenlink = os.path.join(folder, "brokensymlink")
-        badsource = os.path.join(folder, "nonexistingsource")
-        os.symlink(badsource, brokenlink)
-        assert os.path.lexists(brokenlink)
-        assert not os.path.exists(brokenlink)
-
-        return os.path.join(self.folder, "brokensymlink")
-
-    def teardown_method(self, method):
-        for path in [self.folder, self.live_folder, self.tmp_folder]:
-            if os.path.exists(path):
-                if os.path.islink(path) or os.path.isfile(path):
-                    os.remove(path)
-                else:
-                    shutil.rmtree(path)
-
-
-class TestDeployInit(TestDeployCommand):
-
-    def testInvalidFolder(self):
+    def testInvalidFolder(self, tmpdir):
         with pytest.raises(Stop):
-            self.deploy("--init", "invalid_folder")
+            self.deploy(tmpdir)
 
-    def testExistingLiveFolder(self):
-        os.mkdir(self.live_folder)
+    def testExistingLiveFolder(self, tmpdir):
+        tmpdir.mkdir('test')
+        tmpdir.mkdir('test.live')
         with pytest.raises(Stop):
-            self.deploy("--init", self.folder)
+            self.deploy(tmpdir)
 
-    def testPasses(self):
-        self.deploy("--init", self.folder)
-        assert os.path.isdir(self.live_folder)
-        assert os.path.islink(self.folder)
-        assert os.path.isfile(self.oldtargetfile)
-        assert os.path.isdir(self.oldtargetdir)
+    def testFile(self, tmpdir):
+        init_file = tmpdir.mkdir('test').join('foo')
+        init_file.write('foo')
+        self.deploy(tmpdir)
+        assert tmpdir.join('test.live').check(dir=1)
+        assert tmpdir.join('test').readlink() == str(tmpdir.join('test.live'))
+        assert tmpdir.join('test.live').join('foo').check(file=1)
+        assert tmpdir.join('test.live').join('foo').read() == 'foo'
 
-    def testBrokenSymlink(self):
-        targetlink = self.createBrokenSymlink(self.folder)
-        self.deploy("--init", self.folder)
-        assert not os.path.lexists(targetlink)
-        assert not os.path.exists(targetlink)
+    @pytest.mark.parametrize('broken', [True, False])
+    def testSymlink(self, tmpdir, broken):
+        init_file = tmpdir.mkdir('test').join('foo')
+        init_file.write('foo')
+        link = tmpdir.join('test').join('link')
+        link.mksymlinkto(init_file)
+        if broken:
+            init_file.remove()
+        assert link.check(link=1)
+        assert link.readlink() == str(init_file)
+        self.deploy(tmpdir)
+        if broken:
+            assert not tmpdir.join('test.live').join('link').check(file=1)
+        else:
+            assert tmpdir.join('test.live').join('link').check(file=1)
+            assert tmpdir.join('test.live').join('link').read() == 'foo'
 
 
-class TestDeploy(TestDeployCommand):
+class TestDeploy(object):
 
-    def setup_method(self, method):
+    def deploy(self, tmpdir):
+        args = ["deploy", str(tmpdir.join('test'))]
+        main(args=args, items=[("deploy", Deploy)])
 
-        super(TestDeploy, self).setup_method(method)
-        # Create tmp folder for content replacement
-        os.mkdir(self.tmp_folder)
-        newfile = os.path.join(self.tmp_folder, "b")
-        open(newfile, "w")
-        self.newtargetfile = os.path.join(self.live_folder, "b")
+    def init(self, tmpdir):
+        init_file = tmpdir.mkdir('test.live').join('foo')
+        init_file.write('foo')
+        link = tmpdir.join('test')
+        link.mksymlinkto(tmpdir.join('test.live'))
 
-    def testNoInit(self):
+    def testNoInit(self, tmpdir):
+        tmpdir.mkdir('test')
+        tmpdir.mkdir('test.tmp')
         with pytest.raises(Stop):
-            self.deploy(self.folder)
+            self.deploy(tmpdir)
 
-    def testWrongInit(self):
-        os.mkdir(self.live_folder)
+    def testWrongInit(self, tmpdir):
+        tmpdir.mkdir('test')
+        tmpdir.mkdir('test.live')
         with pytest.raises(Stop):
-            self.deploy(self.folder)
+            self.deploy(tmpdir)
 
-    def testInvalidFolder(self):
-        self.deploy("--init", self.folder)
+    def testMissingTmpFolder(self, tmpdir):
+        self.init(tmpdir)
         with pytest.raises(Stop):
-            self.deploy("invalid_folder")
+            self.deploy(tmpdir.join('test'))
 
-    def testMissingTmpFolder(self):
-        self.deploy("--init", self.folder)
-        shutil.rmtree(self.tmp_folder)
-        with pytest.raises(Stop):
-            self.deploy(self.folder)
+    def testFile(self, tmpdir):
+        self.init(tmpdir)
+        new_file = tmpdir.mkdir('test.tmp').join('bar')
+        new_file.write('bar')
+        self.deploy(tmpdir)
+        assert not tmpdir.join('test.tmp').check(dir=1)
+        assert not new_file.check(file=1)
+        assert not tmpdir.join('test.live').join('foo').check(file=1)
+        assert tmpdir.join('test.live').join('bar').check(file=1)
+        assert tmpdir.join('test.live').join('bar').read() == 'bar'
 
-    def testPasses(self):
-        self.deploy("--init", self.folder)
-        self.deploy(self.folder)
-        assert not os.path.exists(self.tmp_folder)
-        assert not os.path.exists(self.oldtargetfile)
-        assert not os.path.exists(self.oldtargetdir)
-        assert os.path.isfile(self.newtargetfile)
-
-    def testBrokenSymlink(self):
-        targetlink = self.createBrokenSymlink(self.tmp_folder)
-        self.deploy("--init", self.folder)
-        self.deploy(self.folder)
-        assert not os.path.lexists(targetlink)
-        assert not os.path.exists(targetlink)
+    @pytest.mark.parametrize('broken', [True, False])
+    def testSymlink(self, tmpdir, broken):
+        self.init(tmpdir)
+        new_file = tmpdir.mkdir('test.tmp').join('bar')
+        new_file.write('bar')
+        link = tmpdir.join('test.tmp').join('link')
+        link.mksymlinkto(new_file)
+        if broken:
+            new_file.remove()
+        assert link.check(link=1)
+        assert link.readlink() == str(new_file)
+        self.deploy(tmpdir)
+        if broken:
+            assert not tmpdir.join('test.live').join('link').check(file=1)
+        else:
+            assert tmpdir.join('test.live').join('link').check(file=1)
+            assert tmpdir.join('test.live').join('link').read() == 'bar'
