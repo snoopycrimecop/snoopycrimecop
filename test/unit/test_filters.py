@@ -77,28 +77,23 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
     @pytest.mark.parametrize('value', ['', '#12#12', 'pr:12'])
     def test_parse_hash_invalid(self, ftype, value):
-        rsp = self.command._parse_hash(ftype, 'key')
+        rsp = self.command._parse_hash(ftype, value)
         assert not rsp
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    def test_parse_hash_pr(self, ftype):
-        rsp = self.command._parse_hash(ftype, '#1')
-        self.filters[ftype] = {'pr': ['1']}
+    @pytest.mark.parametrize(('prefix', 'key'), [
+        ('', 'pr'), ('user/repo', 'user/repo')])
+    def test_parse_hash_pr(self, ftype, prefix, key):
+        rsp = self.command._parse_hash(ftype, '%s#1' % prefix)
+        self.filters[ftype] = {key: ['1']}
         assert rsp
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    def test_parse_hash_submodule_pr(self, ftype):
-        rsp = self.command._parse_hash(ftype, 'user/repo#1')
-        self.filters[ftype] = {'user/repo': ['1']}
-        assert rsp
-        assert self.command.filters == self.filters
-
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('wrong_key_value', ['keyvalue', '#1'])
-    def test_parse_key_value_invalid(self, ftype, wrong_key_value):
-        rsp = self.command._parse_key_value(ftype, '%s' % wrong_key_value)
+    @pytest.mark.parametrize('invalid_value', ['keyvalue', '#1'])
+    def test_parse_key_value_invalid(self, ftype, invalid_value):
+        rsp = self.command._parse_key_value(ftype, '%s' % invalid_value)
         assert not rsp
         assert self.command.filters == self.filters
 

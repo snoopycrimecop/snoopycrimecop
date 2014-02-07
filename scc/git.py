@@ -1689,15 +1689,19 @@ created by a public member of the organization. Default: org.""")
                 return True
         return False
 
-    def _parse_hash(self, ftype, filt):
-        pattern = "#"
-        if filt.find(pattern) != -1:
-            prefix, nr = filt.split('#')
-            if not prefix:
-                prefix = 'pr'
-            self.filters[ftype].setdefault(prefix, []).append(nr)
-            return True
-        return False
+    def _parse_hash(self, ftype, value):
+        """Parse a hash pattern of type #n or user/repo#n"""
+        import re
+        m = re.match(r'^(?P<prefix>(.*/.*)?)#(?P<nr>\d+)$', value)
+        if not m:
+            return False
+
+        if not m.group('prefix'):
+            prefix = 'pr'
+        else:
+            prefix = m.group('prefix')
+        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        return True
 
 
 class CheckLabels(GitRepoCommand):
