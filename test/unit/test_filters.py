@@ -91,17 +91,20 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('invalid_value', ['keyvalue', '#1'])
-    def test_parse_key_value_invalid(self, ftype, invalid_value):
-        rsp = self.command._parse_key_value(ftype, '%s' % invalid_value)
+    @pytest.mark.parametrize(
+        'invalid_key_value',
+        ['keyvalue', '#1', ':value', 'key:', 'user#repo:value'])
+    def test_parse_key_value_invalid(self, ftype, invalid_key_value):
+        rsp = self.command._parse_key_value(ftype, '%s' % invalid_key_value)
         assert not rsp
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user', 'label', 'pr'])
-    def test_parse_key_value(self, ftype, key):
-        self.command._parse_key_value(ftype, '%s:value' % key)
-        self.filters[ftype] = {key: ['value']}
+    @pytest.mark.parametrize('key', ['user', 'label', 'pr', 'user/repo'])
+    @pytest.mark.parametrize('value', ['1', 'value'])
+    def test_parse_key_value(self, ftype, key, value):
+        self.command._parse_key_value(ftype, '%s:%s' % (key, value))
+        self.filters[ftype] = {key: [value]}
         assert self.command.filters == self.filters
 
 

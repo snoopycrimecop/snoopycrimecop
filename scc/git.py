@@ -1678,21 +1678,22 @@ created by a public member of the organization. Default: org.""")
 
         self.filters["status"] = args.check_commit_status
 
-    def _parse_key_value(self, ftype, filt):
-        keys = ["label", "user", "pr"]
-        for key in keys:
-            # Look for key:value pattern
-            pattern = key + ":"
-            if filt.find(pattern) == 0:
-                value = filt.replace(pattern, '', 1)
-                self.filters[ftype].setdefault(key, []).append(value)
-                return True
-        return False
+    def _parse_key_value(self, ftype, key_value):
+        """Parse a key/value pattern of type key/value"""
+        import re
+        m = re.match(r'^(?P<key>(\w+)(/\w+)?):(?P<value>(\w+))$', key_value)
+        if not m:
+            return False
+
+        key = m.group('key')
+        value = m.group('value')
+        self.filters[ftype].setdefault(key, []).append(value)
+        return True
 
     def _parse_hash(self, ftype, value):
         """Parse a hash pattern of type #n or user/repo#n"""
         import re
-        m = re.match(r'^(?P<prefix>(.*/.*)?)#(?P<nr>\d+)$', value)
+        m = re.match(r'^(?P<prefix>(\w+/\w+)?)#(?P<nr>\d+)$', value)
         if not m:
             return False
 
