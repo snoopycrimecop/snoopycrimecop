@@ -22,7 +22,10 @@
 import pytest
 
 from scc.framework import parsers
-from scc.git import Merge, SetCommitStatus, TravisMerge
+from scc.git import FilteredPullRequestsCommand
+from scc.git import Merge
+from scc.git import SetCommitStatus
+from scc.git import TravisMerge
 from Mock import MoxTestBase, MockTest
 
 
@@ -60,6 +63,47 @@ class TestFilter(MockTest):
         status, reason = self.run_filter()
         assert status is ("test_label" in labels) or ("test_user" in users) \
             or ("1" in prs)
+
+
+class TestFilteredPullRequestsCommand(MoxTestBase):
+
+    def setup_method(self, method):
+        super(TestFilteredPullRequestsCommand, self).setup_method(method)
+        self.scc_parser, self.sub_parser = parsers()
+        self.command = FilteredPullRequestsCommand(self.sub_parser)
+        self.filters = dict.fromkeys(['include', 'exclude'], {})
+        self.command.filters = self.filters
+
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    @pytest.mark.parametrize('value', ['', '#12#12', 'pr:12'])
+    def test_parse_hash_invalid(self, filter_type, value):
+        self.command._parse_hash(filter_type, 'key')
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def test_parse_hash_pr(self, filter_type):
+        self.command._parse_hash(filter_type, '#1')
+        self.filters[filter_type] = {'pr': '1'}
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    def test_parse_hash_submodule_pr(self, filter_type):
+        self.command._parse_hash(filter_type, 'user/repo#1')
+        self.filters[filter_type] = {'user/repo': '1'}
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    @pytest.mark.parametrize('wrong_key_value', ['keyvalue', '#1'])
+    def test_parse_key_value_invalid(self, filter_type, wrong_key_value):
+        self.command._parse_key_value(filter_type, '%s' % wrong_key_value)
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
+    @pytest.mark.parametrize('key', ['user', 'label', 'pr'])
+    def test_parse_key_value(self, filter_type, key):
+        self.command._parse_key_value(filter_type, '%s:value' % key)
+        self.filters[filter_type] = {'key': 'value'}
+        assert self.command.filters == self.filters
 
 
 class FilteredPullRequestsCommandTest(MoxTestBase):
