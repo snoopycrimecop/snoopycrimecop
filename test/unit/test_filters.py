@@ -28,6 +28,7 @@ from scc.git import SetCommitStatus
 from scc.git import TravisMerge
 from scc.git import get_default_filters
 from Mock import MoxTestBase, MockTest
+defaults = [None, 'none', 'org', 'all']
 
 
 class TestFilter(MockTest):
@@ -134,14 +135,21 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
             self.filters.update(get_default_filters("org"))
 
     # Default arguments
-    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    @pytest.mark.parametrize('default', defaults)
     def testBase(self, default):
         self.set_defaults(default)
         self.base = 'develop'
         self.filters["base"] = "develop"  # Regenerate default
         assert self.parse_filters() == self.filters
 
-    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    @pytest.mark.parametrize('default', defaults)
+    def testBase(self, default):
+        self.set_defaults(default)
+        self.base = 'develop'
+        self.filters["base"] = "develop"  # Regenerate default
+        assert self.parse_filters() == self.filters
+            
+    @pytest.mark.parametrize('default', defaults)
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
     @pytest.mark.parametrize('user_prefix', [None, 'user:'])
     @pytest.mark.parametrize('pr_prefix', [None, '#', 'pr:', 'org/repo#'])
@@ -164,7 +172,7 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
             self.filters[ftype].setdefault("label", []).append('label')
         assert self.parse_filters() == self.filters
 
-    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    @pytest.mark.parametrize('default', defaults)
     @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
     def testCheckCommitStatus(self, default, status):
         self.set_defaults(default)
@@ -197,7 +205,7 @@ class TestSetCommitStatus(FilteredPullRequestsCommandTest):
                 self.message]
 
     # Status tests
-    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    @pytest.mark.parametrize('default', defaults)
     @pytest.mark.parametrize(
         'status', ['success', 'failure', 'error', 'pending'])
     def testStatus(self, default, status):
