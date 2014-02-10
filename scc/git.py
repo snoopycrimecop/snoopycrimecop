@@ -600,20 +600,22 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
-    def is_whitelisted(self, user, default="org"):
-        if default == "org":
+    def is_whitelisted(self, user, mode="org"):
+
+        if not mode:
+            return False
+
+        if mode == "org":
             if self.org:
                 status = self.org.has_in_public_members(user)
             else:
                 status = False
-        elif default == "mine":
+        elif mode == "mine":
             status = user.login == self.gh.get_login()
-        elif default == "all":
+        elif mode == "all":
             status = True
-        elif default == "none":
-            status = False
         else:
-            raise Exception("Unknown whitelisting mode: %s", default)
+            raise Exception("Unknown whitelisting mode: %s", mode)
 
         return status
 
@@ -671,8 +673,7 @@ class GitHubRepository(object):
         msg = ""
 
         # Fail fast if default is none and no include filter is specified
-        no_include = all(v is None for v in filters["include"].values())
-        if filters["default"] == 'none' and no_include:
+        if not filters["include"]:
             return msg
 
         # Loop over pull requests opened aGainst base
@@ -683,7 +684,7 @@ class GitHubRepository(object):
         for pull in pulls:
             pullrequest = PullRequest(pull)
 
-            if pullrequest.parse(filters["exclude"].get("label", None),
+            if pullrequest.parse(filters["exclude"].get("label"),
                                  whitelist=is_whitelisted_comment):
                 excluded_pulls[pullrequest] = 'exclude comment'
                 continue
@@ -695,7 +696,8 @@ class GitHubRepository(object):
             pr_attributes["user"] = [pullrequest_user.login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            if not self.is_whitelisted(pullrequest_user, filters["default"]):
+            if not self.is_whitelisted(pullrequest_user,
+                                       filters["include"].get("mode")):
                 # Allow filter PR inclusion using include filter
                 include, reason = self.run_filter(
                     filters["include"], pr_attributes, action="Include")
@@ -1578,6 +1580,22 @@ class GitRepoCommand(GithubCommand):
         return None
 
 
+def get_default_filters(default):
+    filters = {}
+    if default == "org":
+        filters["include"] = {"mode": "org", "label": ["include"]}
+        filters["exclude"] = {"label": ["exclude", "breaking"]}
+    elif default == "none":
+        filters["include"] = {}
+        filters["exclude"] = {}
+    elif default == "all":
+        filters["include"] = {"mode": "all"}
+        filters["exclude"] = {}
+    else:
+        raise "Default %s non-defined"
+    return filters
+
+
 class FilteredPullRequestsCommand(GitRepoCommand):
     """
     Abstract base class for repo commands that take filters to find
@@ -1592,23 +1610,20 @@ class FilteredPullRequestsCommand(GitRepoCommand):
 
     def _configure_filters(self):
         filter_desc = " Filter keys can be specified using label:my_label, \
-            pr:24 or  user:username. If no key is specified, the filter is \
+            pr:24 or user:username. If no key is specified, the filter is \
             considered as a label filter."
         self.parser.add_argument(
             '--default', '-D', type=str,
-            choices=["none", "mine", "org", "all"], default="org",
+            choices=["none", "org", "all"], default="org",
             help="""Mode specifying the default PRs/comments to include. \
 None includes no PR/comment. All includes all open PRs/comments. \
-Mine only includes the PRs/comments created by the authenticated user. \
 If the repository belongs to an organization, org includes any PR/comment \
 created by a public member of the organization. Default: org.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
-            default=DefaultList(["include"]),
             help='Filters to include PRs in the merge.' + filter_desc)
         self.parser.add_argument(
             '--exclude', '-E', type=str, action='append',
-            default=DefaultList(["exclude", "breaking"]),
             help='Filters to exclude PRs from the merge.' + filter_desc)
         self.parser.add_argument(
             '--check-commit-status', '-S', type=str,
@@ -1624,14 +1639,14 @@ created by a public member of the organization. Default: org.""")
             action = "Listing"
         else:
             action = self.get_action()
-        default_desc = {
+        mode_desc = {
             "org": "any public member of the organization",
-            "mine": "%s" % self.gh.get_login(),
             "all": "any user",
             "none": "no user"}
-        self.log.info("%s PRs based on %s opened by %s",
-                      action, self.filters["base"],
-                      default_desc[self.filters["default"]])
+        if self.filters["include"].get("mode"):
+            self.log.info("%s PRs based on %s opened by %s",
+                          action, self.filters["base"],
+                          mode_desc[self.filters["include"].get("mode")])
 
         filter_desc = {'include': 'Including', 'exclude': 'Excluding'}
         key_desc = {
@@ -1641,6 +1656,8 @@ created by a public member of the organization. Default: org.""")
 
         for ftype in filter_desc.keys():
             for key in self.filters[ftype].keys():
+                if key == "mode":
+                    continue
                 if key in key_desc:
                     desc = key_desc[key] % ", ".join(self.filters[ftype][key])
                 else:
@@ -1657,13 +1674,10 @@ created by a public member of the organization. Default: org.""")
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
 
-        self.filters = {}
+        self.filters = get_default_filters(args.default)
         self.filters["base"] = args.base
-        self.filters["default"] = args.default
 
         for ftype in ["include", "exclude"]:
-            self.filters[ftype] = {}
-
             if not getattr(args, ftype):
                 continue
 
@@ -2788,7 +2802,6 @@ class TravisMerge(FilteredPullRequestsCommand):
         # Create default merge filters using the PR base ref
         self.filters = {}
         self.filters["base"] = base
-        self.filters["default"] = "none"
         self.filters["include"] = {}
         self.filters["exclude"] = {}
 
@@ -2862,9 +2875,8 @@ class UpdateSubmodules(GitRepoCommand):
         # Create commit message using command arguments
         self.filters = {}
         self.filters["base"] = args.base
-        self.filters["default"] = "none"
-        self.filters["include"] = {"label": None, "user": None, "pr": None}
-        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+        self.filters["include"] = {}
+        self.filters["exclude"] = {}
 
         updated, merge_msg = main_repo.rmerge(
             self.filters,
