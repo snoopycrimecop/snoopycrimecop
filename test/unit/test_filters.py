@@ -147,7 +147,10 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
     def testMode(self, default, mode):
         self.set_defaults(default)
         self.args += ['--include', 'mode:%s' % mode]
-        self.filters["include"]["mode"] = mode
+        if mode == 'none':
+            self.filters["include"].pop("mode", None)
+        else:
+            self.filters["include"]["mode"] = mode
         assert self.parse_filters() == self.filters
 
     @pytest.mark.parametrize('default', defaults)
