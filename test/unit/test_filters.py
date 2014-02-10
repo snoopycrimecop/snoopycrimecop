@@ -26,6 +26,7 @@ from scc.git import FilteredPullRequestsCommand
 from scc.git import Merge
 from scc.git import SetCommitStatus
 from scc.git import TravisMerge
+from scc.git import get_default_filters
 from Mock import MoxTestBase, MockTest
 
 
@@ -116,81 +117,60 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
         self.base = 'master'
         self.filters = {
             'base': self.base,
-            'default': 'org',
             'status': 'none',
-            'include': {'label': ['include']},
-            'exclude': {'label': ['exclude', 'breaking']}
             }
+        self.args = []
 
-    def parse_filters(self, args):
-        ns = self.scc_parser.parse_args(self.get_main_cmd() + args)
+    def parse_filters(self):
+        ns = self.scc_parser.parse_args(self.get_main_cmd() + self.args)
         self.command._parse_filters(ns)
+        return self.command.filters
+
+    def set_defaults(self, default):
+        if default:
+            self.args += ['-D%s' % default]
+            self.filters.update(get_default_filters(default))
+        else:
+            self.filters.update(get_default_filters("org"))
 
     # Default arguments
-    def testDefaults(self):
-        self.parse_filters([])
-        assert self.command.filters == self.filters
-
-    def testBase(self):
+    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    def testBase(self, default):
+        self.set_defaults(default)
         self.base = 'develop'
         self.filters["base"] = "develop"  # Regenerate default
-        self.parse_filters([])
-        assert self.command.filters == self.filters
+        assert self.parse_filters() == self.filters
 
-    # Default PR sets
-    @pytest.mark.parametrize('default', ['none', 'org', 'all'])
-    def testDefault(self, default):
-        self.parse_filters(['-D%s' % default])
-        self.filters["default"] = default
-        assert self.command.filters == self.filters
+    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
+    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('user_prefix', [None, 'user:'])
+    @pytest.mark.parametrize('pr_prefix', [None, '#', 'pr:', 'org/repo#'])
+    @pytest.mark.parametrize('label_filter', [None, '', 'label:'])
+    def testUserFilter(self, default, ftype, user_prefix, pr_prefix,
+                       label_filter):
+        self.set_defaults(default)
+        if user_prefix:
+            self.args += ['--%s' % ftype, '%suser' % user_prefix]
+            self.filters[ftype].setdefault("user", []).append('user')
+        if pr_prefix:
+            self.args += ['--%s' % ftype, '%s1' % pr_prefix]
+            if '/' in pr_prefix:
+                key = "org/repo"
+            else:
+                key = "pr"
+            self.filters[ftype].setdefault(key, []).append('1')
+        if label_filter:
+            self.args += ['--%s' % ftype, '%slabel' % label_filter]
+            self.filters[ftype].setdefault("label", []).append('label')
+        assert self.parse_filters() == self.filters
 
-    # PR inclusion
-    @pytest.mark.parametrize('prefix', ['', 'label:'])
-    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
-    def testLabelFilter(self, filter_type, prefix):
-        self.parse_filters(['--%s' % filter_type, '%stest' % prefix])
-        self.filters[filter_type] = {"label": ['test']}
-        assert self.command.filters == self.filters
-
-    @pytest.mark.parametrize('prefix', ['#', 'pr:'])
-    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
-    def testPRFilter(self, filter_type, prefix):
-        self.parse_filters(['--%s' % filter_type, '%s1' % prefix])
-        self.filters[filter_type] = {"pr": ['1']}
-        assert self.command.filters == self.filters
-
-    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
-    def testSubmodulePRFilter(self, filter_type):
-        self.parse_filters(['--%s' % filter_type, 'org/repo#1'])
-        self.filters[filter_type] = {"org/repo": ['1']}
-        assert self.command.filters == self.filters
-
-    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
-    def testUserFilter(self, filter_type):
-        self.parse_filters(['--%s' % filter_type, 'user:user'])
-        self.filters[filter_type] = {"user": ["user"]}
-        assert self.command.filters == self.filters
-
-    @pytest.mark.parametrize('filter_type', ['include', 'exclude'])
-    def testMixedFilters(self, filter_type):
-        self.parse_filters(
-            ['--%s' % filter_type, 'test',
-             '--%s' % filter_type, 'label:test2',
-             '--%s' % filter_type, '#1',
-             '--%s' % filter_type, 'pr:2',
-             '--%s' % filter_type, 'org/repo#1',
-             '--%s' % filter_type, 'user:user'])
-        self.filters[filter_type] = {
-            "label": ['test', 'test2'],
-            "pr": ["1", '2'],
-            "user": ["user"],
-            "org/repo": ['1']}
-        assert self.command.filters == self.filters
-
+    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
     @pytest.mark.parametrize('status', ['none', 'no-error', 'success-only'])
-    def testCheckCommitStatus(self, status):
-        self.parse_filters(["-S", "%s" % status])
+    def testCheckCommitStatus(self, default, status):
+        self.set_defaults(default)
+        self.args += ["-S", "%s" % status]
         self.filters["status"] = status
+        self.parse_filters()
         assert self.command.filters == self.filters
 
 
@@ -217,11 +197,13 @@ class TestSetCommitStatus(FilteredPullRequestsCommandTest):
                 self.message]
 
     # Status tests
+    @pytest.mark.parametrize('default', [None, 'none', 'org', 'all'])
     @pytest.mark.parametrize(
         'status', ['success', 'failure', 'error', 'pending'])
-    def testStatus(self, status):
+    def testStatus(self, default, status):
+        self.set_defaults(default)
         self.status = status
-        self.parse_filters([])
+        self.parse_filters()
         assert self.command.filters == self.filters
 
 
@@ -232,12 +214,8 @@ class TestTravisMerge(MoxTestBase):
         self.scc_parser, self.sub_parser = parsers()
         self.command = TravisMerge(self.sub_parser)
         self.base = 'master'
-        self.filters = {
-            'base': self.base,
-            'default': 'none',
-            'include': {},
-            'exclude': {}
-            }
+        self.filters = get_default_filters("none")
+        self.filters.update({'base': self.base})
 
     def parse_dependencies(self, comments):
         self.command._parse_dependencies(self.base, comments)
