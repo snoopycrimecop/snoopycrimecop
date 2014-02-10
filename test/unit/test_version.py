@@ -47,7 +47,7 @@ class TestVersion(object):
     def testVersionOutput(self, capsys):
         main(["version"], items=[("version", Version)])
         out, err = capsys.readouterr()
-        assert out.rstrip() == call_git_describe()
+        assert out.rstrip() == get_git_version()
 
     def testVersionFile(self, capsys):
         main(["version"], items=[("version", Version)])
@@ -112,10 +112,10 @@ class TestVersion(object):
         assert version == '0.0.0%s' % suffix
 
     @pytest.mark.parametrize(('prefix', 'suffix'), [['', 'rc1'], ['v.', '']])
-    def testVersionNumber(self, capsys, monkeypatch, prefix, suffix):
+    def testInvalidVersionNumber(self, capsys, monkeypatch, prefix, suffix):
         def mockreturn(abbrev):
                 return '%s0.0.0%s' % (prefix, suffix)
         import scc.version
         monkeypatch.setattr(scc.version, 'call_git_describe', mockreturn)
         with pytest.raises(ValueError):
-            version = get_git_version()
+            get_git_version()
