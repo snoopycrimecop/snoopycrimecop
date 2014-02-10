@@ -36,6 +36,7 @@ __all__ = ("get_git_version")
 from subprocess import Popen, PIPE
 from os import path, getcwd, chdir
 from framework import Command
+import re
 
 version_dir = path.abspath(path.dirname(__file__))
 version_file = path.join(version_dir, "RELEASE-VERSION")
@@ -77,7 +78,12 @@ def get_git_version(abbrev=4):
     version = None
     try:
         chdir(version_dir)
-        version = call_git_describe(abbrev)
+        full_version = call_git_describe(abbrev)
+        pattern = '^(v)?(?P<version>[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*)$'
+        pattern = re.compile(pattern)
+        m = pattern.match(full_version)
+        if m:
+            version = m.group('version')
     finally:
         chdir(cwd)
 
