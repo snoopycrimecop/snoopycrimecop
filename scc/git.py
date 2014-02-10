@@ -1701,7 +1701,10 @@ created by a public member of the organization. Default: org.""")
 
         key = m.group('key')
         value = m.group('value')
-        self.filters[ftype].setdefault(key, []).append(value)
+        if key == 'mode':
+            self.filters[ftype][key] = value
+        else:
+            self.filters[ftype].setdefault(key, []).append(value)
         return True
 
     def _parse_hash(self, ftype, value):

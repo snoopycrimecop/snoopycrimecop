@@ -139,16 +139,17 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
     def testBase(self, default):
         self.set_defaults(default)
         self.base = 'develop'
-        self.filters["base"] = "develop"  # Regenerate default
+        self.filters["base"] = "develop"
         assert self.parse_filters() == self.filters
 
     @pytest.mark.parametrize('default', defaults)
-    def testBase(self, default):
+    @pytest.mark.parametrize('mode', ['none', 'org', 'all'])
+    def testMode(self, default, mode):
         self.set_defaults(default)
-        self.base = 'develop'
-        self.filters["base"] = "develop"  # Regenerate default
+        self.args += ['--include', 'mode:%s' % mode]
+        self.filters["include"]["mode"] = mode
         assert self.parse_filters() == self.filters
-            
+
     @pytest.mark.parametrize('default', defaults)
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
     @pytest.mark.parametrize('user_prefix', [None, 'user:'])
