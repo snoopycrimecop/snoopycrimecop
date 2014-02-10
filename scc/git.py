@@ -1680,8 +1680,8 @@ created by a public member of the organization. Default: org.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        import re
-        m = re.match(r'^(?P<key>(\w+)(/\w+)?):(?P<value>(\w+))$', key_value)
+        pattern = re.compile(r'^(?P<key>(\w+)(/\w+)?):(?P<value>(\w+))$')
+        m = pattern.match(key_value)
         if not m:
             return False
 
@@ -1692,8 +1692,8 @@ created by a public member of the organization. Default: org.""")
 
     def _parse_hash(self, ftype, value):
         """Parse a hash pattern of type #n or user/repo#n"""
-        import re
-        m = re.match(r'^(?P<prefix>(\w+/\w+)?)#(?P<nr>\d+)$', value)
+        pattern = re.compile(r'^(?P<prefix>(\w+/\w+)?)#(?P<nr>\d+)$')
+        m = pattern.match(value)
         if not m:
             return False
 
@@ -2942,7 +2942,6 @@ class _TagCommands(GitRepoCommand):
     def check_version_format(self, args):
         """Check format of version number"""
 
-        import re
         pattern = '^[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*$'
         return re.match(pattern, args.version) is not None
 
