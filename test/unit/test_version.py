@@ -110,3 +110,12 @@ class TestVersion(object):
         monkeypatch.setattr(scc.version, 'call_git_describe', mockreturn)
         version = get_git_version()
         assert version == '0.0.0%s' % suffix
+
+    @pytest.mark.parametrize(('prefix', 'suffix'), [['', 'rc1'], ['v.', '']])
+    def testVersionNumber(self, capsys, monkeypatch, prefix, suffix):
+        def mockreturn(abbrev):
+                return '%s0.0.0%s' % (prefix, suffix)
+        import scc.version
+        monkeypatch.setattr(scc.version, 'call_git_describe', mockreturn)
+        with pytest.raises(ValueError):
+            version = get_git_version()
