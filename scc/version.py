@@ -44,8 +44,8 @@ version_file = path.join(version_dir, "RELEASE-VERSION")
 
 def call_git_describe(abbrev=4):
     try:
-        p = Popen(['git', 'describe', '--abbrev=%d' % abbrev],
-                  stdout=PIPE, stderr=PIPE)
+        p = Popen(['git', 'describe', '--match=[v0-9][.0-9]*',
+                   '--abbrev=%d' % abbrev], stdout=PIPE, stderr=PIPE)
         p.stderr.close()
         line = p.stdout.readlines()[0]
         return line.strip()
