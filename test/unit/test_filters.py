@@ -143,17 +143,6 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
         assert self.parse_filters() == self.filters
 
     @pytest.mark.parametrize('default', defaults)
-    @pytest.mark.parametrize('mode', ['none', 'org', 'all'])
-    def testMode(self, default, mode):
-        self.set_defaults(default)
-        self.args += ['--include', 'mode:%s' % mode]
-        if mode == 'none':
-            self.filters["include"].pop("mode", None)
-        else:
-            self.filters["include"]["mode"] = mode
-        assert self.parse_filters() == self.filters
-
-    @pytest.mark.parametrize('default', defaults)
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
     @pytest.mark.parametrize('user_prefix', [None, 'user:'])
     @pytest.mark.parametrize('pr_prefix', [None, '#', 'pr:', 'org/repo#'])

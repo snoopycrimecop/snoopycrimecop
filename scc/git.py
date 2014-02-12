@@ -600,24 +600,23 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
-    def is_whitelisted(self, user, mode="org"):
+    def is_whitelisted(self, user, whitelist):
 
-        if not mode:
+        if not whitelist:
             return False
 
-        if mode == "org":
-            if self.org:
-                status = self.org.has_in_public_members(user)
-            else:
-                status = False
-        elif mode == "mine":
-            status = user.login == self.gh.get_login()
-        elif mode == "all":
-            status = True
-        else:
-            raise Exception("Unknown whitelisting mode: %s", mode)
+        if "all" in whitelist:
+            return True
 
-        return status
+        if "org" in whitelist and self.org and \
+                self.org.has_in_public_members(user):
+            return True
+
+        for whitelist_user in whitelist:
+            if user.login in whitelist_user:
+                return True
+
+        return False
 
     def push(self, name):
         # TODO: We need to make it possible
@@ -679,7 +678,8 @@ class GitHubRepository(object):
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
-        is_whitelisted_comment = lambda x: self.is_whitelisted(x.user, "org")
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["include"].get("user"))
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
@@ -697,7 +697,7 @@ class GitHubRepository(object):
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
             if not self.is_whitelisted(pullrequest_user,
-                                       filters["include"].get("mode")):
+                                       filters["include"].get("user")):
                 # Allow filter PR inclusion using include filter
                 include, reason = self.run_filter(
                     filters["include"], pr_attributes, action="Include")
@@ -1583,13 +1583,14 @@ class GitRepoCommand(GithubCommand):
 def get_default_filters(default):
     filters = {}
     if default == "org":
-        filters["include"] = {"mode": "org", "label": ["include"]}
+        filters["include"] = {
+            "user": ["org"], "label": ["include"]}
         filters["exclude"] = {"label": ["exclude", "breaking"]}
     elif default == "none":
         filters["include"] = {}
         filters["exclude"] = {}
     elif default == "all":
-        filters["include"] = {"mode": "all"}
+        filters["include"] = {"user": ["all"]}
         filters["exclude"] = {}
     else:
         raise "Default %s non-defined"
@@ -1636,34 +1637,37 @@ created by a public member of the organization. Default: org.""")
 
     def _log_filters(self, info=False):
         if info:
-            action = "Listing"
+            action = "Listing PR(s)"
         else:
-            action = self.get_action()
-        mode_desc = {
-            "org": "any public member of the organization",
-            "all": "any user",
-            "none": "no user"}
-        if self.filters["include"].get("mode"):
-            self.log.info("%s PRs based on %s opened by %s",
-                          action, self.filters["base"],
-                          mode_desc[self.filters["include"].get("mode")])
+            action = self.get_action() + " PR(s)"
+        self.log.info("%s based on %s", action, self.filters["base"])
 
-        filter_desc = {'include': 'Including', 'exclude': 'Excluding'}
-        key_desc = {
-            "label": "PRs labelled as %s",
-            "pr": "PRs %s",
-            "user": "PRs opened by %s"}
+        def get_user_desc(value):
+            if value == 'org':
+                return 'any public member of the organization'
+            if value == 'all':
+                return 'any user'
+            return '%s' % value
 
-        for ftype in filter_desc.keys():
+        ftype_desc = {
+            'include': 'Including',
+            'exclude': 'Excluding'}
+        key_value_map = {
+            "label": ("%s PR(s) labelled as", lambda x: x),
+            "pr": ("%s PR(s)", lambda x: x),
+            "user": ("%s PR(s) opened by", get_user_desc)}
+
+        for ftype in ftype_desc.keys():
             for key in self.filters[ftype].keys():
-                if key == "mode":
-                    continue
-                if key in key_desc:
-                    desc = key_desc[key] % ", ".join(self.filters[ftype][key])
+                if key in key_value_map:
+                    key_desc = key_value_map[key][0] % ftype_desc[ftype]
+                    value_map = key_value_map[key][1]
+                    values_desc = map(value_map, self.filters[ftype][key])
                 else:
-                    desc = "%s PRs %s" % (key,
-                                          ", ".join(self.filters[ftype][key]))
-                self.log.info("%s %s", filter_desc[ftype], desc)
+                    key_desc = "%s %s PR(s)" % (ftype_desc[ftype], key)
+                    values_desc = self.filters[ftype][key]
+                filter_desc = key_desc + " %s" % " or ".join(values_desc)
+                self.log.info("%s", filter_desc)
 
         if self.filters.get('status', 'none') != "none":
             if self.filters['status'] == "success-only":
@@ -1701,13 +1705,7 @@ created by a public member of the organization. Default: org.""")
 
         key = m.group('key')
         value = m.group('value')
-        if key == 'mode':
-            if value == 'none':
-                self.filters[ftype].pop(key, None)
-            else:
-                self.filters[ftype][key] = value
-        else:
-            self.filters[ftype].setdefault(key, []).append(value)
+        self.filters[ftype].setdefault(key, []).append(value)
         return True
 
     def _parse_hash(self, ftype, value):
