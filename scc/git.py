@@ -1610,36 +1610,41 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             help='Display pull requests but do not perform actions on them')
 
     def _configure_filters(self):
-        filter_desc = " Filter keys can be specified using label:my_label, \
-            pr:24 or user:username. If no key is specified, the filter is \
-            considered as a label filter."
+        filter_desc = """Filters can be specified as key value pairs, e.g. \
+KEY:VALUE or using a hash symbol, e.g. prefix#NUMBER. Recognised key/values \
+are label:LABEL, pr:NUMBER, user:USERNAME. For user keys, user:org means any \
+public member of the repository organization and user:all means any user. \
+Filter values with a hash symbol allow to filter Pull Requests by number, \
+e.g. #NUMBER or ORG/REPO#NUMBER for the ORG/REPO submodule. If neither a \
+key/value  nor a hash symbol is found, the filter is considered a a label \
+filter."""
         self.parser.add_argument(
             '--default', '-D', type=str,
             choices=["none", "org", "all"], default="org",
-            help="""Mode specifying the default PRs/comments to include. \
-None includes no PR/comment. All includes all open PRs/comments. \
-If the repository belongs to an organization, org includes any PR/comment \
-created by a public member of the organization. Default: org.""")
+            help="""Specify the default set of filters to use. NONE means no \
+filter is preset. ORG sets user:org, label:include as the default include \
+filters and label:exclude and label:breaking as the default exclude filets. \
+ALL sets user:all as the default include filter. Default: ORG.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
-            help='Filters to include PRs in the merge.' + filter_desc)
+            help='Filters to include Pull Requests. ' + filter_desc)
         self.parser.add_argument(
             '--exclude', '-E', type=str, action='append',
-            help='Filters to exclude PRs from the merge.' + filter_desc)
+            help='Filters to exclude Pull Requests. ' + filter_desc)
         self.parser.add_argument(
             '--check-commit-status', '-S', type=str,
             choices=["none", "no-error", "success-only"], default="none",
             help='Check success/failure status on latest commits to include '
-            ' PRs in the merge.')
+            ' Pull Requests in the merge.')
 
     def get_action(self):
         pass
 
     def _log_filters(self, info=False):
         if info:
-            action = "Listing PR(s)"
+            action = "Listing Pull Request(s)"
         else:
-            action = self.get_action() + " PR(s)"
+            action = self.get_action() + " Pull Request(s)"
         self.log.info("%s based on %s", action, self.filters["base"])
 
         def get_user_desc(value):
@@ -1649,31 +1654,31 @@ created by a public member of the organization. Default: org.""")
                 return 'any user'
             return '%s' % value
 
-        ftype_desc = {
-            'include': 'Including',
-            'exclude': 'Excluding'}
+        ftype_desc = {'include': 'Including', 'exclude': 'Excluding'}
         key_value_map = {
-            "label": ("%s PR(s) labelled as", lambda x: x),
-            "pr": ("%s PR(s)", lambda x: x),
-            "user": ("%s PR(s) opened by", get_user_desc)}
+            "label": ("%s Pull Request(s) labelled as", lambda x: x),
+            "pr": ("%s Pull Request(s)", lambda x: x),
+            "user": ("%s Pull Request(s) opened by", get_user_desc)}
 
-        for ftype in ftype_desc.keys():
-            for key in self.filters[ftype].keys():
+        for ftype in sorted(ftype_desc.keys(), reverse=True):
+            for key in sorted(self.filters[ftype].keys(), reverse=True):
                 if key in key_value_map:
                     key_desc = key_value_map[key][0] % ftype_desc[ftype]
                     value_map = key_value_map[key][1]
                     values_desc = map(value_map, self.filters[ftype][key])
                 else:
-                    key_desc = "%s %s PR(s)" % (ftype_desc[ftype], key)
+                    key_desc = "%s %s Pull Request(s)" % (ftype_desc[ftype],
+                                                          key)
                     values_desc = self.filters[ftype][key]
                 filter_desc = key_desc + " %s" % " or ".join(values_desc)
                 self.log.info("%s", filter_desc)
 
-        if self.filters.get('status', 'none') != "none":
-            if self.filters['status'] == "success-only":
-                self.log.info('Excluding PR without successful status')
-            elif self.filters['status'] == "no-error":
-                self.log.info('Excluding PR with error or failure status')
+        status_map = {
+            "success-only": "without successful status",
+            "no-error": "with either error or failure status"}
+        if self.filters.get('status') and self.filters['status'] != "none":
+            self.log.info('Excluding Pull Request(s) %s' %
+                          status_map[self.filters['status']])
 
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
@@ -2400,12 +2405,13 @@ class Merge(FilteredPullRequestsCommand):
     """
     Merge Pull Requests opened against a specific base branch.
 
-    Automatically merge all pull requests with any of the given labels.
-    It assumes that you have checked out the target branch locally and
-    have updated any submodules. The SHA1s from the PRs will be merged
-    into the current branch. AFTER the PRs are merged, any open PRs for
-    each submodule with the same tags will also be merged into the
-    CURRENT submodule sha1. A final commit will then update the submodules.
+    Automatically merge all pull requests matching the input filters.
+    It assumes that you have checked out the target branch locally and have
+    updated any submodules. The SHA1s from the Pull Requests will be merged
+    into the current branch. After the Pull Requests are merged, any open Pull
+    Requests for each submodule matching the same filters will also be merged
+    into the CURRENT submodule SHA1. A final commit will then update the
+    submodules.
     """
 
     NAME = "merge"
