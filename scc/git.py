@@ -613,7 +613,7 @@ class GitHubRepository(object):
             return True
 
         for whitelist_user in whitelist:
-            if user.login in whitelist_user:
+            if user.login == whitelist_user:
                 return True
 
         return False
