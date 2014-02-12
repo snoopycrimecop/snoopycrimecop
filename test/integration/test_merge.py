@@ -131,7 +131,7 @@ class TestMerge(SandboxTest):
         self.pr.create_issue_comment('--breaking')
         self.merge()
         assert not self.isMerged()
-        self.merge('-Dnone', '-Ibreaking', '-Eexclude')
+        self.merge('-Dnone', '-Iuser:org', '-Ibreaking', '-Eexclude')
         assert self.isMerged()
 
     def testExcludeDescription(self):
