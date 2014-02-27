@@ -28,7 +28,7 @@ from scc.git import SetCommitStatus
 from scc.git import TravisMerge
 from scc.git import get_default_filters
 from Mock import MoxTestBase, MockTest
-defaults = [None, 'none', 'org', 'all']
+defaults = (None, 'none', 'org', 'all')
 
 
 class TestFilter(MockTest):
