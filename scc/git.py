@@ -1611,12 +1611,12 @@ class FilteredPullRequestsCommand(GitRepoCommand):
 
     def _configure_filters(self):
         filter_desc = """Filters can be specified as key value pairs, e.g. \
-KEY:VALUE or using a hash symbol, e.g. prefix#NUMBER. Recognised key/values \
+KEY:VALUE or using a hash symbol, e.g. prefix#NUMBER. Recognized key/values \
 are label:LABEL, pr:NUMBER, user:USERNAME. For user keys, user:org means any \
 public member of the repository organization and user:all means any user. \
 Filter values with a hash symbol allow to filter Pull Requests by number, \
 e.g. #NUMBER or ORG/REPO#NUMBER for the ORG/REPO submodule. If neither a \
-key/value  nor a hash symbol is found, the filter is considered a a label \
+key/value nor a hash symbol is found, the filter is considered a label \
 filter."""
         self.parser.add_argument(
             '--default', '-D', type=str,
