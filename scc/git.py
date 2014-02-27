@@ -605,10 +605,10 @@ class GitHubRepository(object):
         if not whitelist:
             return False
 
-        if "all" in whitelist:
+        if "#all" in whitelist:
             return True
 
-        if "org" in whitelist and self.org and \
+        if "#org" in whitelist and self.org and \
                 self.org.has_in_public_members(user):
             return True
 
@@ -1584,13 +1584,13 @@ def get_default_filters(default):
     filters = {}
     if default == "org":
         filters["include"] = {
-            "user": ["org"], "label": ["include"]}
+            "user": ["#org"], "label": ["include"]}
         filters["exclude"] = {"label": ["exclude", "breaking"]}
     elif default == "none":
         filters["include"] = {}
         filters["exclude"] = {}
     elif default == "all":
-        filters["include"] = {"user": ["all"]}
+        filters["include"] = {"user": ["#all"]}
         filters["exclude"] = {}
     else:
         raise "Default %s non-defined"
@@ -1612,19 +1612,19 @@ class FilteredPullRequestsCommand(GitRepoCommand):
     def _configure_filters(self):
         filter_desc = """Filters can be specified as key value pairs, e.g. \
 KEY:VALUE or using a hash symbol, e.g. prefix#NUMBER. Recognized key/values \
-are label:LABEL, pr:NUMBER, user:USERNAME. For user keys, user:org means any \
-public member of the repository organization and user:all means any user. \
-Filter values with a hash symbol allow to filter Pull Requests by number, \
-e.g. #NUMBER or ORG/REPO#NUMBER for the ORG/REPO submodule. If neither a \
-key/value nor a hash symbol is found, the filter is considered a label \
-filter."""
+are label:LABEL, pr:NUMBER, user:USERNAME. For user keys, user:#org means \
+any public member of the repository organization and user:#all means any \
+user.  Filter values with a hash symbol allow to filter Pull Requests by \
+number, e.g. #NUMBER or ORG/REPO#NUMBER for the ORG/REPO submodule. If \
+neither  a key/value nor a hash symbol is found, the filter is considered a \
+label filter."""
         self.parser.add_argument(
             '--default', '-D', type=str,
             choices=["none", "org", "all"], default="org",
             help="""Specify the default set of filters to use. NONE means no \
-filter is preset. ORG sets user:org, label:include as the default include \
+filter is preset. ORG sets user:#org, label:include as the default include \
 filters and label:exclude and label:breaking as the default exclude filets. \
-ALL sets user:all as the default include filter. Default: ORG.""")
+ALL sets user:#all as the default include filter. Default: ORG.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
             help='Filters to include Pull Requests. ' + filter_desc)
@@ -1648,9 +1648,9 @@ ALL sets user:all as the default include filter. Default: ORG.""")
         self.log.info("%s based on %s", action, self.filters["base"])
 
         def get_user_desc(value):
-            if value == 'org':
+            if value == '#org':
                 return 'any public member of the organization'
-            if value == 'all':
+            if value == '#all':
                 return 'any user'
             return '%s' % value
 
