@@ -20,9 +20,11 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
+import pytest
 
 from scc.framework import main
 from scc.version import call_git_describe, Version, version_file
+from scc.version import get_git_version
 
 
 class TestVersion(object):
@@ -45,7 +47,7 @@ class TestVersion(object):
     def testVersionOutput(self, capsys):
         main(["version"], items=[("version", Version)])
         out, err = capsys.readouterr()
-        assert out.rstrip() == call_git_describe()
+        assert out.rstrip() == get_git_version()
 
     def testVersionFile(self, capsys):
         main(["version"], items=[("version", Version)])
@@ -98,3 +100,22 @@ class TestVersion(object):
             assert self.read_version_file() == version
         finally:
             os.chdir(cwd)
+
+    @pytest.mark.parametrize('prefix', ['', 'v'])
+    @pytest.mark.parametrize('suffix', ['', '-rc1', '-31-gbf8afc8'])
+    def testVersionNumber(self, capsys, monkeypatch, prefix, suffix):
+        def mockreturn(abbrev):
+                return '%s0.0.0%s' % (prefix, suffix)
+        import scc.version
+        monkeypatch.setattr(scc.version, 'call_git_describe', mockreturn)
+        version = get_git_version()
+        assert version == '0.0.0%s' % suffix
+
+    @pytest.mark.parametrize(('prefix', 'suffix'), [['', 'rc1'], ['v.', '']])
+    def testInvalidVersionNumber(self, capsys, monkeypatch, prefix, suffix):
+        def mockreturn(abbrev):
+                return '%s0.0.0%s' % (prefix, suffix)
+        import scc.version
+        monkeypatch.setattr(scc.version, 'call_git_describe', mockreturn)
+        with pytest.raises(ValueError):
+            get_git_version()
