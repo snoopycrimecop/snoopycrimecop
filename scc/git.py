@@ -600,22 +600,23 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
-    def is_whitelisted(self, user, default="org"):
-        if default == "org":
-            if self.org:
-                status = self.org.has_in_public_members(user)
-            else:
-                status = False
-        elif default == "mine":
-            status = user.login == self.gh.get_login()
-        elif default == "all":
-            status = True
-        elif default == "none":
-            status = False
-        else:
-            raise Exception("Unknown whitelisting mode: %s", default)
+    def is_whitelisted(self, user, whitelist):
 
-        return status
+        if not whitelist:
+            return False
+
+        if "#all" in whitelist:
+            return True
+
+        if "#org" in whitelist and self.org and \
+                self.org.has_in_public_members(user):
+            return True
+
+        for whitelist_user in whitelist:
+            if user.login == whitelist_user:
+                return True
+
+        return False
 
     def push(self, name):
         # TODO: We need to make it possible
@@ -671,19 +672,19 @@ class GitHubRepository(object):
         msg = ""
 
         # Fail fast if default is none and no include filter is specified
-        no_include = all(v is None for v in filters["include"].values())
-        if filters["default"] == 'none' and no_include:
+        if not filters["include"]:
             return msg
 
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
-        is_whitelisted_comment = lambda x: self.is_whitelisted(x.user, "org")
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["include"].get("user"))
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
 
-            if pullrequest.parse(filters["exclude"].get("label", None),
+            if pullrequest.parse(filters["exclude"].get("label"),
                                  whitelist=is_whitelisted_comment):
                 excluded_pulls[pullrequest] = 'exclude comment'
                 continue
@@ -695,7 +696,8 @@ class GitHubRepository(object):
             pr_attributes["user"] = [pullrequest_user.login]
             pr_attributes["pr"] = [str(pullrequest.get_number())]
 
-            if not self.is_whitelisted(pullrequest_user, filters["default"]):
+            if not self.is_whitelisted(pullrequest_user,
+                                       filters["include"].get("user")):
                 # Allow filter PR inclusion using include filter
                 include, reason = self.run_filter(
                     filters["include"], pr_attributes, action="Include")
@@ -1578,6 +1580,23 @@ class GitRepoCommand(GithubCommand):
         return None
 
 
+def get_default_filters(default):
+    filters = {}
+    if default == "org":
+        filters["include"] = {
+            "user": ["#org"], "label": ["include"]}
+        filters["exclude"] = {"label": ["exclude", "breaking"]}
+    elif default == "none":
+        filters["include"] = {}
+        filters["exclude"] = {}
+    elif default == "all":
+        filters["include"] = {"user": ["#all"]}
+        filters["exclude"] = {}
+    else:
+        raise "Default %s non-defined"
+    return filters
+
+
 class FilteredPullRequestsCommand(GitRepoCommand):
     """
     Abstract base class for repo commands that take filters to find
@@ -1591,79 +1610,83 @@ class FilteredPullRequestsCommand(GitRepoCommand):
             help='Display pull requests but do not perform actions on them')
 
     def _configure_filters(self):
-        filter_desc = " Filter keys can be specified using label:my_label, \
-            pr:24 or  user:username. If no key is specified, the filter is \
-            considered as a label filter."
+        filter_desc = """Filters can be specified as key value pairs, e.g. \
+KEY:VALUE or using a hash symbol, e.g. prefix#NUMBER. Recognized key/values \
+are label:LABEL, pr:NUMBER, user:USERNAME. For user keys, user:#org means \
+any public member of the repository organization and user:#all means any \
+user.  Filter values with a hash symbol allow to filter Pull Requests by \
+number, e.g. #NUMBER or ORG/REPO#NUMBER for the ORG/REPO submodule. If \
+neither  a key/value nor a hash symbol is found, the filter is considered a \
+label filter."""
         self.parser.add_argument(
             '--default', '-D', type=str,
-            choices=["none", "mine", "org", "all"], default="org",
-            help="""Mode specifying the default PRs/comments to include. \
-None includes no PR/comment. All includes all open PRs/comments. \
-Mine only includes the PRs/comments created by the authenticated user. \
-If the repository belongs to an organization, org includes any PR/comment \
-created by a public member of the organization. Default: org.""")
+            choices=["none", "org", "all"], default="org",
+            help="""Specify the default set of filters to use. NONE means no \
+filter is preset. ORG sets user:#org, label:include as the default include \
+filters and label:exclude and label:breaking as the default exclude filets. \
+ALL sets user:#all as the default include filter. Default: ORG.""")
         self.parser.add_argument(
             '--include', '-I', type=str, action='append',
-            default=DefaultList(["include"]),
-            help='Filters to include PRs in the merge.' + filter_desc)
+            help='Filters to include Pull Requests. ' + filter_desc)
         self.parser.add_argument(
             '--exclude', '-E', type=str, action='append',
-            default=DefaultList(["exclude", "breaking"]),
-            help='Filters to exclude PRs from the merge.' + filter_desc)
+            help='Filters to exclude Pull Requests. ' + filter_desc)
         self.parser.add_argument(
             '--check-commit-status', '-S', type=str,
             choices=["none", "no-error", "success-only"], default="none",
             help='Check success/failure status on latest commits to include '
-            ' PRs in the merge.')
+            ' Pull Requests in the merge.')
 
     def get_action(self):
         pass
 
     def _log_filters(self, info=False):
         if info:
-            action = "Listing"
+            action = "Listing Pull Request(s)"
         else:
-            action = self.get_action()
-        default_desc = {
-            "org": "any public member of the organization",
-            "mine": "%s" % self.gh.get_login(),
-            "all": "any user",
-            "none": "no user"}
-        self.log.info("%s PRs based on %s opened by %s",
-                      action, self.filters["base"],
-                      default_desc[self.filters["default"]])
+            action = self.get_action() + " Pull Request(s)"
+        self.log.info("%s based on %s", action, self.filters["base"])
 
-        filter_desc = {'include': 'Including', 'exclude': 'Excluding'}
-        key_desc = {
-            "label": "PRs labelled as %s",
-            "pr": "PRs %s",
-            "user": "PRs opened by %s"}
+        def get_user_desc(value):
+            if value == '#org':
+                return 'any public member of the organization'
+            if value == '#all':
+                return 'any user'
+            return '%s' % value
 
-        for ftype in filter_desc.keys():
-            for key in self.filters[ftype].keys():
-                if key in key_desc:
-                    desc = key_desc[key] % ", ".join(self.filters[ftype][key])
+        ftype_desc = {'include': 'Including', 'exclude': 'Excluding'}
+        key_value_map = {
+            "label": ("%s Pull Request(s) labelled as", lambda x: x),
+            "pr": ("%s Pull Request(s)", lambda x: x),
+            "user": ("%s Pull Request(s) opened by", get_user_desc)}
+
+        for ftype in sorted(ftype_desc.keys(), reverse=True):
+            for key in sorted(self.filters[ftype].keys(), reverse=True):
+                if key in key_value_map:
+                    key_desc = key_value_map[key][0] % ftype_desc[ftype]
+                    value_map = key_value_map[key][1]
+                    values_desc = map(value_map, self.filters[ftype][key])
                 else:
-                    desc = "%s PRs %s" % (key,
-                                          ", ".join(self.filters[ftype][key]))
-                self.log.info("%s %s", filter_desc[ftype], desc)
+                    key_desc = "%s %s Pull Request(s)" % (ftype_desc[ftype],
+                                                          key)
+                    values_desc = self.filters[ftype][key]
+                filter_desc = key_desc + " %s" % " or ".join(values_desc)
+                self.log.info("%s", filter_desc)
 
-        if self.filters.get('status', 'none') != "none":
-            if self.filters['status'] == "success-only":
-                self.log.info('Excluding PR without successful status')
-            elif self.filters['status'] == "no-error":
-                self.log.info('Excluding PR with error or failure status')
+        status_map = {
+            "success-only": "without successful status",
+            "no-error": "with either error or failure status"}
+        if self.filters.get('status') and self.filters['status'] != "none":
+            self.log.info('Excluding Pull Request(s) %s' %
+                          status_map[self.filters['status']])
 
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
 
-        self.filters = {}
+        self.filters = get_default_filters(args.default)
         self.filters["base"] = args.base
-        self.filters["default"] = args.default
 
         for ftype in ["include", "exclude"]:
-            self.filters[ftype] = {}
-
             if not getattr(args, ftype):
                 continue
 
@@ -1680,7 +1703,7 @@ created by a public member of the organization. Default: org.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        pattern = re.compile(r'^(?P<key>(\w+)(/\w+)?):(?P<value>(\w+))$')
+        pattern = re.compile(r'^(?P<key>(\w+)(/\w+)?):(?P<value>#?(\w+))$')
         m = pattern.match(key_value)
         if not m:
             return False
@@ -2382,12 +2405,13 @@ class Merge(FilteredPullRequestsCommand):
     """
     Merge Pull Requests opened against a specific base branch.
 
-    Automatically merge all pull requests with any of the given labels.
-    It assumes that you have checked out the target branch locally and
-    have updated any submodules. The SHA1s from the PRs will be merged
-    into the current branch. AFTER the PRs are merged, any open PRs for
-    each submodule with the same tags will also be merged into the
-    CURRENT submodule sha1. A final commit will then update the submodules.
+    Automatically merge all pull requests matching the input filters.
+    It assumes that you have checked out the target branch locally and have
+    updated any submodules. The SHA1s from the Pull Requests will be merged
+    into the current branch. After the Pull Requests are merged, any open Pull
+    Requests for each submodule matching the same filters will also be merged
+    into the CURRENT submodule SHA1. A final commit will then update the
+    submodules.
     """
 
     NAME = "merge"
@@ -2788,7 +2812,6 @@ class TravisMerge(FilteredPullRequestsCommand):
         # Create default merge filters using the PR base ref
         self.filters = {}
         self.filters["base"] = base
-        self.filters["default"] = "none"
         self.filters["include"] = {}
         self.filters["exclude"] = {}
 
@@ -2862,9 +2885,8 @@ class UpdateSubmodules(GitRepoCommand):
         # Create commit message using command arguments
         self.filters = {}
         self.filters["base"] = args.base
-        self.filters["default"] = "none"
-        self.filters["include"] = {"label": None, "user": None, "pr": None}
-        self.filters["exclude"] = {"label": None, "user": None, "pr": None}
+        self.filters["include"] = {}
+        self.filters["exclude"] = {}
 
         updated, merge_msg = main_repo.rmerge(
             self.filters,

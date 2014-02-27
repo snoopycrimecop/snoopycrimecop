@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 from github.AuthenticatedUser import AuthenticatedUser
+from github.NamedUser import NamedUser
 from github.Organization import Organization
 from github.Repository import Repository
 from github.Issue import Issue
@@ -49,7 +50,6 @@ class TestGithubRepository(MoxTestBase):
         self.repo.organization = None
 
         self.pulls = []
-
         self.gh.get_repo(
             "%s/%s" % (self.user.login, self.repo.name)).AndReturn(self.repo)
 
@@ -66,14 +66,20 @@ class TestGithubRepository(MoxTestBase):
         for x in self.pulls:
             yield x
 
-    @pytest.mark.parametrize('with_org', [True, False])
-    def test_init(self, with_org):
-        if with_org:
-            self.repo.organization = self.org
-            self.gh.get_organization(self.org.login).AndReturn(self.org)
+    def setup_org(self):
+        self.repo.organization = self.org
+        self.gh.get_organization(self.org.login).AndReturn(self.org)
+
+    def setup_repo(self):
         self.mox.ReplayAll()
         self.gh_repo = GitHubRepository(
             self.gh, self.user.login, self.repo.name)
+
+    @pytest.mark.parametrize('with_org', [True, False])
+    def test_init(self, with_org):
+        if with_org:
+            self.setup_org()
+        self.setup_repo()
         assert self.gh_repo.gh == self.gh
         assert self.gh_repo.repo == self.repo
         assert self.gh_repo.user_name == self.user.login
@@ -84,34 +90,26 @@ class TestGithubRepository(MoxTestBase):
             assert self.gh_repo.org is None
 
     def test_repr(self):
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         repo_str = "Repository: %s/%s" % (self.user.login, self.repo.name)
         assert str(self.gh_repo) == repo_str
 
     def test_get_issue(self):
         issue = self.mox.CreateMock(Issue)
         self.repo.get_issue(1).AndReturn(issue)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.get_issue(1) == issue
 
     def test_get_pull(self):
         pullrequest = self.mox.CreateMock(PullRequest)
         self.repo.get_pull(1).AndReturn(pullrequest)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.get_pull(1) == pullrequest
 
     def test_get_pulls(self):
         pulls = self.mox.CreateMock(PaginatedList)
         self.repo.get_pulls().AndReturn(pulls)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.get_pulls() == pulls
 
     def test_get_pulls_by_base(self):
@@ -119,16 +117,12 @@ class TestGithubRepository(MoxTestBase):
         pulls_list = self.mox.CreateMock(PaginatedList)
         pulls_list.__iter__().AndReturn(self.iter_pulls())
         self.repo.get_pulls().AndReturn(pulls_list)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.get_pulls_by_base("master") == \
             self.pulls[:-1]
 
     def test_get_owner(self):
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.get_owner() == self.user.login
 
     def test_create_open_pr(self):
@@ -139,8 +133,46 @@ class TestGithubRepository(MoxTestBase):
         head = "mock-head"
         self.repo.create_pull(
             title, description, base, head).AndReturn(pullrequest)
-        self.mox.ReplayAll()
-        self.gh_repo = GitHubRepository(
-            self.gh, self.user.login, self.repo.name)
+        self.setup_repo()
         assert self.gh_repo.create_pull(title, description, base, head) == \
             pullrequest
+
+    @pytest.mark.parametrize(
+        'whitelist', [["#all"], ["test"], ["test", "test2"]])
+    @pytest.mark.parametrize('with_org', [True, False])
+    def test_whitelisted(self, whitelist, with_org):
+        user = self.mox.CreateMock(NamedUser)
+        user.login = 'test'
+        if with_org:
+            self.setup_org()
+        if whitelist and with_org and "#org" in whitelist:
+            self.org.has_in_public_members(user).AndReturn(True)
+        self.setup_repo()
+
+        assert self.gh_repo.is_whitelisted(user, whitelist)
+
+    @pytest.mark.parametrize(
+        'whitelist', [["#all", "#org"], ["#org"], ["#org", "test2"]])
+    def test_org_whitelist(self, whitelist):
+        user = self.mox.CreateMock(NamedUser)
+        user.login = 'test'
+        self.setup_org()
+        if "#org" in whitelist and "#all" not in whitelist:
+            self.org.has_in_public_members(user).AndReturn(True)
+        self.setup_repo()
+
+        assert self.gh_repo.is_whitelisted(user, whitelist)
+
+    @pytest.mark.parametrize(
+        'whitelist', [None, ["test2"], ["#org"], ["#org", "test2"]])
+    @pytest.mark.parametrize('with_org', [True, False])
+    def test_blacklisted(self, whitelist, with_org):
+        user = self.mox.CreateMock(NamedUser)
+        user.login = 'test'
+        if with_org:
+            self.setup_org()
+        if whitelist and with_org and "#org" in whitelist:
+            self.org.has_in_public_members(user).AndReturn(False)
+        self.setup_repo()
+
+        assert not self.gh_repo.is_whitelisted(user, whitelist)
