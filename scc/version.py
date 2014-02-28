@@ -67,25 +67,28 @@ def write_release_version(version):
     with open(version_file, "w") as f:
         f.write("%s\n" % version)
 
+version_pattern = '^(v)?(?P<version>[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*)$'
+version_pattern = re.compile(version_pattern)
 
 def get_git_version(abbrev=4):
     # Read in the version that's currently in RELEASE-VERSION.
-
     release_version = read_release_version()
 
     # First try to get the current version using “git describe”.
     cwd = getcwd()
-    version = None
+    git_version = None
     try:
         chdir(version_dir)
-        full_version = call_git_describe(abbrev)
-        pattern = '^(v)?(?P<version>[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*)$'
-        pattern = re.compile(pattern)
-        m = pattern.match(full_version)
-        if m:
-            version = m.group('version')
+        git_version = call_git_describe(abbrev)
     finally:
         chdir(cwd)
+
+    # Extract version number
+    version = None
+    if git_version:
+        m = version_pattern.match(git_version)
+        if m:
+            version = m.group('version')
 
     # If that doesn't work, fall back on the value that's in
     # RELEASE-VERSION.
