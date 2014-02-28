@@ -70,6 +70,7 @@ def write_release_version(version):
 version_pattern = '^(v)?(?P<version>[0-9]+[\.][0-9]+[\.][0-9]+(\-.+)*)$'
 version_pattern = re.compile(version_pattern)
 
+
 def get_git_version(abbrev=4):
     # Read in the version that's currently in RELEASE-VERSION.
     release_version = read_release_version()
