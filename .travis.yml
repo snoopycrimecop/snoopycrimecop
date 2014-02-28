@@ -19,3 +19,4 @@ script:
   - flake8 -v scc test
   - python setup.py test -s test/unit -v
   - python setup.py sdist install
+  - pip install dist/*.tar.gz
