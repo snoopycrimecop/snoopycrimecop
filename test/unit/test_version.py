@@ -67,17 +67,13 @@ class TestVersion(object):
             os.remove(version_file)
 
     def testNonGitRepository(self, capsys):
-        cwd = os.getcwd()
-        try:
-            # Move to a non-git repository and ensure call_git_describe
-            # returns None
-            os.chdir('..')
-            assert call_git_describe() is None
-            main(["version"], items=[("version", Version)])
-            out, err = capsys.readouterr()
-            assert out.rstrip() == self.read_version_file()
-        finally:
-            os.chdir(cwd)
+        # Move to a non-git repository and ensure call_git_describe
+        # returns None
+        os.chdir('..')
+        assert call_git_describe() is None
+        main(["version"], items=[("version", Version)])
+        out, err = capsys.readouterr()
+        assert out.rstrip() == self.read_version_file()
 
     def testGitRepository(self, tmpdir):
         cwd = os.getcwd()

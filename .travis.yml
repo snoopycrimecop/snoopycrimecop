@@ -12,10 +12,11 @@ before_install:
   - git config --global user.email snoopycrimecop@gmail.com
   - git config --global user.name 'Snoopy Crime Cop'
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  - flake8 -v scc test
 before_script:
   - python scc/main.py travis-merge
-  - python scc/main.py -h
 script:
-  - flake8 -v scc test
   - python setup.py test -s test/unit -v
   - python setup.py sdist install
+  - pip install dist/*.tar.gz
+  - scc -h
