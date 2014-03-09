@@ -2790,9 +2790,8 @@ class TravisMerge(FilteredPullRequestsCommand):
         self.init_main_repo(args)
         pr = PullRequest(self.main_repo.origin.get_pull(int(pr_number)))
 
-        # Parse comments for companion PRs inclusion in the Travis build
-        self._parse_dependencies(pr.get_base(),
-                                 pr.parse_comments('depends-on'))
+        # Parse comments/description for PRs inclusion in the Travis build
+        self._parse_dependencies(pr.get_base(), pr.parse('depends-on'))
         self._log_filters(args.info)
 
         try:
