@@ -1727,6 +1727,18 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
         self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
         return True
 
+    def _parse_url(self, ftype, value):
+        """Parse a URL pattern of type https://github.com/user/repo/pull/n"""
+        pattern = re.compile(r'^https://github.com/(?P<prefix>(\w+/\w+))' +
+                             '/pull/(?P<nr>\d+)$')
+        m = pattern.match(value)
+        if not m:
+            return False
+
+        prefix = m.group('prefix')
+        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        return True
+
 
 class CheckLabels(GitRepoCommand):
     """
@@ -2815,7 +2827,10 @@ class TravisMerge(FilteredPullRequestsCommand):
         self.filters["exclude"] = {}
 
         for comment in comments:
-            self._parse_hash("include", comment.strip())
+            found = self._parse_hash("include", comment.strip())
+
+            if not found:
+                self._parse_url("include", comment.strip())
 
 
 class UpdateSubmodules(GitRepoCommand):

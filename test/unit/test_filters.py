@@ -109,6 +109,15 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         self.filters[ftype] = {key: [value]}
         assert self.command.filters == self.filters
 
+    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('key', ['user/repo'])
+    @pytest.mark.parametrize('value', ['1'])
+    def test_parse_url(self, ftype, key, value):
+        self.command._parse_url(
+            ftype, 'https://github.com/%s/pull/%s' % (key, value))
+        self.filters[ftype] = {key: [value]}
+        assert self.command.filters == self.filters
+
 
 class FilteredPullRequestsCommandTest(MoxTestBase):
 
