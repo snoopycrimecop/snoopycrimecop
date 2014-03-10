@@ -109,9 +109,10 @@ class SandboxTest(object):
         """
         Add the remote of the authenticated Github user
         """
-        remote_url = "https://%s@github.com/%s/%s.git" \
-            % (self.token, self.user, self.sandbox.origin.name)
-        self.sandbox.add_remote(self.user, remote_url)
+        if not self.user in self.sandbox.list_remotes():
+            remote_url = "https://%s@github.com/%s/%s.git" \
+                % (self.token, self.user, self.sandbox.origin.name)
+            self.sandbox.add_remote(self.user, remote_url)
 
     def rename_origin_remote(self, new_name):
         """
