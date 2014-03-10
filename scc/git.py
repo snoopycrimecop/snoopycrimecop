@@ -675,6 +675,13 @@ class GitHubRepository(object):
         if not filters["include"]:
             return msg
 
+        # Combine pr filter with user/repo filters
+        repo_name = "%s/%s" % (self.user_name, self.repo_name)
+        for ftype in ["include", "exclude"]:
+            if filters[ftype].get(repo_name, None):
+                filters[ftype].setdefault("pr", []).extend(
+                    filters[ftype][repo_name])
+
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
@@ -1222,17 +1229,11 @@ class GitRepository(object):
             msg += self.set_commit_status(status, message, url)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
-                                        submodule_repo.origin.repo_name)
-
             # Create submodule filters
             import copy
             sub_filters = copy.deepcopy(filters)
-
             for ftype in ["include", "exclude"]:
                 sub_filters.pop("pr", None)  # Do not copy top-level PRs
-                if filters[ftype].get(submodule_name, None):
-                    sub_filters[ftype]["pr"] = filters[ftype][submodule_name]
 
             msg += submodule_repo.rset_commit_status(
                 sub_filters, status, message, url, info)
@@ -1274,17 +1275,11 @@ class GitRepository(object):
             updated = (presha1 != postsha1)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
-                                        submodule_repo.origin.repo_name)
-
             # Create submodule filters
             import copy
             sub_filters = copy.deepcopy(filters)
-
             for ftype in ["include", "exclude"]:
                 sub_filters.pop("pr", None)  # Do not copy top-level PRs
-                if filters[ftype].get(submodule_name, None):
-                    sub_filters[ftype]["pr"] = filters[ftype][submodule_name]
 
             try:
                 submodule_updated, submodule_msg = submodule_repo.rmerge(
