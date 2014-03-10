@@ -68,14 +68,18 @@ class TestTravisMerge(SandboxTest):
         self.travis_merge()
         assert self.isMerged() == [True, False]
 
-    @pytest.mark.parametrize('dep_type', ['description', 'comment'])
-    def testDependency(self, dep_type, monkeypatch):
+    @pytest.mark.parametrize('location', ['description', 'comment'])
+    @pytest.mark.parametrize('form', ['url', 'reference'])
+    def testDependency(self, location, form, monkeypatch):
 
         monkeypatch.setenv('TRAVIS_PULL_REQUEST', self.pr[0].number)
-        dep_line = '--depends-on #%s' % self.pr[1].number
-        if dep_type == 'description':
+        if form == 'url':
+            dep_line = '--depends-on %s' % self.pr[1].html_url
+        else:
+            dep_line = '--depends-on #%s' % self.pr[1].number
+        if location == 'description':
             self.pr[0].edit(body=self.pr[0].body+'\n\n----\n%s' % dep_line)
-        elif dep_type == 'comment':
+        elif location == 'comment':
             self.pr[0].create_issue_comment(dep_line)
         self.travis_merge()
         assert self.isMerged() == [True, True]
