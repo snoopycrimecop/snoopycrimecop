@@ -1703,7 +1703,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        pattern = re.compile(r'^(?P<key>(\w+)(/\w+)?):(?P<value>#?(\w+))$')
+        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?(\w+))'
+        pattern = re.compile('^' + keyvalue_pattern + '$')
         m = pattern.match(key_value)
         if not m:
             return False
@@ -1715,8 +1716,9 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_hash(self, ftype, value):
         """Parse a hash pattern of type #n or user/repo#n"""
-        pattern = re.compile(r'^(?P<prefix>(\w+/\w+)?)#(?P<nr>\d+)$')
-        m = pattern.match(value)
+        hash_pattern = r'(?P<prefix>([\w-]+/[\w-]+)?)#(?P<nr>\d+)'
+        hash_pattern = re.compile('^' + hash_pattern + '$')
+        m = hash_pattern.match(value)
         if not m:
             return False
 
@@ -1729,9 +1731,10 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_url(self, ftype, value):
         """Parse a URL pattern of type https://github.com/user/repo/pull/n"""
-        pattern = re.compile(r'^https://github.com/(?P<prefix>(\w+/\w+))' +
-                             '/pull/(?P<nr>\d+)$')
-        m = pattern.match(value)
+        github_url = r'https://github.com/%s/pull/%s' % \
+            (r'(?P<prefix>([\w-]+/[\w-]+))', r'(?P<nr>\d+)')
+        url_pattern = re.compile(r'^' + github_url + '$')
+        m = url_pattern.match(value)
         if not m:
             return False
 

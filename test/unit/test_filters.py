@@ -85,7 +85,8 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
     @pytest.mark.parametrize(('prefix', 'key'), [
-        ('', 'pr'), ('user/repo', 'user/repo')])
+        ('', 'pr'), ('user/repo', 'user/repo'),
+        ('user-1/repo-1', 'user-1/repo-1')])
     def test_parse_hash_pr(self, ftype, prefix, key):
         rsp = self.command._parse_hash(ftype, '%s#1' % prefix)
         self.filters[ftype] = {key: ['1']}
@@ -102,7 +103,9 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user', 'label', 'pr', 'user/repo'])
+    @pytest.mark.parametrize(
+        'key', ['user', 'user-1', 'label', 'pr', 'user/repo',
+                'user-1/repo-2'])
     @pytest.mark.parametrize('value', ['1', 'value'])
     def test_parse_key_value(self, ftype, key, value):
         self.command._parse_key_value(ftype, '%s:%s' % (key, value))
@@ -110,7 +113,7 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         assert self.command.filters == self.filters
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user/repo'])
+    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
     @pytest.mark.parametrize('value', ['1'])
     def test_parse_url(self, ftype, key, value):
         self.command._parse_url(
