@@ -1321,6 +1321,9 @@ class GitRepository(object):
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", commit_message)
                 updated = True
+            else:
+                self.call("git", "commit", "--allow-empty", "-n", "-m",
+                          commit_message)
         return updated, merge_msg
 
     def get_tag_prefix(self):
