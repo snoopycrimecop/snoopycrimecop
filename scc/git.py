@@ -675,6 +675,13 @@ class GitHubRepository(object):
         if not filters["include"]:
             return msg
 
+        # Combine pr filter with user/repo filters
+        repo_name = "%s/%s" % (self.user_name, self.repo_name)
+        for ftype in ["include", "exclude"]:
+            if filters[ftype].get(repo_name, None):
+                filters[ftype].setdefault("pr", []).extend(
+                    filters[ftype][repo_name])
+
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
@@ -1222,17 +1229,11 @@ class GitRepository(object):
             msg += self.set_commit_status(status, message, url)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
-                                        submodule_repo.origin.repo_name)
-
             # Create submodule filters
             import copy
             sub_filters = copy.deepcopy(filters)
-
             for ftype in ["include", "exclude"]:
                 sub_filters.pop("pr", None)  # Do not copy top-level PRs
-                if filters[ftype].get(submodule_name, None):
-                    sub_filters[ftype]["pr"] = filters[ftype][submodule_name]
 
             msg += submodule_repo.rset_commit_status(
                 sub_filters, status, message, url, info)
@@ -1274,17 +1275,11 @@ class GitRepository(object):
             updated = (presha1 != postsha1)
 
         for submodule_repo in self.submodules:
-            submodule_name = "%s/%s" % (submodule_repo.origin.user_name,
-                                        submodule_repo.origin.repo_name)
-
             # Create submodule filters
             import copy
             sub_filters = copy.deepcopy(filters)
-
             for ftype in ["include", "exclude"]:
                 sub_filters.pop("pr", None)  # Do not copy top-level PRs
-                if filters[ftype].get(submodule_name, None):
-                    sub_filters[ftype]["pr"] = filters[ftype][submodule_name]
 
             try:
                 submodule_updated, submodule_msg = submodule_repo.rmerge(
@@ -1703,7 +1698,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        pattern = re.compile(r'^(?P<key>(\w+)(/\w+)?):(?P<value>#?(\w+))$')
+        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?(\w+))'
+        pattern = re.compile('^' + keyvalue_pattern + '$')
         m = pattern.match(key_value)
         if not m:
             return False
@@ -1715,8 +1711,9 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_hash(self, ftype, value):
         """Parse a hash pattern of type #n or user/repo#n"""
-        pattern = re.compile(r'^(?P<prefix>(\w+/\w+)?)#(?P<nr>\d+)$')
-        m = pattern.match(value)
+        hash_pattern = r'(?P<prefix>([\w-]+/[\w-]+)?)#(?P<nr>\d+)'
+        hash_pattern = re.compile('^' + hash_pattern + '$')
+        m = hash_pattern.match(value)
         if not m:
             return False
 
@@ -1724,6 +1721,19 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             prefix = 'pr'
         else:
             prefix = m.group('prefix')
+        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        return True
+
+    def _parse_url(self, ftype, value):
+        """Parse a URL pattern of type https://github.com/user/repo/pull/n"""
+        github_url = r'https://github.com/%s/pull/%s' % \
+            (r'(?P<prefix>([\w-]+/[\w-]+))', r'(?P<nr>\d+)')
+        url_pattern = re.compile(r'^' + github_url + '$')
+        m = url_pattern.match(value)
+        if not m:
+            return False
+
+        prefix = m.group('prefix')
         self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
         return True
 
@@ -2790,9 +2800,8 @@ class TravisMerge(FilteredPullRequestsCommand):
         self.init_main_repo(args)
         pr = PullRequest(self.main_repo.origin.get_pull(int(pr_number)))
 
-        # Parse comments for companion PRs inclusion in the Travis build
-        self._parse_dependencies(pr.get_base(),
-                                 pr.parse_comments('depends-on'))
+        # Parse comments/description for PRs inclusion in the Travis build
+        self._parse_dependencies(pr.get_base(), pr.parse('depends-on'))
         self._log_filters(args.info)
 
         try:
@@ -2816,7 +2825,10 @@ class TravisMerge(FilteredPullRequestsCommand):
         self.filters["exclude"] = {}
 
         for comment in comments:
-            self._parse_hash("include", comment.strip())
+            found = self._parse_hash("include", comment.strip())
+
+            if not found:
+                self._parse_url("include", comment.strip())
 
 
 class UpdateSubmodules(GitRepoCommand):
