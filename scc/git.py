@@ -1242,7 +1242,7 @@ class GitRepository(object):
 
     def rmerge(self, filters, info=False, comment=False, commit_id="merge",
                top_message=None, update_gitmodules=False,
-               set_commit_status=False):
+               set_commit_status=False, allow_empty=True):
         """Recursively merge PRs for each submodule."""
 
         updated = False
@@ -1285,7 +1285,8 @@ class GitRepository(object):
                 submodule_updated, submodule_msg = submodule_repo.rmerge(
                     sub_filters, info, comment, commit_id=commit_id,
                     update_gitmodules=update_gitmodules,
-                    set_commit_status=set_commit_status)
+                    set_commit_status=set_commit_status,
+                    allow_empty=allow_empty)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
@@ -1321,6 +1322,10 @@ class GitRepository(object):
             if self.has_local_changes():
                 self.call("git", "commit", "-a", "-n", "-m", commit_message)
                 updated = True
+            elif allow_empty:
+                self.call("git", "commit", "--allow-empty", '-a', "-n", "-m",
+                          commit_message)
+
         return updated, merge_msg
 
     def get_tag_prefix(self):
@@ -2903,7 +2908,8 @@ class UpdateSubmodules(GitRepoCommand):
         updated, merge_msg = main_repo.rmerge(
             self.filters,
             top_message=args.message,
-            update_gitmodules=args.update_gitmodules)
+            update_gitmodules=args.update_gitmodules,
+            allow_empty=False)
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated, merge_msg
