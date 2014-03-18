@@ -1703,7 +1703,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?(\w+))'
+        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?([\w-]+))'
         pattern = re.compile('^' + keyvalue_pattern + '$')
         m = pattern.match(key_value)
         if not m:
