@@ -645,8 +645,8 @@ class GitHubRepository(object):
                 msg += str(pullrequest) + "\n"
         if self.candidate_branches:
             msg = "Candidate Branches:\n"
-            for branch in self.candidate_branches:
-                msg += branch + ":" + str(self.candidate_branches[branch]) + \
+            for remote in self.candidate_branches:
+                msg += remote + ":" + str(self.candidate_branches[remote]) + \
                     "\n"
 
         return msg
@@ -771,7 +771,8 @@ class GitHubRepository(object):
 
         forks = [f for f in filters["include"] if f.endswith(self.repo_name)]
         for fork in forks:
-            self.candidate_branches[fork] = filters["include"][fork]
+            remote = re.sub('/%s$' % self.repo_name, '', fork)
+            self.candidate_branches[remote] = filters["include"][fork]
 
 
 class GitRepository(object):
@@ -1407,6 +1408,8 @@ class GitRepository(object):
         unique_logins = set()
         for pull in self.origin.candidate_pulls:
             unique_logins.add(pull.get_head_login())
+        for remote in self.origin.candidate_branches.keys():
+            unique_logins.add(remote)
         return unique_logins
 
     def get_merge_remotes(self):
@@ -1686,8 +1689,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
                     value_map = key_value_map[key][1]
                     values_desc = map(value_map, self.filters[ftype][key])
                 else:
-                    key_desc = "%s %s Pull Request(s)" % (ftype_desc[ftype],
-                                                          key)
+                    key_desc = "%s %s Branches(s)/Pull Request(s)" % (
+                        ftype_desc[ftype], key)
                     values_desc = self.filters[ftype][key]
                 filter_desc = key_desc + " %s" % " or ".join(values_desc)
                 self.log.info("%s", filter_desc)
