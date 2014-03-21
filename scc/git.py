@@ -646,8 +646,8 @@ class GitHubRepository(object):
         if self.candidate_branches:
             msg = "Candidate Branches:\n"
             for remote in self.candidate_branches:
-                msg += remote + ":" + str(self.candidate_branches[remote]) + \
-                    "\n"
+                msg += remote + ":" + \
+                    ", ".join(self.candidate_branches[remote]) + "\n"
 
         return msg
 
@@ -1158,20 +1158,30 @@ class GitRepository(object):
 
         conflicting_pulls = []
         merged_pulls = []
+        conflicting_branches = []
+        merged_branches = []
 
-        for pullrequest in self.origin.candidate_pulls:
-            premerge_sha, e = self.call(
-                "git", "rev-parse", "HEAD",
-                stdout=subprocess.PIPE).communicate()
+        def safe_merge(sha, commit):
+
+            premerge_sha, e = self.call("git", "rev-parse", "HEAD",
+                                        stdout=subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
-                self.call("git", "merge", "--no-ff", "-m", "%s: PR %s (%s)"
-                          % (commit_id, pullrequest.get_number(),
-                             pullrequest.get_title()), pullrequest.get_sha())
-                merged_pulls.append(pullrequest)
+                self.call("git", "merge", "--no-ff", "-m", commit, sha)
+                return True
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
+                return False
+
+        for pullrequest in self.origin.candidate_pulls:
+            commit_msg = "%s: PR %s (%s)" % (
+                commit_id, pullrequest.get_number(), pullrequest.get_title())
+            merge_status = safe_merge(pullrequest.get_sha(), commit_msg)
+
+            if merge_status:
+                merged_pulls.append(pullrequest)
+            else:
                 conflicting_pulls.append(pullrequest)
 
                 msg = "Conflicting PR."
@@ -1187,16 +1197,39 @@ class GitRepository(object):
                              % pullrequest.get_number())
                     pullrequest.create_issue_comment(msg)
 
+        for remote in self.origin.candidate_branches.keys():
+            for branch_name in self.origin.candidate_branches:
+                commit_msg = "%s: branch %s:%s" % (
+                    commit_id, remote, branch_name)
+                merge_status = safe_merge('merge_%s/%s' % (
+                    commit_id, remote), commit_msg)
+
+                if merge_status:
+                    merged_branches.append('%s:%s' % (remote, branch_name))
+                else:
+                    conflicting_branches.append(
+                        '%s:%s' % (remote, branch_name))
+
         merge_msg = ""
         if merged_pulls:
             merge_msg += "Merged PRs:\n"
             for merged_pull in merged_pulls:
                 merge_msg += str(merged_pull) + "\n"
 
+        if merged_branches:
+            merge_msg += "Merged Branches:\n"
+            for merged_branch in merged_branches:
+                merge_msg += merged_branch + "\n"
+
         if conflicting_pulls:
             merge_msg += "Conflicting PRs (not included):\n"
             for conflicting_pull in conflicting_pulls:
                 merge_msg += str(conflicting_pull) + "\n"
+
+        if conflicting_branches:
+            merge_msg += "Conflicting Branches (not included):\n"
+            for conflicting_branch in conflicting_branches:
+                merge_msg += str(conflicting_branch) + "\n"
 
         if set_commit_status and get_token():
             if conflicting_pulls:
