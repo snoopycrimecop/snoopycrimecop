@@ -1198,11 +1198,11 @@ class GitRepository(object):
                     pullrequest.create_issue_comment(msg)
 
         for remote in self.origin.candidate_branches.keys():
-            for branch_name in self.origin.candidate_branches:
+            for branch_name in self.origin.candidate_branches[remote]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
                 merge_status = safe_merge('merge_%s/%s' % (
-                    commit_id, remote), commit_msg)
+                    remote, branch_name), commit_msg)
 
                 if merge_status:
                     merged_branches.append('%s:%s' % (remote, branch_name))
