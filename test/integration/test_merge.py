@@ -26,27 +26,41 @@ from scc.git import Merge
 from Sandbox import SandboxTest
 
 
-class TestMerge(SandboxTest):
+class MergeTest(SandboxTest):
 
     def setup_method(self, method):
 
-        super(TestMerge, self).setup_method(method)
+        super(MergeTest, self).setup_method(method)
         self.init_submodules()
         self.base = "dev_4_4"
         self.merge_branch = "merge/dev_4_4/test"
         self.branch = self.fake_branch(head=self.base)
-        self.pr = self.open_pr(self.branch, self.base)
+        self.sha = self.sandbox.get_sha1(self.branch)
         self.sandbox.checkout_branch(self.base)
-        assert not self.isMerged()
 
     def isMerged(self, ref='HEAD'):
         revlist, o = self.sandbox.communicate("git", "rev-list", ref)
-        return self.pr.head.sha in revlist.splitlines()
+        return self.sha in revlist.splitlines()
 
     def teardown_method(self, method):
         # Clean the initial branch. This will close the inital PRs
         self.sandbox.push_branch(":%s" % self.branch, remote=self.user)
-        super(TestMerge, self).teardown_method(method)
+        super(MergeTest, self).teardown_method(method)
+
+    def merge(self, *args):
+        self.sandbox.checkout_branch(self.origin_remote + "/" + self.base)
+        args = ["merge", "--no-ask", self.base] + list(args)
+        main(args=args, items=[(Merge.NAME, Merge)])
+
+
+class TestMergePullRequest(MergeTest):
+
+    def setup_method(self, method):
+
+        super(TestMergePullRequest, self).setup_method(method)
+        self.pr = self.open_pr(self.branch, self.base)
+        self.sandbox.checkout_branch(self.base)
+        assert not self.isMerged()
 
     def create_status(self, state):
         """Create status on the head repository of the Pull Request"""
@@ -55,11 +69,6 @@ class TestMerge(SandboxTest):
         commit.create_status(
             state, NotSet, state[0].upper() + state[1:] + " state test")
         assert commit.get_statuses()[0].state == state
-
-    def merge(self, *args):
-        self.sandbox.checkout_branch(self.origin_remote + "/" + self.base)
-        args = ["merge", "--no-ask", self.base] + list(args)
-        main(args=args, items=[(Merge.NAME, Merge)])
 
     def testMerge(self):
 
@@ -139,3 +148,16 @@ class TestMerge(SandboxTest):
         self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
         self.merge()
         assert not self.isMerged()
+
+
+class TestMergeBranch(MergeTest):
+
+    def setup_method(self, method):
+
+        super(TestMergeBranch, self).setup_method(method)
+        self.push_branch(self.branch)
+
+    def testMergeBranch(self):
+        self.merge("-I", "%s/%s:%s" % (self.user, self.sandbox.origin.name,
+                   self.branch))
+        assert self.isMerged()

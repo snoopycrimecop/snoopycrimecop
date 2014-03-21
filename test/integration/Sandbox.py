@@ -122,12 +122,18 @@ class SandboxTest(object):
                           new_name)
         self.origin_remote = new_name
 
+    def push_branch(self, branch):
+        """
+        Push a local branch to GitHub
+        """
+        self.add_remote()
+        self.sandbox.push_branch(branch, remote=self.user)
+
     def open_pr(self, branch, base):
         """
         Push a local branch and open a PR against the selected base
         """
-        self.add_remote()
-        self.sandbox.push_branch(branch, remote=self.user)
+        self.push_branch(branch)
         new_pr = self.sandbox.origin.open_pr(
             title="test %s" % branch,
             description="This is a call to Sandbox.open_pr by %s"
