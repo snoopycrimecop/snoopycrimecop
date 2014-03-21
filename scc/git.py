@@ -562,6 +562,7 @@ class GitHubRepository(object):
         self.user_name = user_name
         self.repo_name = repo_name
         self.candidate_pulls = []
+        self.candidate_branches = {}
 
         try:
             self.repo = gh.get_repo(user_name + '/' + repo_name)
@@ -637,12 +638,17 @@ class GitHubRepository(object):
     def merge_info(self):
         """List the candidate Pull Request to be merged"""
 
+        msg = ""
         if self.candidate_pulls:
             msg = "Candidate PRs:\n"
             for pullrequest in self.candidate_pulls:
                 msg += str(pullrequest) + "\n"
-        else:
-            msg = ""
+        if self.candidate_branches:
+            msg = "Candidate Branches:\n"
+            for branch in self.candidate_branches:
+                msg += branch + ":" + str(self.candidate_branches[branch]) + \
+                    "\n"
+
         return msg
 
     def intersect(self, a, b):
@@ -666,7 +672,7 @@ class GitHubRepository(object):
 
         return False, None
 
-    def find_candidates(self, filters):
+    def find_candidate_pulls(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
         msg = ""
@@ -754,6 +760,18 @@ class GitHubRepository(object):
                                   cmp(a.get_number(), b.get_number()))
 
         return msg
+
+    def find_candidate_branches(self, filters):
+        """Find candidate branches for merging."""
+        self.dbg("## Branches found:")
+
+        # Fail fast if default is none and no include filter is specified
+        if not filters["include"]:
+            return
+
+        forks = [f for f in filters["include"] if f.endswith(self.repo_name)]
+        for fork in forks:
+            self.candidate_branches[fork] = filters["include"][fork]
 
 
 class GitRepository(object):
@@ -1222,7 +1240,7 @@ class GitRepository(object):
 
         msg = ""
         msg += str(self.origin) + "\n"
-        msg += self.origin.find_candidates(filters)
+        msg += self.origin.find_candidate_pulls(filters)
         if info:
             msg += self.origin.merge_info()
         else:
@@ -1248,7 +1266,8 @@ class GitRepository(object):
         updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
-        merge_msg += self.origin.find_candidates(filters)
+        merge_msg += self.origin.find_candidate_pulls(filters)
+        self.origin.find_candidate_branches(filters)
         if info:
             merge_msg += self.origin.merge_info()
         else:
