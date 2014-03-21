@@ -1217,9 +1217,9 @@ class GitRepository(object):
                 merge_msg += str(merged_pull) + "\n"
 
         if merged_branches:
-            merge_msg += "Merged Branches:\n"
+            merge_msg += "Merged branches:\n"
             for merged_branch in merged_branches:
-                merge_msg += merged_branch + "\n"
+                merge_msg += "  # %s\n" %merged_branch
 
         if conflicting_pulls:
             merge_msg += "Conflicting PRs (not included):\n"
@@ -1227,9 +1227,9 @@ class GitRepository(object):
                 merge_msg += str(conflicting_pull) + "\n"
 
         if conflicting_branches:
-            merge_msg += "Conflicting Branches (not included):\n"
+            merge_msg += "Conflicting branches (not included):\n"
             for conflicting_branch in conflicting_branches:
-                merge_msg += str(conflicting_branch) + "\n"
+                merge_msg +=  "  # %s\n" % conflicting_branch
 
         if set_commit_status and get_token():
             if conflicting_pulls:
