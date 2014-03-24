@@ -646,8 +646,8 @@ class GitHubRepository(object):
         if self.candidate_branches:
             msg += "Candidate Branches:\n"
             for remote in self.candidate_branches:
-                msg += remote + ":" + \
-                    ", ".join(self.candidate_branches[remote]) + "\n"
+                for branch in self.candidate_branches[remote]:
+                    msg += "  # %s:%s\n" % (remote, branch)
 
         return msg
 
