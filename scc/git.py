@@ -640,11 +640,11 @@ class GitHubRepository(object):
 
         msg = ""
         if self.candidate_pulls:
-            msg = "Candidate PRs:\n"
+            msg += "Candidate PRs:\n"
             for pullrequest in self.candidate_pulls:
                 msg += str(pullrequest) + "\n"
         if self.candidate_branches:
-            msg = "Candidate Branches:\n"
+            msg += "Candidate Branches:\n"
             for remote in self.candidate_branches:
                 msg += remote + ":" + \
                     ", ".join(self.candidate_branches[remote]) + "\n"
