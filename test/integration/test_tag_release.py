@@ -47,41 +47,28 @@ class TestTagRelease(SandboxTest):
         args = ["tag-release", "--no-ask"] + list(args)
         main(args=args, items=[("tag-release", TagRelease)])
 
-    def testTag(self):
-        """Test tagging on repository without submodules"""
+    @pytest.mark.parametrize('submodules', [True, False])
+    @pytest.mark.parametrize('shallow_option', [None, '--shallow'])
+    def testSubmodules(self, shallow_option, submodules):
+        """Test tagging on repository with/or without submodules"""
 
-        self.tag_release(self.new_version)
+        if submodules:
+            self.init_submodules()
+        if shallow_option:
+            self.tag_release(self.new_version, shallow_option)
+        else:
+            self.tag_release(self.new_version)
         assert self.has_new_prefixed_tag(self.sandbox)
+        if submodules and not shallow_option:
+            for submodule in self.sandbox.submodules:
+                assert self.has_new_prefixed_tag(submodule)
 
-    def testRecursiveTag(self):
-        """Test recursive tagging on repository with submodules"""
-
-        self.init_submodules()
-        self.tag_release(self.new_version)
-        assert self.has_new_prefixed_tag(self.sandbox)
-        for submodule in self.sandbox.submodules:
-            assert self.has_new_prefixed_tag(submodule)
-
-    def testShallowTag(self):
-        """Test shallow tagging on repository with submodules"""
-
-        self.init_submodules()
-        self.tag_release("--shallow", self.new_version)
-        assert self.has_new_prefixed_tag(self.sandbox)
-        for submodule in self.sandbox.submodules:
-            assert not self.has_new_prefixed_tag(submodule)
-
-    def testInvalidVersionNumber(self):
+    @pytest.mark.parametrize('version', ['v5.0.0-beta1', '0.0.0beta1'])
+    def testInvalidVersionNumber(self, version):
         """Test invalid version number"""
 
         with pytest.raises(Stop):
-            self.tag_release('v5.0.0-beta1')
-
-    def testInvalidVersionPreReleaseNumber(self):
-        """Test invalid version pre-release number"""
-
-        with pytest.raises(Stop):
-            self.tag_release('0.0.0beta1')
+            self.tag_release(version)
 
     def testExitingTag(self):
         """Test existing tag"""
