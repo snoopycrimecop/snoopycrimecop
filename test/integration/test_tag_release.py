@@ -33,10 +33,15 @@ class TestTagRelease(SandboxTest):
 
         super(TestTagRelease, self).setup_method(method)
         self.new_version = '5.0.0-beta1'
+        self.tag_prefix = None
 
     def has_new_prefixed_tag(self, repo):
 
-        return repo.has_local_tag(repo.get_tag_prefix() + self.new_version)
+        if self.tag_prefix:
+            full_tag = self.tag_prefix + self.new_version
+        else:
+            full_tag = repo.get_tag_prefix() + self.new_version
+        return repo.has_local_tag(full_tag)
 
     def tag_release(self, *args):
         args = ["tag-release", "--no-ask"] + list(args)
@@ -97,3 +102,11 @@ class TestTagRelease(SandboxTest):
         # Test Stop is thrown by tag-release command
         with pytest.raises(Stop):
             self.tag_release(self.new_version + "..")
+
+    @pytest.mark.parametrize('tag_prefix', ['v', 'demo/'])
+    def testPrefix(self, tag_prefix):
+        """Test prefix argument"""
+
+        self.tag_prefix = tag_prefix
+        self.tag_release(self.new_version, '--prefix', tag_prefix)
+        assert self.has_new_prefixed_tag(self.sandbox)
