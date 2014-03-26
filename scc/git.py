@@ -2130,7 +2130,7 @@ command.
         while not all(x in self.links.keys() for x in m.keys()):
 
             for pr_number in [key for key in m.keys()
-                              if not key in self.links.keys()]:
+                              if key not in self.links.keys()]:
                 self.visit_pr(gh_repo, pr_number)
 
             m = self.check_directed_links(self.links)
@@ -2900,7 +2900,7 @@ class UpdateSubmodules(GitRepoCommand):
             submodule.cd(submodule.path)
             if not args.no_fetch:
                 submodule.fetch(args.remote)
-            #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
+            # submodule.checkout_branch("%s/%s" % (args.remote, args.base))
 
         # Create commit message using command arguments
         self.filters = {}
