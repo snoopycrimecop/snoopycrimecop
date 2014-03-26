@@ -928,7 +928,7 @@ class GitRepository(object):
         self.dbg("Committing %s...", msg)
         self.call("git", "commit", "-m", msg)
 
-    def tag(self, tag, message=None, force=False):
+    def tag(self, tag, message=None, force=False, sign=False):
         """Tag the HEAD of the git repository"""
         if message is None:
             message = "Tag with version %s" % tag
@@ -940,10 +940,13 @@ class GitRepository(object):
             raise Stop(22, "%s is not a valid tag name." % tag)
 
         self.dbg("Creating tag %s...", tag)
+        tag_command = ["git", "tag", tag, "-m", message]
         if force:
-            self.call("git", "tag", "-f", tag, "-m", message)
-        else:
-            self.call("git", "tag", tag, "-m", message)
+            tag_command.append("-f")
+        if sign:
+            tag_command.append("-s")
+
+        self.call(*tag_command)
 
     def new_branch(self, name, head="HEAD"):
         self.dbg("New branch %s from %s...", name, head)
@@ -1394,13 +1397,13 @@ class GitRepository(object):
 
         return prefix
 
-    def rtag(self, version, message=None):
+    def rtag(self, version, message=None, sign=False):
         """Recursively tag repositories with a version number."""
 
         msg = ""
         msg += str(self.origin) + "\n"
         tag_prefix = self.get_tag_prefix()
-        self.tag(tag_prefix + version, message)
+        self.tag(tag_prefix + version, message, sign=sign)
         msg += "Created tag %s\n" % (tag_prefix + version)
 
         for submodule_repo in self.submodules:
@@ -2182,7 +2185,7 @@ command.
         while not all(x in self.links.keys() for x in m.keys()):
 
             for pr_number in [key for key in m.keys()
-                              if not key in self.links.keys()]:
+                              if key not in self.links.keys()]:
                 self.visit_pr(gh_repo, pr_number)
 
             m = self.check_directed_links(self.links)
@@ -2952,7 +2955,7 @@ class UpdateSubmodules(GitRepoCommand):
             submodule.cd(submodule.path)
             if not args.no_fetch:
                 submodule.fetch(args.remote)
-            #submodule.checkout_branch("%s/%s" % (args.remote, args.base))
+            # submodule.checkout_branch("%s/%s" % (args.remote, args.base))
 
         # Create commit message using command arguments
         self.filters = {}
@@ -3071,7 +3074,10 @@ class TagRelease(_TagCommands):
             help='Tag message')
         self.parser.add_argument(
             '--push', action='store_true',
-            help='Push new tag to GitHub')
+            help='Push new tag(s) to GitHub')
+        self.parser.add_argument(
+            '--sign', '-s', action='store_true',
+            help='Annotate and GPG-sign the tag(s)')
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
@@ -3079,7 +3085,8 @@ class TagRelease(_TagCommands):
         if args.message is None:
             args.message = 'Tag version %s' % args.version
 
-        msg = self.main_repo.rtag(args.version, message=args.message)
+        msg = self.main_repo.rtag(args.version, message=args.message,
+                                  sign=args.sign)
 
         for line in msg.split("\n"):
             self.log.info(line)
