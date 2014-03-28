@@ -562,6 +562,7 @@ class GitHubRepository(object):
         self.user_name = user_name
         self.repo_name = repo_name
         self.candidate_pulls = []
+        self.candidate_branches = {}
 
         try:
             self.repo = gh.get_repo(user_name + '/' + repo_name)
@@ -637,12 +638,17 @@ class GitHubRepository(object):
     def merge_info(self):
         """List the candidate Pull Request to be merged"""
 
+        msg = ""
         if self.candidate_pulls:
-            msg = "Candidate PRs:\n"
+            msg += "Candidate PRs:\n"
             for pullrequest in self.candidate_pulls:
                 msg += str(pullrequest) + "\n"
-        else:
-            msg = ""
+        if self.candidate_branches:
+            msg += "Candidate Branches:\n"
+            for remote in self.candidate_branches:
+                for branch in self.candidate_branches[remote]:
+                    msg += "  # %s:%s\n" % (remote, branch)
+
         return msg
 
     def intersect(self, a, b):
@@ -666,7 +672,7 @@ class GitHubRepository(object):
 
         return False, None
 
-    def find_candidates(self, filters):
+    def find_candidate_pulls(self, filters):
         """Find candidate Pull Requests for merging."""
         self.dbg("## PRs found:")
         msg = ""
@@ -758,6 +764,19 @@ class GitHubRepository(object):
                                   cmp(a.get_number(), b.get_number()))
 
         return msg
+
+    def find_candidate_branches(self, filters):
+        """Find candidate branches for merging."""
+        self.dbg("## Branches found:")
+
+        # Fail fast if default is none and no include filter is specified
+        if not filters["include"]:
+            return
+
+        forks = [f for f in filters["include"] if f.endswith(self.repo_name)]
+        for fork in forks:
+            remote = re.sub('/%s$' % self.repo_name, '', fork)
+            self.candidate_branches[remote] = filters["include"][fork]
 
 
 class GitRepository(object):
@@ -1146,20 +1165,30 @@ class GitRepository(object):
 
         conflicting_pulls = []
         merged_pulls = []
+        conflicting_branches = []
+        merged_branches = []
 
-        for pullrequest in self.origin.candidate_pulls:
-            premerge_sha, e = self.call(
-                "git", "rev-parse", "HEAD",
-                stdout=subprocess.PIPE).communicate()
+        def safe_merge(sha, commit):
+
+            premerge_sha, e = self.call("git", "rev-parse", "HEAD",
+                                        stdout=subprocess.PIPE).communicate()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
-                self.call("git", "merge", "--no-ff", "-m", "%s: PR %s (%s)"
-                          % (commit_id, pullrequest.get_number(),
-                             pullrequest.get_title()), pullrequest.get_sha())
-                merged_pulls.append(pullrequest)
+                self.call("git", "merge", "--no-ff", "-m", commit, sha)
+                return True
             except:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
+                return False
+
+        for pullrequest in self.origin.candidate_pulls:
+            commit_msg = "%s: PR %s (%s)" % (
+                commit_id, pullrequest.get_number(), pullrequest.get_title())
+            merge_status = safe_merge(pullrequest.get_sha(), commit_msg)
+
+            if merge_status:
+                merged_pulls.append(pullrequest)
+            else:
                 conflicting_pulls.append(pullrequest)
 
                 msg = "Conflicting PR."
@@ -1175,16 +1204,39 @@ class GitRepository(object):
                              % pullrequest.get_number())
                     pullrequest.create_issue_comment(msg)
 
+        for remote in self.origin.candidate_branches.keys():
+            for branch_name in self.origin.candidate_branches[remote]:
+                commit_msg = "%s: branch %s:%s" % (
+                    commit_id, remote, branch_name)
+                merge_status = safe_merge('merge_%s/%s' % (
+                    remote, branch_name), commit_msg)
+
+                if merge_status:
+                    merged_branches.append('%s:%s' % (remote, branch_name))
+                else:
+                    conflicting_branches.append(
+                        '%s:%s' % (remote, branch_name))
+
         merge_msg = ""
         if merged_pulls:
             merge_msg += "Merged PRs:\n"
             for merged_pull in merged_pulls:
                 merge_msg += str(merged_pull) + "\n"
 
+        if merged_branches:
+            merge_msg += "Merged branches:\n"
+            for merged_branch in merged_branches:
+                merge_msg += "  # %s\n" % merged_branch
+
         if conflicting_pulls:
             merge_msg += "Conflicting PRs (not included):\n"
             for conflicting_pull in conflicting_pulls:
                 merge_msg += str(conflicting_pull) + "\n"
+
+        if conflicting_branches:
+            merge_msg += "Conflicting branches (not included):\n"
+            for conflicting_branch in conflicting_branches:
+                merge_msg += "  # %s\n" % conflicting_branch
 
         if set_commit_status and get_token():
             if conflicting_pulls:
@@ -1229,7 +1281,7 @@ class GitRepository(object):
 
         msg = ""
         msg += str(self.origin) + "\n"
-        msg += self.origin.find_candidates(filters)
+        msg += self.origin.find_candidate_pulls(filters)
         if info:
             msg += self.origin.merge_info()
         else:
@@ -1255,7 +1307,8 @@ class GitRepository(object):
         updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
-        merge_msg += self.origin.find_candidates(filters)
+        merge_msg += self.origin.find_candidate_pulls(filters)
+        self.origin.find_candidate_branches(filters)
         if info:
             merge_msg += self.origin.merge_info()
         else:
@@ -1395,6 +1448,8 @@ class GitRepository(object):
         unique_logins = set()
         for pull in self.origin.candidate_pulls:
             unique_logins.add(pull.get_head_login())
+        for remote in self.origin.candidate_branches.keys():
+            unique_logins.add(remote)
         return unique_logins
 
     def get_merge_remotes(self):
@@ -1674,8 +1729,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
                     value_map = key_value_map[key][1]
                     values_desc = map(value_map, self.filters[ftype][key])
                 else:
-                    key_desc = "%s %s Pull Request(s)" % (ftype_desc[ftype],
-                                                          key)
+                    key_desc = "%s %s Branches(s)/Pull Request(s)" % (
+                        ftype_desc[ftype], key)
                     values_desc = self.filters[ftype][key]
                 filter_desc = key_desc + " %s" % " or ".join(values_desc)
                 self.log.info("%s", filter_desc)
@@ -1710,7 +1765,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
     def _parse_key_value(self, ftype, key_value):
         """Parse a key/value pattern of type key/value"""
-        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?(\w+))'
+        keyvalue_pattern = r'(?P<key>([\w-]+)(/[\w-]+)?):(?P<value>#?([\w-]+))'
         pattern = re.compile('^' + keyvalue_pattern + '$')
         m = pattern.match(key_value)
         if not m:
