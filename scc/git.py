@@ -796,65 +796,16 @@ class GitHubRepository(object):
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
-        is_whitelisted_comment = lambda x: self.is_whitelisted(
-            x.user, filters["include"].get("user"))
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
+            include, exclude_reason = self.filter_pull(pullrequest, filters)
 
-            if pullrequest.parse(filters["exclude"].get("label"),
-                                 whitelist=is_whitelisted_comment):
-                excluded_pulls[pullrequest] = 'exclude comment'
-                continue
-
-            pullrequest_user = pullrequest.get_user()
-            pr_attributes = {}
-            pr_attributes["label"] = [x.lower() for x in
-                                      pullrequest.get_labels()]
-            pr_attributes["user"] = [pullrequest_user.login]
-            pr_attributes["pr"] = [str(pullrequest.get_number())]
-
-            if not self.is_whitelisted(pullrequest_user,
-                                       filters["include"].get("user")):
-                # Allow filter PR inclusion using include filter
-                include, reason = self.run_filter(
-                    filters["include"], pr_attributes, action="Include")
-                if not include and not pullrequest.parse(
-                        filters["include"].get("label", None),
-                        whitelist=is_whitelisted_comment):
-                    excluded_pulls[pullrequest] = "user: %s" \
-                        % pullrequest_user.login
-                    continue
-
-            # Exclude PRs specified by filters
-            exclude, reason = self.run_filter(
-                filters["exclude"], pr_attributes, action="Exclude")
-            if exclude:
-                excluded_pulls[pullrequest] = reason
-                continue
-
-            # Filter PRs by status if the status filter is on
-            if "status" in filters and filters["status"] != "none":
-                status = pullrequest.get_last_status("base")
-                if status is None:
-                    # If no status on the base repo, fallback on the head repo
-                    status = pullrequest.get_last_status("head")
-
-                if status is None:
-                    state = ""
-                else:
-                    state = status.state
-
-                exclude_1 = (filters["status"] == "success-only") and \
-                    (state != "success")
-                exclude_2 = (filters["status"] == "no-error") and \
-                    (state in ["error", "failure"])
-                if exclude_1 or exclude_2:
-                    excluded_pulls[pullrequest] = "status: %s" % state
-                    continue
-
-            self.dbg(pullrequest)
-            self.candidate_pulls.append(pullrequest)
+            if not include:
+                excluded_pulls[pullrequest] = exclude_reason
+            else:
+                self.dbg(pullrequest)
+                self.candidate_pulls.append(pullrequest)
 
         if excluded_pulls:
             msg += "Excluded PRs:\n"
@@ -865,6 +816,69 @@ class GitHubRepository(object):
                                   cmp(a.get_number(), b.get_number()))
 
         return msg
+
+    def filter_pull(self, pullrequest, filters):
+
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["include"].get("user"))
+
+        if pullrequest.parse(filters["exclude"].get("label"),
+                             whitelist=is_whitelisted_comment):
+            return False, 'exclude comment'
+
+        pullrequest_user = pullrequest.get_user()
+        pr_attributes = {}
+        pr_attributes["label"] = [x.lower() for x in
+                                  pullrequest.get_labels()]
+        pr_attributes["user"] = [pullrequest_user.login]
+        pr_attributes["pr"] = [str(pullrequest.get_number())]
+
+        if not self.is_whitelisted(pullrequest_user,
+                                   filters["include"].get("user")):
+            # Allow filter PR inclusion using include filter
+            include, reason = self.run_filter(
+                filters["include"], pr_attributes, action="Include")
+            if not include and not pullrequest.parse(
+                    filters["include"].get("label", None),
+                    whitelist=is_whitelisted_comment):
+                return False, "user: %s" % pullrequest_user.login
+
+        # Exclude PRs specified by filters
+        exclude, reason = self.run_filter(
+            filters["exclude"], pr_attributes, action="Exclude")
+        if exclude:
+            return False, reason
+
+        # Filter PRs by status if the status filter is on
+        exclude, reason = self.run_status_filter(pullrequest, filters)
+        if exclude:
+            return False, reason
+
+        return True, None
+
+    def run_status_filter(self, pullrequest, filters):
+
+        if "status" not in filters or filters["status"] == "none":
+            return True, None
+
+        status = pullrequest.get_last_status("base")
+        if status is None:
+            # If no status on the base repo, fallback on the head repo
+            status = pullrequest.get_last_status("head")
+
+        if status is None:
+            state = ""
+        else:
+            state = status.state
+
+        exclude_1 = (filters["status"] == "success-only") and \
+            (state != "success")
+        exclude_2 = (filters["status"] == "no-error") and \
+            (state in ["error", "failure"])
+        if exclude_1 or exclude_2:
+            return False, "status: %s" % state
+
+        return True, None
 
     def find_candidate_branches(self, filters):
         """Find candidate branches for merging."""
