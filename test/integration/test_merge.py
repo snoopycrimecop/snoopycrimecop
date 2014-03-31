@@ -22,7 +22,7 @@
 import pytest
 
 from scc.framework import main, Stop
-from scc.git import Merge
+from scc.git import Merge, EMPTY_MSG
 from Sandbox import SandboxTest
 
 
@@ -148,6 +148,14 @@ class TestMergePullRequest(MergeTest):
         self.pr.edit(body=self.pr.body+'\n\n----\n--exclude')
         self.merge()
         assert not self.isMerged()
+
+    def testEmptyDescription(self):
+
+        self.pr.edit(body='')
+        self.merge('--comment')
+        assert self.isMerged()
+        last_comment = self.pr.get_issue_comments()[-1]
+        assert last_comment.body == EMPTY_MSG
 
 
 class TestMergeBranch(MergeTest):
