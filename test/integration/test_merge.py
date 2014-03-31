@@ -154,6 +154,7 @@ class TestMergePullRequest(MergeTest):
         self.pr.edit(body='')
         self.merge('--comment')
         assert self.isMerged()
+        self.pr.update()
         last_comment = self.pr.get_issue_comments()[-1]
         assert last_comment.body == EMPTY_MSG
 
