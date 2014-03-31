@@ -2165,9 +2165,9 @@ command.
     def notes(self, repo, args):
 
         # List unrebased PRs
-        count1 = self.list_prs(
+        count1 = self.list_unrebased_prs(
             repo, args.a, args.b, remote=args.remote, write=args.write)
-        count2 = self.list_prs(
+        count2 = self.list_unrebased_prs(
             repo, args.b, args.a, remote=args.remote, write=args.write)
         unrebased_count = count1 + count2
 
@@ -2240,12 +2240,8 @@ command.
             else:
                 raise Exception("No IDs found for line %s!" % i)
 
-    def list_prs(self, repo, source_branch, target_branch, remote="origin",
-                 write=False):
-        """
-        Method for listing PRs while filtering out those which
-        have a seealso note
-        """
+    def list_prs(self, repo, source_branch, target_branch, remote="origin"):
+
         git_notes_ref = "refs/notes/see_also/" + target_branch
         merge_base = repo.find_branching_point(
             "%s/%s" % (remote, source_branch),
@@ -2284,7 +2280,15 @@ command.
                 pr_list.append(num)
             except:
                 self.log.info("Unknown merge: %s", line)
-                continue
+        return pr_list
+
+    def list_unrebased_prs(self, repo, source_branch, target_branch,
+                           remote="origin", write=False):
+        """
+        Method for listing unrebased PRs while filtering out those which
+        """
+
+        pr_list = self.list_prs(repo, source_branch, target_branch, remote)
         self.log.debug(
             "Found %s first-parent PRs merged on %s without a see_also note"
             " for %s" % (len(pr_list), source_branch, target_branch))
