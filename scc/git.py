@@ -1277,9 +1277,22 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user, repo]
 
+    def safe_merge(self, sha, message):
+        """Merge a branch and revert to current HEAD in case of conflict."""
+        premerge_sha, e = self.call("git", "rev-parse", "HEAD",
+                                    stdout=subprocess.PIPE).communicate()
+        premerge_sha = premerge_sha.rstrip("\n")
+
+        try:
+            self.call("git", "merge", "--no-ff", "-m", message, sha)
+            return True
+        except:
+            self.call("git", "reset", "--hard", "%s" % premerge_sha)
+            return False
+
     def merge(self, comment=False, commit_id="merge",
               set_commit_status=False):
-        """Merge candidate pull requests."""
+        """Merge candidate pull requests and pull requests."""
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.get_merge_remotes().items():
             self.call("git", "remote", "add", key, url)
@@ -1290,52 +1303,19 @@ class GitRepository(object):
         conflicting_branches = []
         merged_branches = []
 
-        def safe_merge(sha, commit):
-
-            p = self.call("git", "rev-parse", "HEAD", stdout=subprocess.PIPE)
-            premerge_sha, e = p.communicate()
-            p.stdout.close()
-            premerge_sha = premerge_sha.rstrip("\n")
-
-            try:
-                self.call("git", "merge", "--no-ff", "-m", commit, sha)
-                return True
-            except:
-                self.call("git", "reset", "--hard", "%s" % premerge_sha)
-                return False
-
         for pullrequest in self.origin.candidate_pulls:
-            commit_msg = "%s: PR %s (%s)" % (
-                commit_id, pullrequest.get_number(), pullrequest.get_title())
-            merge_status = safe_merge(pullrequest.get_sha(), commit_msg)
-
+            merge_status = self.merge_pull(pullrequest, comment=comment,
+                                           commit_id=commit_id)
             if merge_status:
                 merged_pulls.append(pullrequest)
-                if not pullrequest.body and comment and get_token():
-                    self.dbg("Adding comment to Pull Request #%g."
-                             % pullrequest.get_number())
-                    pullrequest.create_issue_comment(EMPTY_MSG)
             else:
                 conflicting_pulls.append(pullrequest)
-
-                msg = "Conflicting PR."
-                if IS_JENKINS_JOB:
-                    msg += " Removed from build [%s#%s](%s). See the " \
-                           "[console output](%s) for more details." \
-                           % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
-                              BUILD_URL + "consoleText")
-                self.dbg(msg)
-
-                if comment and get_token():
-                    self.dbg("Adding comment to Pull Request #%g."
-                             % pullrequest.get_number())
-                    pullrequest.create_issue_comment(msg)
 
         for remote in self.origin.candidate_branches.keys():
             for branch_name in self.origin.candidate_branches[remote]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
-                merge_status = safe_merge('merge_%s/%s' % (
+                merge_status = self.safe_merge('merge_%s/%s' % (
                     remote, branch_name), commit_msg)
 
                 if merge_status:
@@ -1344,39 +1324,69 @@ class GitRepository(object):
                     conflicting_branches.append(
                         '%s:%s' % (remote, branch_name))
 
-        merge_msg = ""
-        if merged_pulls:
-            merge_msg += "Merged PRs:\n"
-            for merged_pull in merged_pulls:
-                merge_msg += str(merged_pull) + "\n"
-
-        if merged_branches:
-            merge_msg += "Merged branches:\n"
-            for merged_branch in merged_branches:
-                merge_msg += "  # %s\n" % merged_branch
-
-        if conflicting_pulls:
-            merge_msg += "Conflicting PRs (not included):\n"
-            for conflicting_pull in conflicting_pulls:
-                merge_msg += str(conflicting_pull) + "\n"
-
-        if conflicting_branches:
-            merge_msg += "Conflicting branches (not included):\n"
-            for conflicting_branch in conflicting_branches:
-                merge_msg += "  # %s\n" % conflicting_branch
+        merge_msg = self.log_merge(merged_pulls, merged_branches,
+                                   conflicting_pulls, conflicting_branches)
 
         if set_commit_status and get_token():
-            if conflicting_pulls:
-                status = 'failure'
-                message = 'Not all current PRs can be merged.'
-            else:
-                status = 'success'
-                message = 'All current PRs can be merged.'
+            conflict = len(conflicting_branches) or len(conflicting_pulls)
+            status = 'failure' if conflict else 'success'
+            success_msg = 'Not all current branches/PRs can be merged.'
+            conflict_msg = 'All current PRs/branches can be merged.'
+            message = conflict_msg if conflict else success_msg
             url = BUILD_URL if IS_JENKINS_JOB else github.GithubObject.NotSet
             merge_msg += self.set_commit_status(status, message, url)
 
         self.call("git", "submodule", "update")
         return merge_msg
+
+    def log_merge(self, merged_pulls, merged_branches, conflicting_pulls,
+                  conflicting_branches):
+
+        merge_msg = ""
+        if merged_pulls:
+            merge_msg += "Merged PRs:\n"
+            merge_msg += "\n".join([str(x) for x in merged_pulls])
+
+        if merged_branches:
+            merge_msg += "Merged branches:\n"
+            merge_msg += "\n".join(["  # %s\n" % x for x in merged_branches])
+
+        if conflicting_pulls:
+            merge_msg += "Conflicting PRs (not included):\n"
+            merge_msg += "\n".join([str(x) for x in conflicting_pulls])
+
+        if conflicting_branches:
+            merge_msg += "Conflicting branches (not included):\n"
+            merge_msg += "\n".join(["  # %s\n" % x for x in
+                                    conflicting_branches])
+
+    def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
+        """Merge pull request."""
+
+        commit_msg = "%s: PR %s (%s)" % (
+            commit_id, pullrequest.get_number(), pullrequest.get_title())
+        merge_status = self.safe_merge(pullrequest.get_sha(), commit_msg)
+
+        if merge_status:
+            if not pullrequest.body and comment and get_token():
+                self.dbg("Adding comment to Pull Request #%g."
+                         % pullrequest.get_number())
+                pullrequest.create_issue_comment(EMPTY_MSG)
+            return merge_status
+
+        conflict_msg = "Conflicting PR."
+        if IS_JENKINS_JOB:
+            conflict_msg += " Removed from build [%s#%s](%s). See the " \
+                "[console output](%s) for more details." \
+                % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
+                   BUILD_URL + "consoleText")
+        self.dbg(conflict_msg)
+
+        if comment and get_token():
+            self.dbg("Adding comment to issue #%g." %
+                     pullrequest.get_number())
+            pullrequest.create_issue_comment(conflict_msg)
+        return merge_status
 
     def set_commit_status(self, status, message, url):
         msg = ""
