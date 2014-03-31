@@ -154,9 +154,10 @@ class TestMergePullRequest(MergeTest):
         self.pr.edit(body='')
         self.merge('--comment')
         assert self.isMerged()
-        self.pr.update()
-        last_comment = self.pr.get_issue_comments()[-1]
-        assert last_comment.body == EMPTY_MSG
+        issue = self.sandbox.origin.get_issue(self.pr.number)
+        assert issue.comments == 1
+        comments = issue.get_comments()
+        assert comments[0].body == EMPTY_MSG
 
 
 class TestMergeBranch(MergeTest):
