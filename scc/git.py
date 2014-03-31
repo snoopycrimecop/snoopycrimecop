@@ -697,10 +697,6 @@ class GitHubRepository(object):
         for pull in pulls:
             pullrequest = PullRequest(pull)
 
-            if not pullrequest.mergeable:
-                excluded_pulls[pullrequest] = 'not mergeable'
-                continue
-
             if pullrequest.parse(filters["exclude"].get("label"),
                                  whitelist=is_whitelisted_comment):
                 excluded_pulls[pullrequest] = 'exclude comment'
