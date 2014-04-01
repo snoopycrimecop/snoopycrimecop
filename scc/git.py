@@ -1519,8 +1519,8 @@ class GithubCommand(Command):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers):
-        super(GithubCommand, self).__init__(sub_parsers)
+    def __init__(self, sub_parsers, setdefault=True):
+        super(GithubCommand, self).__init__(sub_parsers, setdefault)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
@@ -1581,8 +1581,8 @@ class GitRepoCommand(GithubCommand):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers):
-        super(GitRepoCommand, self).__init__(sub_parsers)
+    def __init__(self, sub_parsers, setdefault=True):
+        super(GitRepoCommand, self).__init__(sub_parsers, setdefault)
         self.parser.add_argument(
             '--shallow', action='store_true',
             help='Do not recurse into submodules')
@@ -2549,6 +2549,38 @@ class Merge(FilteredPullRequestsCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
+
+class Milestone(GitRepoCommand):
+    """
+    Utility functions to manipulate GitHub milestones.
+    """
+
+    NAME = "milestone"
+
+    def __init__(self, sub_parsers):
+        super(Milestone, self).__init__(sub_parsers, False)
+
+        subparsers = self.parser.add_subparsers(title="actions")
+        list_parser = subparsers.add_parser('list', help='List milestones')
+        list_parser.set_defaults(func=self.list)
+
+        create_parser = subparsers.add_parser(
+            'create', help='Create a new milestone')
+        create_parser.set_defaults(func=self.create)
+
+    def list(self, args):
+        super(Milestone, self).__call__(args)
+        self.login(args)
+        all_repos = self.init_main_repo(args)
+        for repo in all_repos:
+            print repo.origin
+            milestones = repo.origin.get_milestones()
+            for milestone in milestones:
+                print milestone.title
+
+    def create(self, args):
+        super(Milestone, self).__call__(args)
 
 
 class Rebase(GitRepoCommand):
