@@ -2597,6 +2597,7 @@ class Milestone(GitRepoCommand):
                 args.title, description=args.description % args.title)
             print 'Created milestone %s' % milestone.title
 
+
 class Rebase(GitRepoCommand):
     """Rebase Pull Requests opened against a specific base branch.
 
