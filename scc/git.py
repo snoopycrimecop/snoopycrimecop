@@ -2567,6 +2567,11 @@ class Milestone(GitRepoCommand):
 
         create_parser = subparsers.add_parser(
             'create', help='Create a new milestone')
+        create_parser.add_argument(
+            'title', type=str, help='Title of the new milestone')
+        create_parser.add_argument(
+            '--description', type=str, default='',
+            help='Description of the new milestone')
         create_parser.set_defaults(func=self.create)
 
     def list(self, args):
@@ -2581,6 +2586,13 @@ class Milestone(GitRepoCommand):
 
     def create(self, args):
         super(Milestone, self).__call__(args)
+        self.login(args)
+        all_repos = self.init_main_repo(args)
+        for repo in all_repos:
+            print repo.origin
+            milestone = repo.origin.create_milestone(
+                args.title, description=args.description % args.title)
+            print 'Created milestone %s' % milestone.title
 
 
 class Rebase(GitRepoCommand):
