@@ -54,6 +54,8 @@ if IS_JENKINS_JOB:
     BUILD_NUMBER = os.environ.get("BUILD_NUMBER")
     BUILD_URL = os.environ.get("BUILD_URL")
 
+EMPTY_MSG = 'Empty PR description. Please add a short summary' \
+    ' of the PR scope and some testing instructions.'
 #
 # Public global functions
 #
@@ -1184,6 +1186,10 @@ class GitRepository(object):
 
             if merge_status:
                 merged_pulls.append(pullrequest)
+                if not pullrequest.body and comment and get_token():
+                    self.dbg("Adding comment to Pull Request #%g."
+                             % pullrequest.get_number())
+                    pullrequest.create_issue_comment(EMPTY_MSG)
             else:
                 conflicting_pulls.append(pullrequest)
 
@@ -1196,7 +1202,7 @@ class GitRepository(object):
                 self.dbg(msg)
 
                 if comment and get_token():
-                    self.dbg("Adding comment to issue #%g."
+                    self.dbg("Adding comment to Pull Request #%g."
                              % pullrequest.get_number())
                     pullrequest.create_issue_comment(msg)
 
