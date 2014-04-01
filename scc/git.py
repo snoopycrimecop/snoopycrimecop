@@ -2590,10 +2590,12 @@ class Milestone(GitRepoCommand):
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
             print repo.origin
+            if not repo.origin.permissions.push:
+                print 'Cannot create milestone'
+                continue
             milestone = repo.origin.create_milestone(
                 args.title, description=args.description % args.title)
             print 'Created milestone %s' % milestone.title
-
 
 class Rebase(GitRepoCommand):
     """Rebase Pull Requests opened against a specific base branch.
