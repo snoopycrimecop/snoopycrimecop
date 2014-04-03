@@ -2089,7 +2089,7 @@ command.
         have a seealso note
         """
         git_notes_ref = "refs/notes/see_also/" + target_branch
-        merge_base = repo.merge_base(
+        merge_base = repo.find_branching_point(
             "%s/%s" % (remote, source_branch),
             "%s/%s" % (remote, target_branch))
         merge_range = "%s...%s/%s" % (merge_base, remote, source_branch)
