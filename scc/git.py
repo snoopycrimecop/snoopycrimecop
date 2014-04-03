@@ -1012,19 +1012,10 @@ class GitRepository(object):
                        "%s" % newbase, "%s" % upstream, "%s" % sha1)
 
     def get_rev_list(self, commit):
+        """Return first parent revision list for a given commit"""
         revlist_cmd = lambda x: ["git", "rev-list", "--first-parent", "%s" % x]
-        p = subprocess.Popen(revlist_cmd(commit),
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.dbg("Calling '%s'" % " ".join(revlist_cmd(commit)))
-        (revlist, stderr) = p.communicate('')
-
-        if stderr or p.returncode:
-            msg = "Error output was:\n%s" % stderr
-            if revlist.strip():
-                msg += "Output was:\n%s" % revlist
-            raise Exception(msg)
-
-        return revlist.splitlines()
+        o, e = self.communicate(*revlist_cmd(commit))
+        return o.splitlines()
 
     def has_local_changes(self):
         """Check for local changes in the Git repository"""
