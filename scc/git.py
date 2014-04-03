@@ -396,6 +396,30 @@ class LoggerWrapper(threading.Thread):
     # end write
 
 
+class Milestone(object):
+    def __init__(self, milestone):
+        """Register the Pull Request and its corresponding Issue"""
+        self.log = logging.getLogger("scc.milestone")
+        self.dbg = self.log.debug
+
+        self.milestone = milestone
+
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+
+    def __unicode__(self):
+        s = "  # Milestone %s " % self.title
+        if self.due_on:
+            s += "due on %s" % self.due_on
+        if self.description:
+            s += "\n    %s" % self.description
+        return s
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def __getattr__(self, key):
+        return getattr(self.milestone, key)
+
+
 class PullRequest(object):
     def __init__(self, pull):
         """Register the Pull Request and its corresponding Issue"""
@@ -2551,7 +2575,7 @@ class Merge(FilteredPullRequestsCommand):
         return updated
 
 
-class Milestone(GitRepoCommand):
+class MilestoneCommand(GitRepoCommand):
     """
     Utility functions to manipulate GitHub milestones.
     """
@@ -2559,7 +2583,7 @@ class Milestone(GitRepoCommand):
     NAME = "milestone"
 
     def __init__(self, sub_parsers):
-        super(Milestone, self).__init__(sub_parsers, False)
+        super(MilestoneCommand, self).__init__(sub_parsers, False)
 
         subparsers = self.parser.add_subparsers(title="actions")
         list_parser = subparsers.add_parser('list', help='List milestones')
@@ -2575,17 +2599,17 @@ class Milestone(GitRepoCommand):
         create_parser.set_defaults(func=self.create)
 
     def list(self, args):
-        super(Milestone, self).__call__(args)
+        super(MilestoneCommand, self).__call__(args)
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
             print repo.origin
             milestones = repo.origin.get_milestones()
             for milestone in milestones:
-                print milestone.title
+                print str(Milestone(milestone))
 
     def create(self, args):
-        super(Milestone, self).__call__(args)
+        super(MilestoneCommand, self).__call__(args)
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
