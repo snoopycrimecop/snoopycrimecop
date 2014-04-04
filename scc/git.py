@@ -2598,28 +2598,51 @@ class MilestoneCommand(GitRepoCommand):
             help='Description of the new milestone')
         create_parser.set_defaults(func=self.create)
 
+        delete_parser = subparsers.add_parser(
+            'delete', help='Delete a new milestone')
+        delete_parser.add_argument(
+            'title', type=str, help='Title of the milestone to delete')
+        delete_parser.set_defaults(func=self.delete)
+
     def list(self, args):
         super(MilestoneCommand, self).__call__(args)
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
-            print repo.origin
+            self.log.info(str(repo.origin))
             milestones = repo.origin.get_milestones()
             for milestone in milestones:
-                print str(Milestone(milestone))
+                self.log.info(str(Milestone(milestone)))
 
     def create(self, args):
         super(MilestoneCommand, self).__call__(args)
         self.login(args)
         all_repos = self.init_main_repo(args)
         for repo in all_repos:
-            print repo.origin
+            self.log.info(str(repo.origin))
             if not repo.origin.permissions.push:
-                print 'Cannot create milestone'
-                continue
+                raise Stop(4, 'User %s cannot create milestones on %s'
+                           % (self.gh.get_login(), repo.origin))
             milestone = repo.origin.create_milestone(
                 args.title, description=args.description % args.title)
-            print 'Created milestone %s' % milestone.title
+            self.log.info('Created milestone %s' % milestone.title)
+
+    def delete(self, args):
+        super(MilestoneCommand, self).__call__(args)
+        self.login(args)
+        all_repos = self.init_main_repo(args)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            if not repo.origin.permissions.push:
+                raise Stop(4, 'User %s cannot delete milestones on %s'
+                           % (self.gh.get_login(), repo.origin))
+
+            milestones = repo.origin.get_milestones()
+            for milestone in milestones:
+                if milestone.tile == args.title:
+                    milestone.delete()
+                    self.log.info('Deleted milestone %s' % args.title)
+                    continue
 
 
 class Rebase(GitRepoCommand):
