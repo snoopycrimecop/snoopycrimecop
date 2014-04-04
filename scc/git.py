@@ -622,6 +622,20 @@ class GitHubRepository(object):
     def get_pull(self, *args):
         return self.repo.get_pull(*args)
 
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_milestone(self, name):
+
+        for state in ("open", "closed"):
+            milestones = self.repo.get_milestones(state=state)
+            for m in milestones:
+                if m.title == name:
+                    return m
+        return None
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_milestones(self, *args):
+        return self.repo.get_milestones(*args)
+
     def get_owner(self):
         return self.owner.login
 
@@ -1905,7 +1919,7 @@ Usage:
 
         milestone = None
         if args.milestone_name:
-            milestone = self.get_milestone(repo.origin, args.milestone_name)
+            milestone = repo.origin.get_milestone(args.milestone_name)
             if not milestone:
                 raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
             if not repo.origin.permissions.push:
@@ -1950,16 +1964,6 @@ Usage:
                 raise
         else:
             print "No milestone for PR %s: %s" % (pr.number, pr.title)
-
-    def get_milestone(self, gh_repo, name):
-
-        for state in ("open", "closed"):
-            milestones = gh_repo.get_milestones(state=state)
-            for m in milestones:
-                if m.title == name:
-                    return m
-
-        return None
 
 
 class CheckPRs(GitRepoCommand):
@@ -2637,12 +2641,10 @@ class MilestoneCommand(GitRepoCommand):
                 raise Stop(4, 'User %s cannot delete milestones on %s'
                            % (self.gh.get_login(), repo.origin))
 
-            milestones = repo.origin.get_milestones()
-            for milestone in milestones:
-                if milestone.tile == args.title:
-                    milestone.delete()
-                    self.log.info('Deleted milestone %s' % args.title)
-                    continue
+            milestone = repo.origin.get_milestone(args.title)
+            if milestone:
+                milestone.delete()
+                self.log.info('Deleted milestone %s' % args.title)
 
 
 class Rebase(GitRepoCommand):
