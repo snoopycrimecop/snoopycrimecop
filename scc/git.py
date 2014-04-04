@@ -1014,7 +1014,7 @@ class GitRepository(object):
     def get_rev_list(self, commit):
         """Return first parent revision list for a given commit"""
         revlist_cmd = lambda x: ["git", "rev-list", "--first-parent", "%s" % x]
-        o, e = self.communicate(*revlist_cmd(commit))
+        o, e = self.communicate(*revlist_cmd(commit), no_wait=True)
         return o.splitlines()
 
     def has_local_changes(self):
