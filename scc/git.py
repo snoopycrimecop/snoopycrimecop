@@ -2627,8 +2627,12 @@ class MilestoneCommand(GitRepoCommand):
             if not repo.origin.permissions.push:
                 raise Stop(4, 'User %s cannot create milestones on %s'
                            % (self.gh.get_login(), repo.origin))
+            try:
+                milestone_description = args.description % args.title
+            except TypeError:
+                milestone_description = args.description
             milestone = repo.origin.create_milestone(
-                args.title, description=args.description % args.title)
+                args.title, description=milestone_description)
             self.log.info('Created milestone %s' % milestone.title)
 
     def delete(self, args):
