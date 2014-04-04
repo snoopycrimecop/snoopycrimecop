@@ -2608,10 +2608,19 @@ class MilestoneCommand(GitRepoCommand):
             'title', type=str, help='Title of the milestone to delete')
         delete_parser.set_defaults(func=self.delete)
 
-    def list(self, args):
+        close_parser = subparsers.add_parser(
+            'close', help='Close an existing milestone')
+        close_parser.add_argument(
+            'title', type=str, help='Title of the milestone to close')
+        close_parser.set_defaults(func=self.close)
+
+    def init_command(self, args):
         super(MilestoneCommand, self).__call__(args)
         self.login(args)
-        all_repos = self.init_main_repo(args)
+        return self.init_main_repo(args)
+
+    def list(self, args):
+        all_repos = self.init_command(args)
         for repo in all_repos:
             self.log.info(str(repo.origin))
             milestones = repo.origin.get_milestones()
@@ -2619,9 +2628,7 @@ class MilestoneCommand(GitRepoCommand):
                 self.log.info(str(Milestone(milestone)))
 
     def create(self, args):
-        super(MilestoneCommand, self).__call__(args)
-        self.login(args)
-        all_repos = self.init_main_repo(args)
+        all_repos = self.init_command(args)
         for repo in all_repos:
             self.log.info(str(repo.origin))
             if not repo.origin.permissions.push:
@@ -2636,9 +2643,7 @@ class MilestoneCommand(GitRepoCommand):
             self.log.info('Created milestone %s' % milestone.title)
 
     def delete(self, args):
-        super(MilestoneCommand, self).__call__(args)
-        self.login(args)
-        all_repos = self.init_main_repo(args)
+        all_repos = self.init_command(args)
         for repo in all_repos:
             self.log.info(str(repo.origin))
             if not repo.origin.permissions.push:
@@ -2649,6 +2654,19 @@ class MilestoneCommand(GitRepoCommand):
             if milestone:
                 milestone.delete()
                 self.log.info('Deleted milestone %s' % args.title)
+
+    def close(self, args):
+        all_repos = self.init_command(args)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            if not repo.origin.permissions.push:
+                raise Stop(4, 'User %s cannot close milestones on %s'
+                           % (self.gh.get_login(), repo.origin))
+
+            milestone = repo.origin.get_milestone(args.title)
+            if milestone:
+                milestone.edit(milestone.title, state="closed")
+                self.log.info('Closed milestone %s' % args.title)
 
 
 class Rebase(GitRepoCommand):
