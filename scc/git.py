@@ -941,12 +941,14 @@ class GitRepository(object):
         if not self.is_valid_tag(tag):
             raise Stop(22, "%s is not a valid tag name." % tag)
 
-        self.dbg("Creating tag %s...", tag)
         tag_command = ["git", "tag", tag, "-m", message]
         if force:
             tag_command.append("-f")
         if sign:
             tag_command.append("-s")
+             self.dbg("Creating signed tag %s...", tag)
+         else:
+             self.dbg("Creating tag %s...", tag)
 
         self.call(*tag_command)
 
