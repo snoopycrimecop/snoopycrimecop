@@ -946,9 +946,9 @@ class GitRepository(object):
             tag_command.append("-f")
         if sign:
             tag_command.append("-s")
-             self.dbg("Creating signed tag %s...", tag)
-         else:
-             self.dbg("Creating tag %s...", tag)
+            self.dbg("Creating signed tag %s...", tag)
+        else:
+            self.dbg("Creating tag %s...", tag)
 
         self.call(*tag_command)
 
