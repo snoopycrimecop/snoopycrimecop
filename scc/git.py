@@ -1406,7 +1406,7 @@ class GitRepository(object):
         for submodule_repo in self.submodules:
             msg += str(submodule_repo.origin) + "\n"
             tag_prefix = submodule_repo.get_tag_prefix()
-            submodule_repo.tag(tag_prefix + version, message)
+            submodule_repo.tag(tag_prefix + version, message, sign=sign)
             msg += "Created tag %s\n" % (tag_prefix + version)
 
         return msg
