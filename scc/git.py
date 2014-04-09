@@ -2625,7 +2625,7 @@ class MilestoneCommand(GitRepoCommand):
             help='Description of the milestone')
         parser.add_argument(
             '--date', type=str, default='',
-            help='Due date of the milestone')
+            help='Due date of the milestone formatted as DD-MM-YYYY')
 
     def init_command(self, args):
         super(MilestoneCommand, self).__call__(args)
