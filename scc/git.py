@@ -2646,35 +2646,43 @@ class MilestoneCommand(GitRepoCommand):
             raise Stop(4, '%s: User %s cannot edit milestones'
                        % (repo.origin, self.gh.get_login()))
 
-    def create(self, args):
-        all_repos = self.init_command(args)
-        self.check_write_permissions(all_repos)
-        for repo in all_repos:
-            self.log.info(str(repo.origin))
+    def format_milestone_properties(self, args):
+
+        from datetime import datetime
+        kwargs = {}
+        if args.description:
             try:
                 milestone_description = args.description % args.title
             except TypeError:
                 milestone_description = args.description
-            milestone = repo.origin.create_milestone(
-                args.title, description=milestone_description)
+            kwargs['description'] = milestone_description
+
+        if args.date:
+            try:
+                kwargs['due_on'] = datetime.strptime(args.date, '%d-%m-%Y')
+            except:
+                raise Stop(5, 'Date %s should be formatted as DD-MM-YYYY'
+                           % args.date)
+        return kwargs
+
+    def create(self, args):
+        kwargs = self.format_milestone_properties(args)
+        all_repos = self.init_command(args)
+        self.check_write_permissions(all_repos)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestone = repo.origin.create_milestone(args.title, **kwargs)
             self.log.info('Created milestone %s' % milestone.title)
 
     def update(self, args):
+        kwargs = self.format_milestone_properties(args)
         all_repos = self.init_command(args)
         self.check_write_permissions(all_repos)
         for repo in all_repos:
             self.log.info(str(repo.origin))
             milestone = repo.origin.get_milestone(args.title)
-            if args.description:
-                try:
-                    milestone_description = args.description % args.title
-                except TypeError:
-                    milestone_description = args.description
-            else:
-                milestone_description = milestone.description
             if milestone:
-                milestone.edit(
-                    milestone.title, description=milestone_description)
+                milestone.edit(milestone.title, **kwargs)
                 self.log.info('Updated milestone %s' % args.title)
 
     def delete(self, args):
