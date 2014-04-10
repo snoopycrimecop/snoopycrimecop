@@ -86,14 +86,14 @@ class Command(object):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers):
+    def __init__(self, sub_parsers, set_defaults=True):
         self.log = logging.getLogger("scc.%s" % self.NAME)
         self.log_level = SCC_DEBUG_LEVEL
 
         help = self.__doc__.lstrip()
         self.parser = sub_parsers.add_parser(
             self.NAME, help=help, description=help)
-        if not hasattr(self, "_configure"):
+        if not hasattr(self, "_configure") and set_defaults:
             self.parser.set_defaults(func=self.__call__)
 
         self.parser.add_argument(

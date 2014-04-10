@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2013 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2013-2014 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -24,6 +24,7 @@ from github.NamedUser import NamedUser
 from github.Organization import Organization
 from github.Repository import Repository
 from github.Issue import Issue
+from github.Milestone import Milestone
 from github.PullRequest import PullRequest
 from github.PullRequestPart import PullRequestPart
 from github.PaginatedList import PaginatedList
@@ -50,6 +51,7 @@ class TestGithubRepository(MoxTestBase):
         self.repo.organization = None
 
         self.pulls = []
+        self.milestones = []
         self.gh.get_repo(
             "%s/%s" % (self.user.login, self.repo.name)).AndReturn(self.repo)
 
@@ -61,6 +63,13 @@ class TestGithubRepository(MoxTestBase):
             pullrequest = self.mox.CreateMock(PullRequest)
             pullrequest.base = base
             self.pulls.append(pullrequest)
+
+    def create_milestones(self, titles):
+
+        for title in titles:
+            milestone = self.mox.CreateMock(Milestone)
+            milestone.title = title
+            self.milestones.append(milestone)
 
     def iter_pulls(self):
         for x in self.pulls:
@@ -120,6 +129,25 @@ class TestGithubRepository(MoxTestBase):
         self.setup_repo()
         assert self.gh_repo.get_pulls_by_base("master") == \
             self.pulls[:-1]
+
+    def testGetMilestoneOpen(self):
+        self.create_milestones(["open-1", "open-2"])
+        self.repo.get_milestones(state="open").AndReturn(self.milestones)
+        self.setup_repo()
+        assert self.gh_repo.get_milestone("open-2") == self.milestones[1]
+
+    def testGetMilestoneClosed(self):
+        self.create_milestones(["closed-1", "closed-2"])
+        self.repo.get_milestones(state="open").AndReturn([])
+        self.repo.get_milestones(state="closed").AndReturn(self.milestones)
+        self.setup_repo()
+        assert self.gh_repo.get_milestone("closed-2") == self.milestones[1]
+
+    def testGetMilestoneFails(self):
+        self.repo.get_milestones(state="open").AndReturn([])
+        self.repo.get_milestones(state="closed").AndReturn([])
+        self.setup_repo()
+        assert self.gh_repo.get_milestone("closed-2") is None
 
     def test_get_owner(self):
         self.setup_repo()

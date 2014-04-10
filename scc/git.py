@@ -398,6 +398,30 @@ class LoggerWrapper(threading.Thread):
     # end write
 
 
+class Milestone(object):
+    def __init__(self, milestone):
+        """Register the Pull Request and its corresponding Issue"""
+        self.log = logging.getLogger("scc.milestone")
+        self.dbg = self.log.debug
+
+        self.milestone = milestone
+
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+
+    def __unicode__(self):
+        s = "  # Milestone %s " % self.title
+        if self.due_on:
+            s += "due on %s" % self.due_on
+        if self.description:
+            s += "\n    %s" % self.description
+        return s
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def __getattr__(self, key):
+        return getattr(self.milestone, key)
+
+
 class PullRequest(object):
     def __init__(self, pull):
         """Register the Pull Request and its corresponding Issue"""
@@ -599,6 +623,20 @@ class GitHubRepository(object):
     @retry_on_error(retries=SCC_RETRIES)
     def get_pull(self, *args):
         return self.repo.get_pull(*args)
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_milestone(self, name):
+
+        for state in ("open", "closed"):
+            milestones = self.repo.get_milestones(state=state)
+            for m in milestones:
+                if m.title == name:
+                    return m
+        return None
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def get_milestones(self, *args):
+        return self.repo.get_milestones(*args)
 
     def get_owner(self):
         return self.owner.login
@@ -1518,8 +1556,8 @@ class GithubCommand(Command):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers):
-        super(GithubCommand, self).__init__(sub_parsers)
+    def __init__(self, sub_parsers, setdefault=True):
+        super(GithubCommand, self).__init__(sub_parsers, setdefault)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
@@ -1580,8 +1618,8 @@ class GitRepoCommand(GithubCommand):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers):
-        super(GitRepoCommand, self).__init__(sub_parsers)
+    def __init__(self, sub_parsers, setdefault=True):
+        super(GitRepoCommand, self).__init__(sub_parsers, setdefault)
         self.parser.add_argument(
             '--shallow', action='store_true',
             help='Do not recurse into submodules')
@@ -1880,7 +1918,7 @@ Usage:
 
         milestone = None
         if args.milestone_name:
-            milestone = self.get_milestone(repo.origin, args.milestone_name)
+            milestone = repo.origin.get_milestone(args.milestone_name)
             if not milestone:
                 raise Stop(3, "Unknown milestone: %s" % args.milestone_name)
             if not repo.origin.permissions.push:
@@ -1925,16 +1963,6 @@ Usage:
                 raise
         else:
             print "No milestone for PR %s: %s" % (pr.number, pr.title)
-
-    def get_milestone(self, gh_repo, name):
-
-        for state in ("open", "closed"):
-            milestones = gh_repo.get_milestones(state=state)
-            for m in milestones:
-                if m.title == name:
-                    return m
-
-        return None
 
 
 class CheckPRs(GitRepoCommand):
@@ -2548,6 +2576,133 @@ class Merge(FilteredPullRequestsCommand):
         for line in merge_msg.split("\n"):
             self.log.info(line)
         return updated
+
+
+class MilestoneCommand(GitRepoCommand):
+    """
+    Utility functions to manipulate GitHub milestones.
+    """
+
+    NAME = "milestone"
+
+    def __init__(self, sub_parsers):
+        super(MilestoneCommand, self).__init__(sub_parsers, False)
+
+        subparsers = self.parser.add_subparsers(title="actions")
+        list_parser = subparsers.add_parser('list', help='List milestones')
+        list_parser.set_defaults(func=self.list)
+
+        create_parser = subparsers.add_parser(
+            'create', help='Create a new milestone')
+        self.add_milestone_title(create_parser)
+        self.add_milestone_properties(create_parser)
+        create_parser.set_defaults(func=self.create)
+
+        update_parser = subparsers.add_parser(
+            'update', help='Update an existing milestone')
+        self.add_milestone_title(update_parser)
+        self.add_milestone_properties(update_parser)
+        update_parser.set_defaults(func=self.update)
+
+        delete_parser = subparsers.add_parser(
+            'delete', help='Delete a new milestone')
+        self.add_milestone_title(delete_parser)
+        delete_parser.set_defaults(func=self.delete)
+
+        close_parser = subparsers.add_parser(
+            'close', help='Close an existing milestone')
+        self.add_milestone_title(close_parser)
+        close_parser.set_defaults(func=self.close)
+
+    def add_milestone_title(self, parser):
+        parser.add_argument(
+            'title', type=str, help='Title of the milestone')
+
+    def add_milestone_properties(self, parser):
+        parser.add_argument(
+            '--description', type=str, default='',
+            help='Description of the milestone')
+        parser.add_argument(
+            '--date', type=str, default='',
+            help='Due date of the milestone formatted as DD-MM-YYYY')
+
+    def init_command(self, args):
+        super(MilestoneCommand, self).__call__(args)
+        self.login(args)
+        return self.init_main_repo(args)
+
+    def list(self, args):
+        all_repos = self.init_command(args)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestones = repo.origin.get_milestones()
+            for milestone in milestones:
+                self.log.info(str(Milestone(milestone)))
+
+    def check_write_permissions(self, repos):
+        permissions = [repo.origin.permissions.push for repo in repos]
+        if not all(permissions):
+            raise Stop(4, '%s: User %s cannot edit milestones'
+                       % (repo.origin, self.gh.get_login()))
+
+    def format_milestone_properties(self, args):
+
+        from datetime import datetime
+        kwargs = {}
+        if args.description:
+            try:
+                milestone_description = args.description % args.title
+            except TypeError:
+                milestone_description = args.description
+            kwargs['description'] = milestone_description
+
+        if args.date:
+            try:
+                kwargs['due_on'] = datetime.strptime(args.date, '%d-%m-%Y')
+            except:
+                raise Stop(5, 'Date %s should be formatted as DD-MM-YYYY'
+                           % args.date)
+        return kwargs
+
+    def create(self, args):
+        kwargs = self.format_milestone_properties(args)
+        all_repos = self.init_command(args)
+        self.check_write_permissions(all_repos)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestone = repo.origin.create_milestone(args.title, **kwargs)
+            self.log.info('Created milestone %s' % milestone.title)
+
+    def update(self, args):
+        kwargs = self.format_milestone_properties(args)
+        all_repos = self.init_command(args)
+        self.check_write_permissions(all_repos)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestone = repo.origin.get_milestone(args.title)
+            if milestone:
+                milestone.edit(milestone.title, **kwargs)
+                self.log.info('Updated milestone %s' % args.title)
+
+    def delete(self, args):
+        all_repos = self.init_command(args)
+        self.check_write_permissions(all_repos)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestone = repo.origin.get_milestone(args.title)
+            if milestone:
+                milestone.delete()
+                self.log.info('Deleted milestone %s' % args.title)
+
+    def close(self, args):
+        all_repos = self.init_command(args)
+        self.check_write_permissions(all_repos)
+        for repo in all_repos:
+            self.log.info(str(repo.origin))
+            milestone = repo.origin.get_milestone(args.title)
+            if milestone:
+                milestone.edit(milestone.title, state="closed")
+                self.log.info('Closed milestone %s' % args.title)
 
 
 class Rebase(GitRepoCommand):

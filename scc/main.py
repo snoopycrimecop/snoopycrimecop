@@ -37,6 +37,7 @@ from git import CheckStatus
 from git import DeleteTags
 from git import Label
 from git import Merge
+from git import MilestoneCommand
 from git import Rebase
 from git import SetCommitStatus
 from git import TagRelease
@@ -63,6 +64,7 @@ def entry_point():
             (DeleteTags.NAME, DeleteTags),
             (Label.NAME, Label),
             (Merge.NAME, Merge),
+            (MilestoneCommand.NAME, MilestoneCommand),
             (Rebase.NAME, Rebase),
             (SetCommitStatus.NAME, SetCommitStatus),
             (Token.NAME, Token),
