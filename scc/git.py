@@ -2643,8 +2643,8 @@ class MilestoneCommand(GitRepoCommand):
             return cmp(a, b)
 
     def list(self, args):
-        fmt = "%20s %20s %20s %16s"
-        header = fmt % ("NAME", "CREATED", "DUE", "ISSUES (OPEN/CLOSED)")
+        fmt = "%-20s %-20s %-20s %-16s"
+        header = fmt % ("NAME", "CREATED", "DUE", "ISSUES (CLOSED)")
 
         all_repos = self.init_command(args)
         for repo in all_repos:
@@ -2656,7 +2656,7 @@ class MilestoneCommand(GitRepoCommand):
             for due_on, m in parsed:
                 due = due_on is not None and due_on or ""
                 print fmt % (m.title, m.created_at, due,
-                             "%3s /%3s" % (m.open_issues, m.closed_issues))
+                             "%-3s (%s)" % (m.open_issues, m.closed_issues))
 
     def check_write_permissions(self, repos):
         permissions = [repo.origin.permissions.push for repo in repos]
