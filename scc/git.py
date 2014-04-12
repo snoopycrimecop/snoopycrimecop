@@ -2631,13 +2631,31 @@ class MilestoneCommand(GitRepoCommand):
         self.login(args)
         return self.init_main_repo(args)
 
+    def cmp_date(self, a, b):
+        a = a[0]
+        b = b[0]
+        if a is None:
+            return 1
+        elif b is None:
+            return -1
+        else:
+            return cmp(a, b)
+
     def list(self, args):
+        fmt = "%-20s %-20s %-20s %-16s"
+        header = fmt % ("NAME", "CREATED", "DUE", "ISSUES (CLOSED)")
+
         all_repos = self.init_command(args)
         for repo in all_repos:
             self.log.info(str(repo.origin))
             milestones = repo.origin.get_milestones()
-            for milestone in milestones:
-                self.log.info(str(Milestone(milestone)))
+            parsed = [(m.due_on, m) for m in milestones]
+            parsed.sort(self.cmp_date)
+            print header
+            for due_on, m in parsed:
+                due = due_on is not None and due_on or ""
+                print fmt % (m.title, m.created_at, due,
+                             "%-3s (%s)" % (m.open_issues, m.closed_issues))
 
     def check_write_permissions(self, repos):
         permissions = [repo.origin.permissions.push for repo in repos]
