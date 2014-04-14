@@ -90,7 +90,7 @@ Running the integration test suite requires:
 
 Once this is set up, the integration tests can be run by calling::
 
-  python setupy.py -s test/integration
+  python setupy.py test -s test/integration
 
 Integration tests are run daily on the OME Continuous Integration
 infrastructure under the SCC-self-merge_ job using the token-authenticated
