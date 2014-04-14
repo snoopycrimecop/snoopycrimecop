@@ -1034,16 +1034,22 @@ class GitRepository(object):
     def fast_forward(self, base, remote="origin"):
         """Execute merge --ff-only against the current base"""
         self.dbg("## Merging base to ensure closed PRs are included.")
-        p = subprocess.Popen(
-            ["git", "log", "--oneline", "--first-parent",
-             "HEAD..%s/%s" % (remote, base)],
-            stdout=subprocess.PIPE).communicate()[0].rstrip("/n")
-        merge_log = p.rstrip("/n")
+        args = [
+            "git", "log", "--oneline", "--first-parent",
+            "HEAD..%s/%s" % (remote, base)
+        ]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE)
+        merge_log = p.communicate()[0].rstrip("/n")
+        if p.returncode != 0:
+            raise Exception("%r failed" % ' '.join(args))
+        merge_log = merge_log.rstrip("/n")
 
-        p = subprocess.Popen(
-            ["git", "merge", "--ff-only", "%s/%s" % (remote, base)],
-            stdout=subprocess.PIPE).communicate()[0].rstrip("/n")
-        msg = p.rstrip("/n").split("\n")[0] + "\n"
+        args = ["git", "merge", "--ff-only", "%s/%s" % (remote, base)]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE)
+        msg = p.communicate()[0].rstrip("/n")
+        if p.returncode != 0:
+            raise Exception("%r failed" % ' '.join(args))
+        msg = msg.rstrip("/n").split("\n")[0] + "\n"
         self.dbg(msg)
         return msg, merge_log
 
