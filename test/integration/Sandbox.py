@@ -43,7 +43,7 @@ class SandboxTest(object):
         try:
             p = Popen(["git", "clone", "-q", sandbox_url, self.path],
                       stdout=PIPE, stderr=PIPE)
-            assert p.wait() == 0
+            p.communicate()
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
         except:
