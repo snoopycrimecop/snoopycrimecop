@@ -374,7 +374,6 @@ class LoggerWrapper(threading.Thread):
             #          further study needed
             if len(message_from_pipe) == 0:
                 self.pipeReader.close()
-                os.close(self.fdRead)
                 return
             # end if
 
@@ -398,6 +397,10 @@ class LoggerWrapper(threading.Thread):
         """
         self.logger.log(self.level, message)
     # end write
+
+    def close(self):
+        """Close the write end of the pipe."""
+        os.close(self.fdWrite)
 
 
 class Milestone(object):
@@ -1558,6 +1561,14 @@ class GitRepository(object):
                 submodule_repo.rpush(branch_name, remote, force=force)
             finally:
                 self.cd(self.path)
+
+    def __del__(self):
+        # We need to make sure our logging wrappers are closed when this
+        # instance's reference count hits zero and it is garbage collected.
+        # If we do to not do this the logging wrapper thread will block
+        # forever because the write end of the PIPE has not been closed.
+        self.infoWrap.close()
+        self.debugWrap.close()
 
 #
 # Exceptions
