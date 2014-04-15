@@ -22,6 +22,7 @@
 import os
 import uuid
 import shutil
+import logging
 import tempfile
 
 from scc.git import get_github, get_token_or_user
@@ -33,6 +34,9 @@ sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 class SandboxTest(object):
 
     def setup_method(self, method):
+        # Basic logging configuration so if a test fails we can see
+        # the statements at WARN or ERROR at least.
+        logging.basicConfig()
         self.method = method.__name__
         self.cwd = os.getcwd()
         self.token = get_token_or_user(local=False)

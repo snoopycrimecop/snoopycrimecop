@@ -622,7 +622,15 @@ class GitHubRepository(object):
 
     @retry_on_error(retries=SCC_RETRIES)
     def get_pull(self, *args):
-        return self.repo.get_pull(*args)
+        pull_request_number, = args
+        try:
+            return self.repo.get_pull(pull_request_number)
+        except:
+            self.log.error(
+                "Failure to get pull request %s/%s#%d" %
+                (self.user_name, self.repo_name, pull_request_number)
+            )
+            raise
 
     @retry_on_error(retries=SCC_RETRIES)
     def get_milestone(self, name):
