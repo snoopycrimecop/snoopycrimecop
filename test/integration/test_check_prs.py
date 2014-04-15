@@ -50,6 +50,14 @@ class TestCheckPRs(SandboxTest):
         comment = pr.create_issue_comment("--rebased-from #%s" % target_pr)
         return comment
 
+    def testKnownPullRequest(self):
+        """
+        This test is mainly here to ensure that any logging that happens
+        inside of GitHubRepository.get_pull() doesn't raise an exception
+        and can be checked if needed via STDOUT.
+        """
+        assert self.sandbox.origin.get_pull(1) is not None
+
     def testUnknownPullRequest(self):
         """
         This test is mainly here to ensure that any logging that happens
