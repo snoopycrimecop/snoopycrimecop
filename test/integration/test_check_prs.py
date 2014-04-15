@@ -56,6 +56,7 @@ class TestCheckPRs(SandboxTest):
         inside of GitHubRepository.get_pull() doesn't raise an exception
         and can be checked if needed via STDOUT.
         """
+
         assert self.sandbox.origin.get_pull(1) is not None
 
     def testUnknownPullRequest(self):
@@ -64,6 +65,7 @@ class TestCheckPRs(SandboxTest):
         inside of GitHubRepository.get_pull() doesn't raise an exception
         and can be checked if needed via STDOUT.
         """
+
         with pytest.raises(UnknownObjectException) as excinfo:
             self.sandbox.origin.get_pull(-1)
         assert excinfo.value.status == 404
