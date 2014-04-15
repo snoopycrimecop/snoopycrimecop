@@ -39,6 +39,7 @@ class PyTest(TestCommand):
          ('test-failfast', 'x', "Exit on first error"),
          ('test-verbose', 'v', "more verbose output"),
          ('test-quiet', 'q', "less verbose output"),
+         ('test-no-capture', 'c', "equivalent to PyTest --capture=no"),
          ('junitxml=', None, "create junit-xml style report file at 'path'"),
          ('pdb', None, "fallback to pdb on error"),
          ]
@@ -52,6 +53,7 @@ class PyTest(TestCommand):
         self.test_failfast = False
         self.test_quiet = False
         self.test_verbose = False
+        self.test_no_capture = False
         self.junitxml = None
         self.pdb = False
 
@@ -68,6 +70,8 @@ class PyTest(TestCommand):
             self.test_args.extend(['-v'])
         if self.test_quiet:
             self.test_args.extend(['-q'])
+        if self.test_no_capture:
+            self.test_args.extend(['-s'])
         if self.junitxml is not None:
             self.test_args.extend(['--junitxml', self.junitxml])
         if self.pdb:
