@@ -26,7 +26,7 @@ import logging
 import tempfile
 
 from scc.git import get_github, get_token_or_user
-from subprocess import Popen, PIPE
+from subprocess import Popen
 
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
@@ -45,9 +45,10 @@ class SandboxTest(object):
         self.path = tempfile.mkdtemp("", "sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
-            p = Popen(["git", "clone", "-q", sandbox_url, self.path],
-                      stdout=PIPE, stderr=PIPE)
-            p.communicate()
+            with open('/dev/null', 'w') as dev_null:
+                p = Popen(["git", "clone", "-q", sandbox_url, self.path],
+                          stdout=dev_null, stderr=dev_null)
+                assert p.wait() == 0
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
         except:
@@ -69,9 +70,10 @@ class SandboxTest(object):
         """
 
         try:
-            p = Popen(["git", "submodule", "update", "--init"],
-                      stdout=PIPE, stderr=PIPE)
-            assert p.wait() == 0
+            with open('/dev/null', 'w') as dev_null:
+                p = Popen(["git", "submodule", "update", "--init"],
+                          stdout=dev_null, stderr=dev_null)
+                assert p.wait() == 0
         except:
             os.chdir(self.path)
             raise

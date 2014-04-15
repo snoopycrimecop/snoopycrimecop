@@ -140,8 +140,10 @@ def git_config(name, user=False, local=False, value=None, config_file=None):
             pre_cmd.extend(["-f", config_file])
 
         p = subprocess.Popen(
-            pre_cmd + post_cmd, stdout=subprocess.PIPE).communicate()[0]
-        value = p.split("\n")[0].strip()
+            pre_cmd + post_cmd, stdout=subprocess.PIPE)
+        value = p.communicate()[0]
+        p.stdout.close()
+        value = value.split("\n")[0].strip()
         if value:
             dbg("Found %s", name)
             return value
@@ -869,6 +871,8 @@ class GitRepository(object):
     def communicate(self, *command, **kwargs):
         p = self.wrap_call(subprocess.PIPE, *command, **kwargs)
         o, e = p.communicate()
+        p.stdout.close()
+        p.stderr.close()
         if p.returncode:
             msg = """Failed to run '%s'
     rc:     %s
@@ -1048,6 +1052,7 @@ class GitRepository(object):
         ]
         p = subprocess.Popen(args, stdout=subprocess.PIPE)
         merge_log = p.communicate()[0].rstrip("/n")
+        p.stdout.close()
         if p.returncode != 0:
             raise Exception("%r failed" % ' '.join(args))
         merge_log = merge_log.rstrip("/n")
@@ -1055,6 +1060,7 @@ class GitRepository(object):
         args = ["git", "merge", "--ff-only", "%s/%s" % (remote, base)]
         p = subprocess.Popen(args, stdout=subprocess.PIPE)
         msg = p.communicate()[0].rstrip("/n")
+        p.stdout.close()
         if p.returncode != 0:
             raise Exception("%r failed" % ' '.join(args))
         msg = msg.rstrip("/n").split("\n")[0] + "\n"
@@ -1134,9 +1140,11 @@ class GitRepository(object):
     def get_submodule_paths(self):
         """Return path of repository submodules"""
 
-        submodule_paths = self.call(
+        p = self.call(
             "git", "submodule", "--quiet", "foreach", "echo $path",
-            stdout=subprocess.PIPE).communicate()[0]
+            stdout=subprocess.PIPE)
+        submodule_paths = p.communicate()[0]
+        p.stdout.close()
         submodule_paths = submodule_paths.split("\n")[:-1]
 
         return submodule_paths
@@ -1144,15 +1152,17 @@ class GitRepository(object):
     def merge_base(self, a, b):
         """Return the first ancestor between two branches"""
 
-        mrg, err = self.call("git", "merge-base", a, b,
-                             stdout=subprocess.PIPE).communicate()
+        p = self.call("git", "merge-base", a, b, stdout=subprocess.PIPE)
+        mrg, err = p.communicate()
+        p.stdout.close()
         return mrg.strip()
 
     def list_remotes(self):
         """Return a list of existing remotes"""
 
-        remotes = self.call("git", "remote",
-                            stdout=subprocess.PIPE).communicate()[0]
+        p = self.call("git", "remote", stdout=subprocess.PIPE)
+        remotes = p.communicate()[0]
+        p.stdout.close()
         remotes = remotes.split("\n")[:-1]
 
         return remotes
@@ -1213,8 +1223,9 @@ class GitRepository(object):
 
         def safe_merge(sha, commit):
 
-            premerge_sha, e = self.call("git", "rev-parse", "HEAD",
-                                        stdout=subprocess.PIPE).communicate()
+            p = self.call("git", "rev-parse", "HEAD", stdout=subprocess.PIPE)
+            premerge_sha, e = p.communicate()
+            p.stdout.close()
             premerge_sha = premerge_sha.rstrip("\n")
 
             try:
@@ -1439,8 +1450,9 @@ class GitRepository(object):
         "Return the tag prefix for this repository using git describe"
 
         try:
-            version, e = self.call("git", "describe",
-                                   stdout=subprocess.PIPE).communicate()
+            p = self.call("git", "describe", stdout=subprocess.PIPE)
+            version, e = p.communicate()
+            p.stdout.close()
             prefix = re.split('\d', version)[0]
         except:
             # If no tag is present on the branch, git describe fails
@@ -2141,6 +2153,8 @@ command.
         # List PRs without seealso notes
         pr_list = []
         out, err = popen.communicate()
+        popen.stdout.close()
+        popen.stderr.close()
         for line in out.split(end_marker):
             line = line.strip()
             if not line:
@@ -2376,6 +2390,7 @@ class AlreadyMerged(GithubCommand):
         cmd += args.ref
         proc = main_repo.call(*cmd, stdout=subprocess.PIPE)
         out, err = proc.communicate()
+        proc.stdout.close()
         for line in out.split("\n"):
             if line:
                 self.go(main_repo, line.rstrip(), args.target)
@@ -2383,12 +2398,14 @@ class AlreadyMerged(GithubCommand):
     def go(self, main_repo, input, target):
         parts = input.split(" ")
         branch = parts[3]
-        tip, err = main_repo.call(
-            "git", "rev-parse", branch,
-            stdout=subprocess.PIPE).communicate()
-        mrg, err = main_repo.call(
-            "git", "merge-base", branch, target,
-            stdout=subprocess.PIPE).communicate()
+        p = main_repo.call("git", "rev-parse", branch, stdout=subprocess.PIPE)
+        tip, err = p.communicate()
+        p.stdout.close()
+        p = main_repo.call(
+            "git", "merge-base", branch, target, stdout=subprocess.PIPE
+        )
+        mrg, err = p.communicate()
+        p.stdout.close()
         if tip == mrg:
             print input
 

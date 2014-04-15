@@ -82,9 +82,10 @@ class TestTagRelease(SandboxTest):
         """Test existing tag"""
 
         # Create local tag and check local existence
-        subprocess.Popen(
-            ["git", "tag", 'v.' + self.new_version],
-            stdout=subprocess.PIPE).communicate()
+        with open('/dev/null', 'w') as dev_null:
+            subprocess.Popen(
+                ["git", "tag", 'v.' + self.new_version],
+                stdout=dev_null, stderr=dev_null).communicate()
         assert self.sandbox.has_local_tag('v.' + self.new_version)
 
         # Test Stop is thrown by tag-release command
