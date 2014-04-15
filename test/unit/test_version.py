@@ -85,7 +85,7 @@ class TestVersion(object):
         version = self.read_version_file()
         try:
             # Clone snoopys-sanbox
-            with open('/dev/null', 'w') as dev_null:
+            with open(os.devnull, 'w') as dev_null:
                 p = Popen(["git", "clone", sandbox_url, path],
                           stdout=dev_null, stderr=dev_null)
                 assert p.wait() == 0

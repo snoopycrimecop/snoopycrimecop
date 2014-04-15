@@ -45,7 +45,7 @@ class SandboxTest(object):
         self.path = tempfile.mkdtemp("", "sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
-            with open('/dev/null', 'w') as dev_null:
+            with open(os.devnull, 'w') as dev_null:
                 p = Popen(["git", "clone", "-q", sandbox_url, self.path],
                           stdout=dev_null, stderr=dev_null)
                 assert p.wait() == 0
@@ -70,7 +70,7 @@ class SandboxTest(object):
         """
 
         try:
-            with open('/dev/null', 'w') as dev_null:
+            with open(os.devnull, 'w') as dev_null:
                 p = Popen(["git", "submodule", "update", "--init"],
                           stdout=dev_null, stderr=dev_null)
                 assert p.wait() == 0
