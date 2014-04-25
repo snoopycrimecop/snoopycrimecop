@@ -22,10 +22,11 @@
 import os
 import uuid
 import shutil
+import logging
 import tempfile
 
 from scc.git import get_github, get_token_or_user
-from subprocess import Popen, PIPE
+from subprocess import Popen
 
 sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 
@@ -33,6 +34,9 @@ sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
 class SandboxTest(object):
 
     def setup_method(self, method):
+        # Basic logging configuration so if a test fails we can see
+        # the statements at WARN or ERROR at least.
+        logging.basicConfig()
         self.method = method.__name__
         self.cwd = os.getcwd()
         self.token = get_token_or_user(local=False)
@@ -41,9 +45,10 @@ class SandboxTest(object):
         self.path = tempfile.mkdtemp("", "sandbox-", ".")
         self.path = os.path.abspath(self.path)
         try:
-            p = Popen(["git", "clone", sandbox_url, self.path],
-                      stdout=PIPE, stderr=PIPE)
-            assert p.wait() == 0
+            with open(os.devnull, 'w') as dev_null:
+                p = Popen(["git", "clone", "-q", sandbox_url, self.path],
+                          stdout=dev_null, stderr=dev_null)
+                assert p.wait() == 0
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
         except:
@@ -65,9 +70,10 @@ class SandboxTest(object):
         """
 
         try:
-            p = Popen(["git", "submodule", "update", "--init"],
-                      stdout=PIPE, stderr=PIPE)
-            assert p.wait() == 0
+            with open(os.devnull, 'w') as dev_null:
+                p = Popen(["git", "submodule", "update", "--init"],
+                          stdout=dev_null, stderr=dev_null)
+                assert p.wait() == 0
         except:
             os.chdir(self.path)
             raise

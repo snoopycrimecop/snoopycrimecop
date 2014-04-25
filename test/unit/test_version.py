@@ -77,7 +77,7 @@ class TestVersion(object):
 
     def testGitRepository(self, tmpdir):
         cwd = os.getcwd()
-        from subprocess import Popen, PIPE
+        from subprocess import Popen
         sandbox_url = "https://github.com/openmicroscopy/snoopys-sandbox.git"
         path = str(tmpdir.mkdir("sandbox"))
         # Read the version for the current Git repository
@@ -85,9 +85,10 @@ class TestVersion(object):
         version = self.read_version_file()
         try:
             # Clone snoopys-sanbox
-            p = Popen(["git", "clone", sandbox_url, path],
-                      stdout=PIPE, stderr=PIPE)
-            assert p.wait() == 0
+            with open(os.devnull, 'w') as dev_null:
+                p = Popen(["git", "clone", sandbox_url, path],
+                          stdout=dev_null, stderr=dev_null)
+                assert p.wait() == 0
             os.chdir(path)
             # Check git describe returns a different version number
             assert call_git_describe() != version

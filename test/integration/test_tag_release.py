@@ -19,6 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+import os
 import pytest
 import subprocess
 
@@ -82,9 +83,10 @@ class TestTagRelease(SandboxTest):
         """Test existing tag"""
 
         # Create local tag and check local existence
-        subprocess.Popen(
-            ["git", "tag", 'v.' + self.new_version],
-            stdout=subprocess.PIPE).communicate()
+        with open(os.devnull, 'w') as dev_null:
+            subprocess.Popen(
+                ["git", "tag", 'v.' + self.new_version],
+                stdout=dev_null, stderr=dev_null).communicate()
         assert self.sandbox.has_local_tag('v.' + self.new_version)
 
         # Test Stop is thrown by tag-release command

@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import pytest
+from github import UnknownObjectException
 from scc.framework import main, Stop, parsers
 from scc.git import CheckPRs, PullRequest
 from Sandbox import SandboxTest
@@ -48,6 +49,26 @@ class TestCheckPRs(SandboxTest):
         pr = PullRequest(self.sandbox.origin.get_pull(num))
         comment = pr.create_issue_comment("--rebased-from #%s" % target_pr)
         return comment
+
+    def testKnownPullRequest(self):
+        """
+        This test is mainly here to ensure that any logging that happens
+        inside of GitHubRepository.get_pull() doesn't raise an exception
+        and can be checked if needed via STDOUT.
+        """
+
+        assert self.sandbox.origin.get_pull(1) is not None
+
+    def testUnknownPullRequest(self):
+        """
+        This test is mainly here to ensure that any logging that happens
+        inside of GitHubRepository.get_pull() doesn't raise an exception
+        and can be checked if needed via STDOUT.
+        """
+
+        with pytest.raises(UnknownObjectException) as excinfo:
+            self.sandbox.origin.get_pull(-1)
+        assert excinfo.value.status == 404
 
     def testSelf(self):
         """Test unrebased PRs on same branch"""

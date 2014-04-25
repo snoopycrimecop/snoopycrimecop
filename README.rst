@@ -74,7 +74,7 @@ Integration tests
 ^^^^^^^^^^^^^^^^^
 
 Integration tests are stored under `test/integration`. Many integration tests
-use snoopys-sandbox_ and snoopys-sandbox2_ as sandbox repositories to test the
+use snoopys-sandbox_ and snoopys-sandbox-2_ as sandbox repositories to test the
 scc commands.
 
 Running the integration test suite requires:
@@ -86,11 +86,11 @@ Running the integration test suite requires:
     $ git config --global github.token xxxx
 
 - the user authenticated by the token defined above needs to own forks of
-  snoopys-sandbox_ and snoopys-sandbox2_
+  snoopys-sandbox_ and snoopys-sandbox-2_
 
 Once this is set up, the integration tests can be run by calling::
 
-  python setupy.py -s test/integration
+  python setupy.py test -s test/integration
 
 Integration tests are run daily on the OME Continuous Integration
 infrastructure under the SCC-self-merge_ job using the token-authenticated
@@ -112,7 +112,7 @@ Copyright
 .. _pep8: https://pypi.python.org/pypi/pep8
 .. _flake8: https://pypi.python.org/pypi/flake8
 .. _snoopys-sandbox: https://github.com/openmicroscopy/snoopys-sandbox
-.. _snoopys-sandbox2: https://github.com/openmicroscopy/snoopys-sandbox2
+.. _snoopys-sandbox-2: https://github.com/openmicroscopy/snoopys-sandbox-2
 .. _Travis: http://travis-ci.org/openmicroscopy/snoopycrimecop
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png

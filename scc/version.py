@@ -48,6 +48,7 @@ def call_git_describe(abbrev=4):
                    '--abbrev=%d' % abbrev], stdout=PIPE, stderr=PIPE)
         p.stderr.close()
         line = p.stdout.readlines()[0]
+        p.stdout.close()
         return line.strip()
 
     except:
