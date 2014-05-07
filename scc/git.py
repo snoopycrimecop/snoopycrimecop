@@ -2775,7 +2775,7 @@ class Rebase(GitRepoCommand):
         3) Create a branch named "rebase/develop/ORIG_NAME".
         4) If push is set, also push to GH, and switch branches.
         5) If pr is set, push to GH, open a PR, and switch branches.
-        6) If keep is set, omit the deleting of the newbranch.
+        6) If delete is not set, omit the deleting of the newbranch.
 
         If --remote is not set, 'origin' will be used.
     """
@@ -2936,7 +2936,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         msg += '2) re-add the conflicting files with "git add"\n'
         msg += '3) run "git rebase --continue"\n'
         msg += '4) repeat steps 1-3 until all conflicts are resolved\n'
-        msg += '4) run "scc rebase --continue %s %s"\n\n' \
+        msg += '5) run "scc rebase --continue %s %s"\n\n' \
             % (args.PR, args.newbase)
         msg += 'To stop rebasing,\n'
         msg += '1) run "git rebase --abort"\n'
