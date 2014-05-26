@@ -27,6 +27,7 @@ import uuid
 import subprocess
 import logging
 import threading
+import datetime
 import difflib
 import socket
 from ssl import SSLError
@@ -273,6 +274,7 @@ class GHManager(object):
     def get_rate_limiting(self):
         requests = self.github.rate_limiting
         self.dbg("Remaining requests: %s out of %s", requests[0], requests[1])
+        return requests
 
     def gh_repo(self, reponame, username=None):
         """
@@ -2541,6 +2543,51 @@ class Label(GithubCommand):
             pr = PullRequest(main_repo.origin.get_pull(pr_num))
             for label in pr.get_labels():
                 print label
+
+
+class Rate(GithubCommand):
+    """
+    Check current GitHub rate limit for user.
+    """
+
+    NAME = "rate"
+
+    def __init__(self, sub_parsers):
+        super(Rate, self).__init__(sub_parsers)
+
+    def __call__(self, args):
+        """
+        Data format:
+            {
+                u'rate': {u'reset': 1401089650, u'limit': 5000, u'remaining': 4992},
+                u'resources': {
+                    u'core': {
+                        u'reset': 1401089650,
+                        u'limit': 5000,
+                        u'remaining': 4992
+                    },
+                    u'search': {
+                        u'reset': 1401086384,
+                        u'limit': 30,
+                        u'remaining': 30
+                    }
+                }
+            }
+        """
+        super(Rate, self).__call__(args)
+        self.login(args)
+        limits = dict(self.gh.github.get_rate_limit()._rawData)
+        core = limits["resources"]["core"]
+        search = limits["resources"]["search"]
+        for name, data in (("Core", core), ("Search", search)):
+            t = data["reset"]
+            t = datetime.datetime.fromtimestamp(t)
+            t = t.strftime("%H:%m")
+            data["time"] = t
+            data["name"] = name
+            msg = ("%(name)6s: %(remaining)4s remaining "
+                   "from %(limit)4s. Reset at %(time)s")
+            print msg % data
 
 
 class Merge(FilteredPullRequestsCommand):
