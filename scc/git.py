@@ -1969,7 +1969,10 @@ Usage:
         # Construct tag 2 and check its validity
         tag2 = repo.get_tag_prefix() + args.release2
         if not repo.has_local_tag(tag2):
-            raise Stop(21, "Tag %s does not exist." % tag2)
+            if not repo.has_remote_branch(args.release2, remote=args.remote):
+                raise Stop(21, "Tag %s does not exist." % tag2)
+            else:
+                tag2 = args.remote + '/' + args.release2
 
         o, e = repo.communicate(
             "git", "log", "--oneline", "--first-parent",
