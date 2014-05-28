@@ -2559,7 +2559,11 @@ class Rate(GithubCommand):
         """
         Data format:
             {
-                u'rate': {u'reset': 1401089650, u'limit': 5000, u'remaining': 4992},
+                u'rate': {
+                    u'reset': 1401089650,
+                    u'limit': 5000,
+                    u'remaining': 4992
+                },
                 u'resources': {
                     u'core': {
                         u'reset': 1401089650,
