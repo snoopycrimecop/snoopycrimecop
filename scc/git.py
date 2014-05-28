@@ -258,6 +258,45 @@ class GHManager(object):
         return self.github.get_repo(*args)
 
     @retry_on_error(retries=SCC_RETRIES)
+    def get_rate_limits(self):
+        """
+        Input Data format:
+            {
+                u'rate': {
+                    u'reset': 1401089650,
+                    u'limit': 5000,
+                    u'remaining': 4992
+                },
+                u'resources': {
+                    u'core': {
+                        u'reset': 1401089650,
+                        u'limit': 5000,
+                        u'remaining': 4992
+                    },
+                    u'search': {
+                        u'reset': 1401086384,
+                        u'limit': 30,
+                        u'remaining': 30
+                    }
+                }
+            }
+
+        Returns: (core, search) each of which contains the keys:
+            'reset', 'limit', 'remaining', 'name', and 'time'
+            which is a readable version of 'reset'.
+        """
+        limits = dict(self.github.get_rate_limit()._rawData)
+        core = limits["resources"]["core"]
+        search = limits["resources"]["search"]
+        for name, data in (("Core", core), ("Search", search)):
+            t = data["reset"]
+            t = datetime.datetime.fromtimestamp(t)
+            t = t.strftime("%H:%m")
+            data["time"] = t
+            data["name"] = name
+        return (core, search)
+
+    @retry_on_error(retries=SCC_RETRIES)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -2556,39 +2595,10 @@ class Rate(GithubCommand):
         super(Rate, self).__init__(sub_parsers)
 
     def __call__(self, args):
-        """
-        Data format:
-            {
-                u'rate': {
-                    u'reset': 1401089650,
-                    u'limit': 5000,
-                    u'remaining': 4992
-                },
-                u'resources': {
-                    u'core': {
-                        u'reset': 1401089650,
-                        u'limit': 5000,
-                        u'remaining': 4992
-                    },
-                    u'search': {
-                        u'reset': 1401086384,
-                        u'limit': 30,
-                        u'remaining': 30
-                    }
-                }
-            }
-        """
         super(Rate, self).__call__(args)
         self.login(args)
-        limits = dict(self.gh.github.get_rate_limit()._rawData)
-        core = limits["resources"]["core"]
-        search = limits["resources"]["search"]
+        core, search = self.gh.get_rate_limits()
         for name, data in (("Core", core), ("Search", search)):
-            t = data["reset"]
-            t = datetime.datetime.fromtimestamp(t)
-            t = t.strftime("%H:%m")
-            data["time"] = t
-            data["name"] = name
             msg = ("%(name)6s: %(remaining)4s remaining "
                    "from %(limit)4s. Reset at %(time)s")
             print msg % data
