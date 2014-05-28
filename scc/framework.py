@@ -183,4 +183,7 @@ def main(args=None, items=None):
         MyCommand(sub_parsers)
 
     ns = scc_parser.parse_args(args)
-    ns.func(ns)
+    callbacks = ns.func(ns)
+    if callbacks:
+        for cb in callbacks:
+            cb()
