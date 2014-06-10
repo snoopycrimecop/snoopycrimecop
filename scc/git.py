@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+import argparse
 import re
 import os
 import sys
@@ -1627,7 +1628,7 @@ class UnknownMerge(Exception):
         super(UnknownMerge, self).__init__()
 
 
-class GithubCommand(Command):
+class GitHubCommand(Command):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1635,16 +1636,18 @@ class GithubCommand(Command):
     NAME = "abstract"
 
     def __init__(self, sub_parsers, setdefault=True):
-        super(GithubCommand, self).__init__(sub_parsers, setdefault)
+        super(GitHubCommand, self).__init__(sub_parsers, setdefault)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
                                      "Merge\spull\srequest\s.(\d+)\s(.*)$")
         self.commit_pattern = re.compile(sha1_chars + "(.*)$")
         self.add_token_args()
+        self.parser.add_argument(
+            '--callbacks', default=self.show_rate, help=argparse.SUPPRESS)
 
     def configure_logging(self, args):
-        super(GithubCommand, self).configure_logging(args)
+        super(GitHubCommand, self).configure_logging(args)
         logging.getLogger('github').setLevel(logging.INFO)
 
     def login(self, args):
@@ -1696,7 +1699,7 @@ class GithubCommand(Command):
             help="Do not ask for a password if token usage fails")
 
 
-class GitRepoCommand(GithubCommand):
+class GitRepoCommand(GitHubCommand):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1950,7 +1953,6 @@ class CheckLabels(GitRepoCommand):
                 pr = PullRequest(pull)
                 self.check_pr_label(pr,
                                     args.set and repo.origin.permissions.push)
-        return [self.show_rate]
 
     def check_pr_label(self, pr, set_label=False):
         label = pr.base.ref
@@ -1998,7 +2000,6 @@ Usage:
                 self.check_milestone(repo, args)
         finally:
             self.main_repo.cleanup()
-        return [self.show_rate]
 
     def check_milestone(self, repo, args):
 
@@ -2110,8 +2111,6 @@ command.
                            % (unrebased_count, mismatch_count))
         finally:
             self.main_repo.cleanup()
-
-        return [self.show_rate]
 
     def notes(self, repo, args):
 
@@ -2383,7 +2382,7 @@ command.
         return targets, target_links
 
 
-class CheckStatus(GithubCommand):
+class CheckStatus(GitHubCommand):
     """
     Check GitHub API status
     """
@@ -2417,10 +2416,8 @@ class CheckStatus(GithubCommand):
             raise Stop(1, "GitHub API state is %s as of %s"
                        % (api_status.status, api_status.last_updated))
 
-        return [self.show_rate]
 
-
-class AlreadyMerged(GithubCommand):
+class AlreadyMerged(GitHubCommand):
     """Detect branches local & remote which are already merged"""
 
     NAME = "already-merged"
@@ -2446,7 +2443,6 @@ class AlreadyMerged(GithubCommand):
             self.already_merged(args, main_repo)
         finally:
             main_repo.cleanup()
-        return [self.show_rate]
 
     def already_merged(self, args, main_repo):
         fmt = "%(committerdate:iso8601) %(refname:short)   --- %(subject)"
@@ -2475,7 +2471,7 @@ class AlreadyMerged(GithubCommand):
             print input
 
 
-class CleanSandbox(GithubCommand):
+class CleanSandbox(GitHubCommand):
     """Cleans snoopys-sandbox repo after testing
 
 Removes all branches from your fork of snoopys-sandbox
@@ -2512,10 +2508,9 @@ Removes all branches from your fork of snoopys-sandbox
                 gh_repo.push(":%s" % b.name)
             else:
                 raise Exception("Not possible!")
-        return [self.show_rate]
 
 
-class Label(GithubCommand):
+class Label(GitHubCommand):
     """
     Query/add/remove labels from GitHub issues.
     """
@@ -2550,7 +2545,6 @@ class Label(GithubCommand):
             self.labels(args, main_repo)
         finally:
             main_repo.cleanup()
-        return [self.show_rate]
 
     def labels(self, args, main_repo):
         if args.add:
@@ -2599,7 +2593,7 @@ class Label(GithubCommand):
                 print label
 
 
-class Rate(GithubCommand):
+class Rate(GitHubCommand):
     """
     Check current GitHub rate limit for user.
     """
@@ -2664,8 +2658,6 @@ class Merge(FilteredPullRequestsCommand):
 
         if updated and args.push is not None:
             self.push(args, self.main_repo)
-
-        return [self.show_rate]
 
     def merge(self, args, main_repo):
 
@@ -2897,7 +2889,6 @@ class Rebase(GitRepoCommand):
             self.rebase(args)
         finally:
             self.main_repo.cleanup()
-        return [self.show_rate]
 
     def rebase(self, args):
 
@@ -3023,7 +3014,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         return msg
 
 
-class Token(GithubCommand):
+class Token(GitHubCommand):
     """Utility functions to manipulate local and remote GitHub tokens"""
 
     NAME = "token"
@@ -3169,7 +3160,6 @@ class TravisMerge(FilteredPullRequestsCommand):
             if not args.info:
                 self.log.debug("Cleaning remote branches created for merging")
                 self.main_repo.rcleanup()
-        return [self.show_rate]
 
     def get_action(self):
         return "Merging"
@@ -3243,7 +3233,6 @@ class UpdateSubmodules(GitRepoCommand):
                         self.log.info("PR %s updated", pr.get_number())
         finally:
             self.main_repo.rcleanup()
-        return [self.show_rate]
 
     def submodules(self, args, main_repo):
         for submodule in main_repo.submodules:
@@ -3297,7 +3286,6 @@ class SetCommitStatus(FilteredPullRequestsCommand):
         self.login(args)
         self.init_main_repo(args)
         self.setCommitStatus(args, self.main_repo)
-        return [self.show_rate]
 
     def setCommitStatus(self, args, main_repo):
         self._parse_filters(args)
@@ -3353,7 +3341,6 @@ class DeleteTags(_TagCommands):
             raise Stop(2, ('"origin" and "upstream" are disabled. '
                            'Create a secondary remote for removing tags.'))
         self.main_repo.rtagdelete(args.version)
-        return [self.show_rate]
 
 
 class TagRelease(_TagCommands):
@@ -3392,5 +3379,3 @@ class TagRelease(_TagCommands):
             user = self.gh.get_login()
             remote = "git@github.com:%s/" % (user) + "%s.git"
             self.main_repo.rpush('--tags', remote, force=True)
-
-        return [self.show_rate]
