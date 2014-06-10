@@ -1627,7 +1627,7 @@ class UnknownMerge(Exception):
         super(UnknownMerge, self).__init__()
 
 
-class GithubCommand(Command):
+class GitHubCommand(Command):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1635,7 +1635,7 @@ class GithubCommand(Command):
     NAME = "abstract"
 
     def __init__(self, sub_parsers, setdefault=True):
-        super(GithubCommand, self).__init__(sub_parsers, setdefault)
+        super(GitHubCommand, self).__init__(sub_parsers, setdefault)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
@@ -1644,7 +1644,7 @@ class GithubCommand(Command):
         self.add_token_args()
 
     def configure_logging(self, args):
-        super(GithubCommand, self).configure_logging(args)
+        super(GitHubCommand, self).configure_logging(args)
         logging.getLogger('github').setLevel(logging.INFO)
 
     def login(self, args):
@@ -1696,7 +1696,7 @@ class GithubCommand(Command):
             help="Do not ask for a password if token usage fails")
 
 
-class GitRepoCommand(GithubCommand):
+class GitRepoCommand(GitHubCommand):
     """
     Abstract class for commands acting on a git repository
     """
@@ -2383,7 +2383,7 @@ command.
         return targets, target_links
 
 
-class CheckStatus(GithubCommand):
+class CheckStatus(GitHubCommand):
     """
     Check GitHub API status
     """
@@ -2420,7 +2420,7 @@ class CheckStatus(GithubCommand):
         return [self.show_rate]
 
 
-class AlreadyMerged(GithubCommand):
+class AlreadyMerged(GitHubCommand):
     """Detect branches local & remote which are already merged"""
 
     NAME = "already-merged"
@@ -2475,7 +2475,7 @@ class AlreadyMerged(GithubCommand):
             print input
 
 
-class CleanSandbox(GithubCommand):
+class CleanSandbox(GitHubCommand):
     """Cleans snoopys-sandbox repo after testing
 
 Removes all branches from your fork of snoopys-sandbox
@@ -2515,7 +2515,7 @@ Removes all branches from your fork of snoopys-sandbox
         return [self.show_rate]
 
 
-class Label(GithubCommand):
+class Label(GitHubCommand):
     """
     Query/add/remove labels from GitHub issues.
     """
@@ -2599,7 +2599,7 @@ class Label(GithubCommand):
                 print label
 
 
-class Rate(GithubCommand):
+class Rate(GitHubCommand):
     """
     Check current GitHub rate limit for user.
     """
@@ -3023,7 +3023,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         return msg
 
 
-class Token(GithubCommand):
+class Token(GitHubCommand):
     """Utility functions to manipulate local and remote GitHub tokens"""
 
     NAME = "token"
