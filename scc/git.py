@@ -1359,6 +1359,7 @@ class GitRepository(object):
             merge_msg += "Conflicting branches (not included):\n"
             merge_msg += "\n".join(["  # %s\n" % x for x in
                                     conflicting_branches])
+        return merge_msg
 
     def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
         """Merge pull request."""
