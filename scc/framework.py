@@ -184,3 +184,5 @@ def main(args=None, items=None):
 
     ns = scc_parser.parse_args(args)
     ns.func(ns)
+    if hasattr(ns, 'callbacks') and ns.callbacks:
+        ns.callbacks()

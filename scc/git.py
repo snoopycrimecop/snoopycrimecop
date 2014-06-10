@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+import argparse
 import re
 import os
 import sys
@@ -27,6 +28,7 @@ import uuid
 import subprocess
 import logging
 import threading
+import datetime
 import difflib
 import socket
 from ssl import SSLError
@@ -257,6 +259,45 @@ class GHManager(object):
         return self.github.get_repo(*args)
 
     @retry_on_error(retries=SCC_RETRIES)
+    def get_rate_limits(self):
+        """
+        Input Data format:
+            {
+                u'rate': {
+                    u'reset': 1401089650,
+                    u'limit': 5000,
+                    u'remaining': 4992
+                },
+                u'resources': {
+                    u'core': {
+                        u'reset': 1401089650,
+                        u'limit': 5000,
+                        u'remaining': 4992
+                    },
+                    u'search': {
+                        u'reset': 1401086384,
+                        u'limit': 30,
+                        u'remaining': 30
+                    }
+                }
+            }
+
+        Returns: (core, search) each of which contains the keys:
+            'reset', 'limit', 'remaining', 'name', and 'time'
+            which is a readable version of 'reset'.
+        """
+        limits = dict(self.github.get_rate_limit()._rawData)
+        core = limits["resources"]["core"]
+        search = limits["resources"]["search"]
+        for name, data in (("Core", core), ("Search", search)):
+            t = data["reset"]
+            t = datetime.datetime.fromtimestamp(t)
+            t = t.strftime("%H:%m")
+            data["time"] = t
+            data["name"] = name
+        return (core, search)
+
+    @retry_on_error(retries=SCC_RETRIES)
     def create_instance(self, *args, **kwargs):
         """
         Subclasses can override this method in order
@@ -273,6 +314,7 @@ class GHManager(object):
     def get_rate_limiting(self):
         requests = self.github.rate_limiting
         self.dbg("Remaining requests: %s out of %s", requests[0], requests[1])
+        return requests
 
     def gh_repo(self, reponame, username=None):
         """
@@ -1586,7 +1628,7 @@ class UnknownMerge(Exception):
         super(UnknownMerge, self).__init__()
 
 
-class GithubCommand(Command):
+class GitHubCommand(Command):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1594,16 +1636,18 @@ class GithubCommand(Command):
     NAME = "abstract"
 
     def __init__(self, sub_parsers, setdefault=True):
-        super(GithubCommand, self).__init__(sub_parsers, setdefault)
+        super(GitHubCommand, self).__init__(sub_parsers, setdefault)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
                                      "Merge\spull\srequest\s.(\d+)\s(.*)$")
         self.commit_pattern = re.compile(sha1_chars + "(.*)$")
         self.add_token_args()
+        self.parser.add_argument(
+            '--callbacks', default=self.show_rate, help=argparse.SUPPRESS)
 
     def configure_logging(self, args):
-        super(GithubCommand, self).configure_logging(args)
+        super(GitHubCommand, self).configure_logging(args)
         logging.getLogger('github').setLevel(logging.INFO)
 
     def login(self, args):
@@ -1616,6 +1660,13 @@ class GithubCommand(Command):
             print "# See `%s token` for simpifying use." % sys.argv[0]
             token = raw_input("Username or token: ").strip()
         self.gh = get_github(token, dont_ask=args.no_ask)
+        self.show_rate()
+
+    def show_rate(self):
+        core, search = self.gh.get_rate_limits()
+        logging.getLogger('scc.gh').debug((
+            "%(remaining)s remaining from "
+            "%(limit)s (Reset at %(time)s)") % core)
 
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
@@ -1648,7 +1699,7 @@ class GithubCommand(Command):
             help="Do not ask for a password if token usage fails")
 
 
-class GitRepoCommand(GithubCommand):
+class GitRepoCommand(GitHubCommand):
     """
     Abstract class for commands acting on a git repository
     """
@@ -1947,7 +1998,6 @@ Usage:
             for repo in all_repos:
                 print repo.origin
                 self.check_milestone(repo, args)
-
         finally:
             self.main_repo.cleanup()
 
@@ -2335,7 +2385,7 @@ command.
         return targets, target_links
 
 
-class CheckStatus(GithubCommand):
+class CheckStatus(GitHubCommand):
     """
     Check GitHub API status
     """
@@ -2370,7 +2420,7 @@ class CheckStatus(GithubCommand):
                        % (api_status.status, api_status.last_updated))
 
 
-class AlreadyMerged(GithubCommand):
+class AlreadyMerged(GitHubCommand):
     """Detect branches local & remote which are already merged"""
 
     NAME = "already-merged"
@@ -2424,7 +2474,7 @@ class AlreadyMerged(GithubCommand):
             print input
 
 
-class CleanSandbox(GithubCommand):
+class CleanSandbox(GitHubCommand):
     """Cleans snoopys-sandbox repo after testing
 
 Removes all branches from your fork of snoopys-sandbox
@@ -2463,7 +2513,7 @@ Removes all branches from your fork of snoopys-sandbox
                 raise Exception("Not possible!")
 
 
-class Label(GithubCommand):
+class Label(GitHubCommand):
     """
     Query/add/remove labels from GitHub issues.
     """
@@ -2544,6 +2594,26 @@ class Label(GithubCommand):
             pr = PullRequest(main_repo.origin.get_pull(pr_num))
             for label in pr.get_labels():
                 print label
+
+
+class Rate(GitHubCommand):
+    """
+    Check current GitHub rate limit for user.
+    """
+
+    NAME = "rate"
+
+    def __init__(self, sub_parsers):
+        super(Rate, self).__init__(sub_parsers)
+
+    def __call__(self, args):
+        super(Rate, self).__call__(args)
+        self.login(args)
+        core, search = self.gh.get_rate_limits()
+        for name, data in (("Core", core), ("Search", search)):
+            msg = ("%(name)6s: %(remaining)4s remaining "
+                   "from %(limit)4s. Reset at %(time)s")
+            print msg % data
 
 
 class Merge(FilteredPullRequestsCommand):
@@ -2947,7 +3017,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         return msg
 
 
-class Token(GithubCommand):
+class Token(GitHubCommand):
     """Utility functions to manipulate local and remote GitHub tokens"""
 
     NAME = "token"
