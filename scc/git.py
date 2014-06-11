@@ -1418,19 +1418,20 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            ff_msg, ff_log = self.fast_forward(filters["base"],
-                                               remote=self.remote)
-            merge_msg += ff_msg
-            # Scan the fast-forward log to produce a digest of the merged PRs
-            if ff_log:
-                merge_msg += "Merged PRs (fast-forward):\n"
-                pattern = r'Merge pull request #(\d+)'
-                for line in ff_log.split('\n'):
-                    s = re.search(pattern, line)
-                    if s is not None:
-                        pr = self.origin.get_pull(int(s.group(1)))
-                        merge_msg += str(PullRequest(pr)) + '\n'
-            merge_msg += '\n'
+            if self.has_remote_branch(filters["base"], self.remote):
+                ff_msg, ff_log = self.fast_forward(filters["base"],
+                                                   remote=self.remote)
+                merge_msg += ff_msg
+                # Scan the ff log to produce a digest of the merged PRs
+                if ff_log:
+                    merge_msg += "Merged PRs (fast-forward):\n"
+                    pattern = r'Merge pull request #(\d+)'
+                    for line in ff_log.split('\n'):
+                        s = re.search(pattern, line)
+                        if s is not None:
+                            pr = self.origin.get_pull(int(s.group(1)))
+                            merge_msg += str(PullRequest(pr)) + '\n'
+                merge_msg += '\n'
 
             merge_msg += self.merge(comment, commit_id=commit_id,
                                     set_commit_status=set_commit_status)
