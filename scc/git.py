@@ -1530,13 +1530,13 @@ class GitRepository(object):
                 git_config(config_name, config_file=".gitmodules",
                            value=new_url)
 
-        if self.has_local_changes():
+        updated = self.has_local_changes()
+        if updated:
             self.call("git", "commit", "-a", "-n", "-m", commit_message)
-            updated = True
         elif allow_empty:
             self.call("git", "commit", "--allow-empty", '-a', "-n", "-m",
                       commit_message)
-            updated = False
+
         return updated
 
     def get_tag_prefix(self):
