@@ -23,7 +23,7 @@ import os
 import pytest
 import subprocess
 
-from scc.framework import Stop, main
+from yaclifw.framework import Stop, main
 from scc.git import TagRelease
 from Sandbox import SandboxTest
 

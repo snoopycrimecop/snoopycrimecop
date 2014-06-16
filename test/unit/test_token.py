@@ -21,7 +21,7 @@
 
 import pytest
 
-from scc.framework import parsers
+from yaclifw.framework import parsers
 from scc.git import Token
 from Mock import MockTest
 

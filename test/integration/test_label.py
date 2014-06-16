@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from scc.framework import main
+from yaclifw.framework import main
 from scc.git import Label
 from Sandbox import SandboxTest
 

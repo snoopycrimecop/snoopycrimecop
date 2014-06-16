@@ -21,7 +21,7 @@
 
 import pytest
 from github import UnknownObjectException
-from scc.framework import main, Stop, parsers
+from yaclifw.framework import main, Stop, parsers
 from scc.git import CheckPRs, PullRequest
 from Sandbox import SandboxTest
 

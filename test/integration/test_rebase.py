@@ -20,7 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import pytest
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.git import Rebase
 from Sandbox import SandboxTest
 from subprocess import Popen

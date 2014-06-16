@@ -21,7 +21,7 @@
 
 import os
 import sys
-from framework import Command, Stop
+from yaclifw.framework import Command, Stop
 
 
 class Deploy(Command):

@@ -21,7 +21,7 @@
 
 import pytest
 
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.deploy import Deploy
 
 

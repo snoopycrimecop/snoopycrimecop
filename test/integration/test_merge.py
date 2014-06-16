@@ -21,7 +21,7 @@
 
 import pytest
 
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.git import Merge, EMPTY_MSG
 from Sandbox import SandboxTest
 

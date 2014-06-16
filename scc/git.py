@@ -32,7 +32,7 @@ import datetime
 import difflib
 import socket
 from ssl import SSLError
-from framework import Command, Stop
+from yaclifw.framework import Command, Stop
 
 github_loaded = True
 try:

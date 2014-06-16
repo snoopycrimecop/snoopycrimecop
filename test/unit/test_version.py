@@ -22,7 +22,7 @@
 import os
 import pytest
 
-from scc.framework import main
+from yaclifw.framework import main
 from scc.version import call_git_describe, Version, version_file
 from scc.version import get_git_version
 
