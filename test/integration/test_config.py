@@ -21,15 +21,10 @@
 
 import os
 import pytest
-from scc.git import get_token_or_user
+from scc.git import get_token_or_user, git_version
 from Sandbox import SandboxTest
 
-import subprocess
-p = subprocess.Popen(["git", "--version"], stdout=subprocess.PIPE)
-output = p.communicate()[0].split()
-p.stdout.close()
-git_version = tuple([int(x) for x in output[2].split(".")])
-mingitversion = pytest.mark.skipif(git_version < (1, 7, 4),
+mingitversion = pytest.mark.skipif(git_version() < (1, 7, 4),
                                    reason="Git 1.7.4 required")
 
 

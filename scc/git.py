@@ -124,6 +124,16 @@ def hash_object(filename):
     return digest.hexdigest()
 
 
+def git_version(local=False):
+    """
+    Get the version of Git.
+    """
+    p = subprocess.Popen(["git", "--version"], stdout=subprocess.PIPE)
+    output = p.communicate()[0].split()
+    p.stdout.close()
+    return tuple([int(x) for x in output[2].split(".")])
+
+
 def git_config(name, user=False, local=False, value=None, config_file=None):
     dbg = logging.getLogger("scc.config").debug
     try:
