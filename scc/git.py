@@ -2218,12 +2218,14 @@ command.
         middle_marker = str(uuid.uuid4()).replace("-", "")
         end_marker = str(uuid.uuid4()).replace("-", "")
 
-        popen = repo.call_no_wait(
+        cmd = [
             "git", "log",
             "--pretty=%%h %%s %%ar %s %%N %s" % (middle_marker, end_marker),
-            "--notes=%s" % git_notes_ref,
-            "--first-parent", merge_range,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            "--first-parent", merge_range]
+        if git_version() > (2, 7, 6):
+                cmd += ["--notes=%s" % git_notes_ref]
+        popen = repo.call_no_wait(*cmd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE)
 
         # List PRs without seealso notes
         pr_list = []
