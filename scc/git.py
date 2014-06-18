@@ -1636,8 +1636,8 @@ class GitHubCommand(Command):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers, setdefault=True):
-        super(GitHubCommand, self).__init__(sub_parsers, setdefault)
+    def __init__(self, sub_parsers, **kwargs):
+        super(GitHubCommand, self).__init__(sub_parsers, **kwargs)
 
         sha1_chars = "^([0-9a-f]+)\s"
         self.pr_pattern = re.compile(sha1_chars +
@@ -1707,8 +1707,8 @@ class GitRepoCommand(GitHubCommand):
 
     NAME = "abstract"
 
-    def __init__(self, sub_parsers, setdefault=True):
-        super(GitRepoCommand, self).__init__(sub_parsers, setdefault)
+    def __init__(self, sub_parsers, **kwargs):
+        super(GitRepoCommand, self).__init__(sub_parsers, **kwargs)
         self.parser.add_argument(
             '--shallow', action='store_true',
             help='Do not recurse into submodules')
@@ -2702,7 +2702,8 @@ class MilestoneCommand(GitRepoCommand):
     NAME = "milestone"
 
     def __init__(self, sub_parsers):
-        super(MilestoneCommand, self).__init__(sub_parsers, False)
+        super(MilestoneCommand, self).__init__(sub_parsers,
+                                               set_defaults=False)
 
         subparsers = self.parser.add_subparsers(title="actions")
         list_parser = subparsers.add_parser('list', help='List milestones')
@@ -3024,7 +3025,7 @@ class Token(GitHubCommand):
     NAME = "token"
 
     def __init__(self, sub_parsers):
-        super(Token, self).__init__(sub_parsers)
+        super(Token, self).__init__(sub_parsers, set_defaults=False)
         # No token args
 
         token_parsers = self.parser.add_subparsers(title="Subcommands")

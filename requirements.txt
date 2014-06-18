@@ -1,2 +1,2 @@
--e git+git://github.com/joshmoore/yaclifw.git#egg=fw-callback
+yaclifw==0.1.2
 PyGithub
