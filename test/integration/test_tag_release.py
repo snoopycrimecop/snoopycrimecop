@@ -41,7 +41,7 @@ class TestTagRelease(SandboxTest):
 
     def tag_release(self, *args):
         args = ["tag-release", "--no-ask"] + list(args)
-        main(args=args, items=[("tag-release", TagRelease)])
+        main("scc", args=args, items=[("tag-release", TagRelease)])
 
     def testTag(self):
         """Test tagging on repository without submodules"""

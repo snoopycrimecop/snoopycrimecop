@@ -39,7 +39,7 @@ class RebaseTest(SandboxTest):
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
-        main(args=args, items=[(Rebase.NAME, Rebase)])
+        main("scc", args=args, items=[(Rebase.NAME, Rebase)])
 
     def has_remote_source_branch(self):
         return self.source_branch and \
@@ -119,7 +119,7 @@ class TestRebaseNewBranch(RebaseTest):
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
-        main(args=args, items=[(Rebase.NAME, Rebase)])
+        main("scc", args=args, items=[(Rebase.NAME, Rebase)])
 
     def testPushExistingLocalBranch(self):
 

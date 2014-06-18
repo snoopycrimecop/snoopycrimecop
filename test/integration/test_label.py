@@ -36,7 +36,7 @@ class TestLabel(SandboxTest):
 
     def label(self, *args):
         args = ["label", "--no-ask"] + list(args)
-        main(args=args, items=[(Label.NAME, Label)])
+        main("scc", args=args, items=[(Label.NAME, Label)])
 
     def testAvailable(self, capsys):
         self.label("--available")

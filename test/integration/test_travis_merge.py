@@ -54,7 +54,7 @@ class TestTravisMerge(SandboxTest):
     def travis_merge(self, *args):
         self.sandbox.checkout_branch(self.branch[0])
         args = ["travis-merge", "--no-ask"] + list(args)
-        main(args=args, items=[(TravisMerge.NAME, TravisMerge)])
+        main("scc", args=args, items=[(TravisMerge.NAME, TravisMerge)])
 
     def testMissingEnvironmentVariable(self):
 

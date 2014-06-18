@@ -46,7 +46,8 @@ class TestUpdateSubmodules(SandboxTest):
 
     def update_submodules(self, *args):
         args = ["update-submodules", "--no-ask", self.branch] + list(args)
-        main(args=args, items=[(UpdateSubmodules.NAME, UpdateSubmodules)])
+        main("scc", args=args,
+             items=[(UpdateSubmodules.NAME, UpdateSubmodules)])
 
     def testMultipleUpdates(self):
 
