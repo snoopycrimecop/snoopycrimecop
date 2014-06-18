@@ -20,9 +20,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-
-from scc.git import get_token_or_user
+import pytest
+from scc.git import get_token_or_user, git_version
 from Sandbox import SandboxTest
+
+mingitversion = pytest.mark.skipif(git_version() < (1, 7, 4),
+                                   reason="Git 1.7.4 required")
 
 
 class TestConfig(SandboxTest):
@@ -31,19 +34,23 @@ class TestConfig(SandboxTest):
         with open(os.path.join(self.path, '.git', 'config'), 'w') as f:
             f.write(configString)
 
+    @mingitversion
     def testEmptyConfig(self):
         assert get_token_or_user(local=True) is None
 
+    @mingitversion
     def testUserConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    user = %s" % uuid)
         assert get_token_or_user(local=True) == uuid
 
+    @mingitversion
     def testTokenConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    token = %s" % uuid)
         assert get_token_or_user(local=True) == uuid
 
+    @mingitversion
     def testUserAndTokenConfig(self):
         uuid = self.uuid()
         self.writeConfigFile("[github]\n    user = 2\n    token = %s" % uuid)
