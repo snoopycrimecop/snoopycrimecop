@@ -836,22 +836,22 @@ class GitHubRepository(object):
         if not self.is_whitelisted(pullrequest_user,
                                    filters["include"].get("user")):
             # Allow filter PR inclusion using include filter
-            include, reason = self.run_filter(
+            filter_included, reason = self.run_filter(
                 filters["include"], pr_attributes, action="Include")
-            if not include and not pullrequest.parse(
+            if not filter_included and not pullrequest.parse(
                     filters["include"].get("label", None),
                     whitelist=is_whitelisted_comment):
                 return False, "user: %s" % pullrequest_user.login
 
         # Exclude PRs specified by filters
-        exclude, reason = self.run_filter(
+        filter_excluded, reason = self.run_filter(
             filters["exclude"], pr_attributes, action="Exclude")
-        if exclude:
+        if filter_excluded:
             return False, reason
 
         # Filter PRs by status if the status filter is on
-        exclude, reason = self.run_status_filter(pullrequest, filters)
-        if exclude:
+        status_included, reason = self.run_status_filter(pullrequest, filters)
+        if not status_included:
             return False, reason
 
         return True, None
