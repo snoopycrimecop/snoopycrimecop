@@ -1,1 +1,2 @@
+yaclifw>=0.1.2
 PyGithub

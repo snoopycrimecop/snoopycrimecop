@@ -24,7 +24,6 @@ SCC distribution script
 """
 
 from setuptools import setup
-from scc.version import get_git_version
 
 from setuptools.command.test import test as TestCommand
 import sys
@@ -84,7 +83,13 @@ class PyTest(TestCommand):
         errno = pytest.main(self.test_args)
         sys.exit(errno)
 
-VERSION = get_git_version()
+try:
+    from yaclifw.version import get_git_version
+    from scc import __file__ as module_file
+    VERSION = get_git_version(module_file)
+except ImportError:
+    VERSION = "UNKNOWN"
+
 ZIP_SAFE = False
 
 LONG_DESCRIPTION = open("README.rst", "r").read()
@@ -110,7 +115,7 @@ setup(name='scc',
       # More complex variables
       packages=['scc'],
       include_package_data=True,
-      install_requires=['PyGithub', 'argparse'],
+      install_requires=['yaclifw>=0.1.2', 'PyGithub', 'argparse'],
       entry_points={'console_scripts': ['scc = scc.main:entry_point']},
       zip_safe=ZIP_SAFE,
 

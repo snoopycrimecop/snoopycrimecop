@@ -20,7 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import pytest
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.git import Rebase
 from Sandbox import SandboxTest
 from subprocess import Popen
@@ -39,7 +39,7 @@ class RebaseTest(SandboxTest):
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
-        main(args=args, items=[(Rebase.NAME, Rebase)])
+        main("scc", args=args, items=[(Rebase.NAME, Rebase)])
 
     def has_remote_source_branch(self):
         return self.source_branch and \
@@ -119,7 +119,7 @@ class TestRebaseNewBranch(RebaseTest):
     def rebase(self, *args):
         args = ["rebase", "--no-ask", str(self.pr.number),
                 self.target_base] + list(args)
-        main(args=args, items=[(Rebase.NAME, Rebase)])
+        main("scc", args=args, items=[(Rebase.NAME, Rebase)])
 
     def testPushExistingLocalBranch(self):
 

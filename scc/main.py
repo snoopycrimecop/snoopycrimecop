@@ -28,7 +28,7 @@ will be presented to the user.
 import traceback
 import sys
 
-from framework import main, Stop
+from yaclifw.framework import main, Stop
 from git import AlreadyMerged
 from git import CheckLabels
 from git import CheckMilestone
@@ -46,7 +46,7 @@ from git import Token
 from git import TravisMerge
 from git import UpdateSubmodules
 from deploy import Deploy
-from version import Version
+from yaclifw.version import Version
 
 
 def entry_point():
@@ -55,7 +55,7 @@ def entry_point():
     if Stop is raised, calls sys.exit()
     """
     try:
-        main(items=[
+        main("scc", items=[
             (AlreadyMerged.NAME, AlreadyMerged),
             (CheckLabels.NAME, CheckLabels),
             (CheckMilestone.NAME, CheckMilestone),

@@ -19,7 +19,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from scc.framework import main
+from yaclifw.framework import main
 from scc.git import Label
 from Sandbox import SandboxTest
 
@@ -36,7 +36,7 @@ class TestLabel(SandboxTest):
 
     def label(self, *args):
         args = ["label", "--no-ask"] + list(args)
-        main(args=args, items=[(Label.NAME, Label)])
+        main("scc", args=args, items=[(Label.NAME, Label)])
 
     def testAvailable(self, capsys):
         self.label("--available")

@@ -21,7 +21,7 @@
 
 import pytest
 
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.deploy import Deploy
 
 
@@ -29,7 +29,7 @@ class TestDeployInit(object):
 
     def deploy(self, tmpdir):
         args = ["deploy", "--init", str(tmpdir.join('test'))]
-        main(args=args, items=[("deploy", Deploy)])
+        main("scc", args=args, items=[("deploy", Deploy)])
 
     def testInvalidFolder(self, tmpdir):
         with pytest.raises(Stop):
@@ -72,7 +72,7 @@ class TestDeploy(object):
 
     def deploy(self, tmpdir):
         args = ["deploy", str(tmpdir.join('test'))]
-        main(args=args, items=[("deploy", Deploy)])
+        main("scc", args=args, items=[("deploy", Deploy)])
 
     def init(self, tmpdir):
         init_file = tmpdir.mkdir('test.live').join('foo')

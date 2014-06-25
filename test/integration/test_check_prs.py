@@ -21,7 +21,7 @@
 
 import pytest
 from github import UnknownObjectException
-from scc.framework import main, Stop, parsers
+from yaclifw.framework import main, Stop, parsers
 from scc.git import CheckPRs, PullRequest
 from Sandbox import SandboxTest
 
@@ -37,7 +37,7 @@ class TestCheckPRs(SandboxTest):
     def unrebased_prs(self):
         self.sandbox.checkout_branch("origin/" + self.branch1)
         self.args += [self.branch1, self.branch2]
-        main(args=self.args, items=[(CheckPRs.NAME, CheckPRs)])
+        main("scc", args=self.args, items=[(CheckPRs.NAME, CheckPRs)])
 
     def create_issue_comment(self, HEAD, target_pr):
         parser, sub_parser = parsers()

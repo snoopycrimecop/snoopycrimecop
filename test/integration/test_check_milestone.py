@@ -21,7 +21,7 @@
 
 import pytest
 
-from scc.framework import main, Stop
+from yaclifw.framework import main, Stop
 from scc.git import CheckMilestone
 from Sandbox import SandboxTest
 
@@ -30,7 +30,7 @@ class TestCheckMilestone(SandboxTest):
 
     def check_milestone(self, *args):
         args = ["check-milestone", "--no-ask"] + list(args)
-        main(args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
+        main("scc", args=args, items=[(CheckMilestone.NAME, CheckMilestone)])
 
     def testNonExistingStartTag(self):
         with pytest.raises(Stop):
