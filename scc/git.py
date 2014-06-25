@@ -796,65 +796,16 @@ class GitHubRepository(object):
         # Loop over pull requests opened aGainst base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
-        is_whitelisted_comment = lambda x: self.is_whitelisted(
-            x.user, filters["include"].get("user"))
 
         for pull in pulls:
             pullrequest = PullRequest(pull)
+            include, exclude_reason = self.filter_pull(pullrequest, filters)
 
-            if pullrequest.parse(filters["exclude"].get("label"),
-                                 whitelist=is_whitelisted_comment):
-                excluded_pulls[pullrequest] = 'exclude comment'
-                continue
-
-            pullrequest_user = pullrequest.get_user()
-            pr_attributes = {}
-            pr_attributes["label"] = [x.lower() for x in
-                                      pullrequest.get_labels()]
-            pr_attributes["user"] = [pullrequest_user.login]
-            pr_attributes["pr"] = [str(pullrequest.get_number())]
-
-            if not self.is_whitelisted(pullrequest_user,
-                                       filters["include"].get("user")):
-                # Allow filter PR inclusion using include filter
-                include, reason = self.run_filter(
-                    filters["include"], pr_attributes, action="Include")
-                if not include and not pullrequest.parse(
-                        filters["include"].get("label", None),
-                        whitelist=is_whitelisted_comment):
-                    excluded_pulls[pullrequest] = "user: %s" \
-                        % pullrequest_user.login
-                    continue
-
-            # Exclude PRs specified by filters
-            exclude, reason = self.run_filter(
-                filters["exclude"], pr_attributes, action="Exclude")
-            if exclude:
-                excluded_pulls[pullrequest] = reason
-                continue
-
-            # Filter PRs by status if the status filter is on
-            if "status" in filters and filters["status"] != "none":
-                status = pullrequest.get_last_status("base")
-                if status is None:
-                    # If no status on the base repo, fallback on the head repo
-                    status = pullrequest.get_last_status("head")
-
-                if status is None:
-                    state = ""
-                else:
-                    state = status.state
-
-                exclude_1 = (filters["status"] == "success-only") and \
-                    (state != "success")
-                exclude_2 = (filters["status"] == "no-error") and \
-                    (state in ["error", "failure"])
-                if exclude_1 or exclude_2:
-                    excluded_pulls[pullrequest] = "status: %s" % state
-                    continue
-
-            self.dbg(pullrequest)
-            self.candidate_pulls.append(pullrequest)
+            if not include:
+                excluded_pulls[pullrequest] = exclude_reason
+            else:
+                self.dbg(pullrequest)
+                self.candidate_pulls.append(pullrequest)
 
         if excluded_pulls:
             msg += "Excluded PRs:\n"
@@ -865,6 +816,69 @@ class GitHubRepository(object):
                                   cmp(a.get_number(), b.get_number()))
 
         return msg
+
+    def filter_pull(self, pullrequest, filters):
+
+        is_whitelisted_comment = lambda x: self.is_whitelisted(
+            x.user, filters["include"].get("user"))
+
+        if pullrequest.parse(filters["exclude"].get("label"),
+                             whitelist=is_whitelisted_comment):
+            return False, 'exclude comment'
+
+        pullrequest_user = pullrequest.get_user()
+        pr_attributes = {}
+        pr_attributes["label"] = [x.lower() for x in
+                                  pullrequest.get_labels()]
+        pr_attributes["user"] = [pullrequest_user.login]
+        pr_attributes["pr"] = [str(pullrequest.get_number())]
+
+        if not self.is_whitelisted(pullrequest_user,
+                                   filters["include"].get("user")):
+            # Allow filter PR inclusion using include filter
+            filter_included, reason = self.run_filter(
+                filters["include"], pr_attributes, action="Include")
+            if not filter_included and not pullrequest.parse(
+                    filters["include"].get("label", None),
+                    whitelist=is_whitelisted_comment):
+                return False, "user: %s" % pullrequest_user.login
+
+        # Exclude PRs specified by filters
+        filter_excluded, reason = self.run_filter(
+            filters["exclude"], pr_attributes, action="Exclude")
+        if filter_excluded:
+            return False, reason
+
+        # Filter PRs by status if the status filter is on
+        status_included, reason = self.run_status_filter(pullrequest, filters)
+        if not status_included:
+            return False, reason
+
+        return True, None
+
+    def run_status_filter(self, pullrequest, filters):
+
+        if "status" not in filters or filters["status"] == "none":
+            return True, None
+
+        status = pullrequest.get_last_status("base")
+        if status is None:
+            # If no status on the base repo, fallback on the head repo
+            status = pullrequest.get_last_status("head")
+
+        if status is None:
+            state = ""
+        else:
+            state = status.state
+
+        exclude_1 = (filters["status"] == "success-only") and \
+            (state != "success")
+        exclude_2 = (filters["status"] == "no-error") and \
+            (state in ["error", "failure"])
+        if exclude_1 or exclude_2:
+            return False, "status: %s" % state
+
+        return True, None
 
     def find_candidate_branches(self, filters):
         """Find candidate branches for merging."""
@@ -1263,9 +1277,22 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user, repo]
 
+    def safe_merge(self, sha, message):
+        """Merge a branch and revert to current HEAD in case of conflict."""
+        premerge_sha, e = self.call("git", "rev-parse", "HEAD",
+                                    stdout=subprocess.PIPE).communicate()
+        premerge_sha = premerge_sha.rstrip("\n")
+
+        try:
+            self.call("git", "merge", "--no-ff", "-m", message, sha)
+            return True
+        except:
+            self.call("git", "reset", "--hard", "%s" % premerge_sha)
+            return False
+
     def merge(self, comment=False, commit_id="merge",
               set_commit_status=False):
-        """Merge candidate pull requests."""
+        """Merge candidate pull requests and pull requests."""
         self.dbg("## Unique users: %s", self.unique_logins())
         for key, url in self.get_merge_remotes().items():
             self.call("git", "remote", "add", key, url)
@@ -1276,52 +1303,19 @@ class GitRepository(object):
         conflicting_branches = []
         merged_branches = []
 
-        def safe_merge(sha, commit):
-
-            p = self.call("git", "rev-parse", "HEAD", stdout=subprocess.PIPE)
-            premerge_sha, e = p.communicate()
-            p.stdout.close()
-            premerge_sha = premerge_sha.rstrip("\n")
-
-            try:
-                self.call("git", "merge", "--no-ff", "-m", commit, sha)
-                return True
-            except:
-                self.call("git", "reset", "--hard", "%s" % premerge_sha)
-                return False
-
         for pullrequest in self.origin.candidate_pulls:
-            commit_msg = "%s: PR %s (%s)" % (
-                commit_id, pullrequest.get_number(), pullrequest.get_title())
-            merge_status = safe_merge(pullrequest.get_sha(), commit_msg)
-
+            merge_status = self.merge_pull(pullrequest, comment=comment,
+                                           commit_id=commit_id)
             if merge_status:
                 merged_pulls.append(pullrequest)
-                if not pullrequest.body and comment and get_token():
-                    self.dbg("Adding comment to Pull Request #%g."
-                             % pullrequest.get_number())
-                    pullrequest.create_issue_comment(EMPTY_MSG)
             else:
                 conflicting_pulls.append(pullrequest)
-
-                msg = "Conflicting PR."
-                if IS_JENKINS_JOB:
-                    msg += " Removed from build [%s#%s](%s). See the " \
-                           "[console output](%s) for more details." \
-                           % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
-                              BUILD_URL + "consoleText")
-                self.dbg(msg)
-
-                if comment and get_token():
-                    self.dbg("Adding comment to Pull Request #%g."
-                             % pullrequest.get_number())
-                    pullrequest.create_issue_comment(msg)
 
         for remote in self.origin.candidate_branches.keys():
             for branch_name in self.origin.candidate_branches[remote]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
-                merge_status = safe_merge('merge_%s/%s' % (
+                merge_status = self.safe_merge('merge_%s/%s' % (
                     remote, branch_name), commit_msg)
 
                 if merge_status:
@@ -1330,39 +1324,70 @@ class GitRepository(object):
                     conflicting_branches.append(
                         '%s:%s' % (remote, branch_name))
 
-        merge_msg = ""
-        if merged_pulls:
-            merge_msg += "Merged PRs:\n"
-            for merged_pull in merged_pulls:
-                merge_msg += str(merged_pull) + "\n"
-
-        if merged_branches:
-            merge_msg += "Merged branches:\n"
-            for merged_branch in merged_branches:
-                merge_msg += "  # %s\n" % merged_branch
-
-        if conflicting_pulls:
-            merge_msg += "Conflicting PRs (not included):\n"
-            for conflicting_pull in conflicting_pulls:
-                merge_msg += str(conflicting_pull) + "\n"
-
-        if conflicting_branches:
-            merge_msg += "Conflicting branches (not included):\n"
-            for conflicting_branch in conflicting_branches:
-                merge_msg += "  # %s\n" % conflicting_branch
+        merge_msg = self.log_merge(merged_pulls, merged_branches,
+                                   conflicting_pulls, conflicting_branches)
 
         if set_commit_status and get_token():
-            if conflicting_pulls:
-                status = 'failure'
-                message = 'Not all current PRs can be merged.'
-            else:
-                status = 'success'
-                message = 'All current PRs can be merged.'
+            conflict = len(conflicting_branches) or len(conflicting_pulls)
+            status = 'failure' if conflict else 'success'
+            success_msg = 'Not all current branches/PRs can be merged.'
+            conflict_msg = 'All current PRs/branches can be merged.'
+            message = conflict_msg if conflict else success_msg
             url = BUILD_URL if IS_JENKINS_JOB else github.GithubObject.NotSet
             merge_msg += self.set_commit_status(status, message, url)
 
         self.call("git", "submodule", "update")
         return merge_msg
+
+    def log_merge(self, merged_pulls, merged_branches, conflicting_pulls,
+                  conflicting_branches):
+
+        merge_msg = ""
+        if merged_pulls:
+            merge_msg += "Merged PRs:\n"
+            merge_msg += "\n".join([str(x) for x in merged_pulls])
+
+        if merged_branches:
+            merge_msg += "Merged branches:\n"
+            merge_msg += "\n".join(["  # %s\n" % x for x in merged_branches])
+
+        if conflicting_pulls:
+            merge_msg += "Conflicting PRs (not included):\n"
+            merge_msg += "\n".join([str(x) for x in conflicting_pulls])
+
+        if conflicting_branches:
+            merge_msg += "Conflicting branches (not included):\n"
+            merge_msg += "\n".join(["  # %s\n" % x for x in
+                                    conflicting_branches])
+        return merge_msg
+
+    def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
+        """Merge pull request."""
+
+        commit_msg = "%s: PR %s (%s)" % (
+            commit_id, pullrequest.get_number(), pullrequest.get_title())
+        merge_status = self.safe_merge(pullrequest.get_sha(), commit_msg)
+
+        if merge_status:
+            if not pullrequest.body and comment and get_token():
+                self.dbg("Adding comment to Pull Request #%g."
+                         % pullrequest.get_number())
+                pullrequest.create_issue_comment(EMPTY_MSG)
+            return merge_status
+
+        conflict_msg = "Conflicting PR."
+        if IS_JENKINS_JOB:
+            conflict_msg += " Removed from build [%s#%s](%s). See the " \
+                "[console output](%s) for more details." \
+                % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
+                   BUILD_URL + "consoleText")
+        self.dbg(conflict_msg)
+
+        if comment and get_token():
+            self.dbg("Adding comment to issue #%g." %
+                     pullrequest.get_number())
+            pullrequest.create_issue_comment(conflict_msg)
+        return merge_status
 
     def set_commit_status(self, status, message, url):
         msg = ""
@@ -1465,42 +1490,54 @@ class GitRepository(object):
             finally:
                 self.cd(self.path)
 
+        if not info:
+            summary_update = self.summary_commit(
+                merge_msg, commit_id=commit_id, top_message=top_message,
+                update_gitmodules=update_gitmodules, allow_empty=allow_empty)
+            if summary_update:
+                updated = True
+
+        return updated, merge_msg
+
+    def summary_commit(self, merge_msg, commit_id="merge", top_message=None,
+                       update_gitmodules=False, allow_empty=True):
+        """Create a top-level summary commit bumping the submodules"""
+
         if IS_JENKINS_JOB:
             merge_msg_footer = "\nGenerated by %s#%s (%s)" \
                                % (JOB_NAME, BUILD_NUMBER, BUILD_URL)
         else:
             merge_msg_footer = ""
 
-        if not info:
-            if top_message is None:
-                top_message = commit_id
+        if top_message is None:
+            top_message = commit_id
 
-            commit_message = "%s\n\n%s" \
-                % (top_message, merge_msg + merge_msg_footer)
+        commit_message = "%s\n\n%s" \
+            % (top_message, merge_msg + merge_msg_footer)
 
-            if update_gitmodules:
-                submodule_paths = self.get_submodule_paths()
-                for path in submodule_paths:
-                    # Read submodule URL registered in .gitmodules
-                    config_name = "submodule.%s.url" % path
-                    submodule_url = git_config(config_name,
-                                               config_file=".gitmodules")
+        if update_gitmodules:
+            submodule_paths = self.get_submodule_paths()
+            for path in submodule_paths:
+                # Read submodule URL registered in .gitmodules
+                config_name = "submodule.%s.url" % path
+                submodule_url = git_config(config_name,
+                                           config_file=".gitmodules")
 
-                    # Substitute submodule URL using connection login
-                    user = self.gh.get_login()
-                    pattern = '(.*github.com[:/]).*(/.*.git)'
-                    new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
-                    git_config(config_name, config_file=".gitmodules",
-                               value=new_url)
+                # Substitute submodule URL using connection login
+                user = self.gh.get_login()
+                pattern = '(.*github.com[:/]).*(/.*.git)'
+                new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
+                git_config(config_name, config_file=".gitmodules",
+                           value=new_url)
 
-            if self.has_local_changes():
-                self.call("git", "commit", "-a", "-n", "-m", commit_message)
-                updated = True
-            elif allow_empty:
-                self.call("git", "commit", "--allow-empty", '-a', "-n", "-m",
-                          commit_message)
+        updated = self.has_local_changes()
+        if updated:
+            self.call("git", "commit", "-a", "-n", "-m", commit_message)
+        elif allow_empty:
+            self.call("git", "commit", "--allow-empty", '-a', "-n", "-m",
+                      commit_message)
 
-        return updated, merge_msg
+        return updated
 
     def get_tag_prefix(self):
         "Return the tag prefix for this repository using git describe"
@@ -2129,9 +2166,9 @@ command.
     def notes(self, repo, args):
 
         # List unrebased PRs
-        count1 = self.list_prs(
+        count1 = self.list_unrebased_prs(
             repo, args.a, args.b, remote=args.remote, write=args.write)
-        count2 = self.list_prs(
+        count2 = self.list_unrebased_prs(
             repo, args.b, args.a, remote=args.remote, write=args.write)
         unrebased_count = count1 + count2
 
@@ -2169,47 +2206,51 @@ command.
                 % (len(alines), len(blines))
             print 'Edit files so that lines match'
 
+        for i, a in enumerate(alines):
+            b = blines[i]
+            found = self.print_notes(a, b)
+            if not found:
+                raise Exception("No IDs found for line %s!" % i)
+
+    def print_notes(self, a, b, branch1, branch2):
         fmt_gh = "git notes --ref=see_also/%s append" \
             " -m 'See gh-%s on %s (%s)' %s"
         fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
-        for i, a in enumerate(alines):
-            b = blines[i]
+
+        try:
+            aid, apr, arest = self.parse_pr(a)
+        except Exception, e:
             try:
-                aid, apr, arest = self.parse_pr(a)
-            except Exception, e:
-                try:
-                    aid, arest = self.parse_commit(a)
-                except:
-                    aid = None
-                    apr = None
-                    arest = e.line
+                aid, arest = self.parse_commit(a)
+            except:
+                aid = None
+                apr = None
+                arest = e.line
 
+        try:
+            bid, bpr, brest = self.parse_pr(b)
+        except Exception, e:
             try:
-                bid, bpr, brest = self.parse_pr(b)
-            except Exception, e:
-                try:
-                    bid, brest = self.parse_commit(b)
-                except:
-                    bid = None
-                    bpr = None
-                    brest = e.line
+                bid, brest = self.parse_commit(b)
+            except:
+                bid = None
+                bpr = None
+                brest = e.line
 
-            if aid and bid:
-                print fmt_gh % (branch2, bpr, branch2, bid, aid)
-                print fmt_gh % (branch1, apr, branch1, aid, bid)
-            elif aid:
-                print fmt_na % (branch2, brest, aid)
-            elif bid:
-                print fmt_na % (branch1, arest, bid)
-            else:
-                raise Exception("No IDs found for line %s!" % i)
+        if aid and bid:
+            print fmt_gh % (branch2, bpr, branch2, bid, aid)
+            print fmt_gh % (branch1, apr, branch1, aid, bid)
+        elif aid:
+            print fmt_na % (branch2, brest, aid)
+        elif bid:
+            print fmt_na % (branch1, arest, bid)
+        else:
+            return False
 
-    def list_prs(self, repo, source_branch, target_branch, remote="origin",
-                 write=False):
-        """
-        Method for listing PRs while filtering out those which
-        have a seealso note
-        """
+        return True
+
+    def list_prs(self, repo, source_branch, target_branch, remote="origin"):
+
         git_notes_ref = "refs/notes/see_also/" + target_branch
         merge_base = repo.find_branching_point(
             "%s/%s" % (remote, source_branch),
@@ -2248,7 +2289,15 @@ command.
                 pr_list.append(num)
             except:
                 self.log.info("Unknown merge: %s", line)
-                continue
+        return pr_list
+
+    def list_unrebased_prs(self, repo, source_branch, target_branch,
+                           remote="origin", write=False):
+        """
+        Method for listing unrebased PRs while filtering out those which
+        """
+
+        pr_list = self.list_prs(repo, source_branch, target_branch, remote)
         self.log.debug(
             "Found %s first-parent PRs merged on %s without a see_also note"
             " for %s" % (len(pr_list), source_branch, target_branch))
@@ -2917,13 +2966,28 @@ class Rebase(GitRepoCommand):
         except:
             old_branch = self.main_repo.get_current_sha1()
 
+        pr, new_branch = self.local_rebase(args.PR, args.newbase, args.remote,
+                                           args._continue)
+        if args.push or args.pr:
+            try:
+                self.push_branch(new_branch)
+                if args.pr:
+                    self.open_pr(new_branch, args.newbase, pr)
+            finally:
+                self.main_repo.checkout_branch(old_branch)
+
+            if args.delete:
+                self.main_repo.delete_local_branch(new_branch, force=True)
+
+    def local_rebase(self, pr_number, newbase, remote="origin", skip=False):
+
         # Remote information
         try:
-            pr = PullRequest(self.main_repo.origin.get_pull(args.PR))
+            pr = PullRequest(self.main_repo.origin.get_pull(pr_number))
             self.log.info("PR %g: %s opened by %s against %s",
-                          args.PR, pr.title, pr.head.user.name, pr.base.ref)
+                          pr_number, pr.title, pr.head.user.name, pr.base.ref)
         except github.GithubException:
-            raise Stop(16, 'Cannot find pull request %s' % args.PR)
+            raise Stop(16, 'Cannot find pull request %s' % pr_number)
 
         pr_head = pr.head.sha
         self.log.info("Head: %s", pr_head[0:6])
@@ -2936,23 +3000,22 @@ class Rebase(GitRepoCommand):
                        % (pr_head, pr.head.user.login))
 
         # Fail-fast if local branch exist with the target name
-        new_branch = "rebased/%s/%s" % (args.newbase, pr.head.ref)
+        new_branch = "rebased/%s/%s" % (newbase, pr.head.ref)
         if self.main_repo.has_local_branch(new_branch):
             raise Stop(18, 'Branch %s already exists in local Git repository'
                        % new_branch)
 
-        remote_newbase = "%s/%s" % (args.remote, args.newbase)
-        if not args._continue:
+        remote_newbase = "%s/%s" % (remote, newbase)
+        if not skip:
             branching_sha1 = self.main_repo.find_branching_point(
-                pr_head, "%s/%s" % (args.remote, pr.base.ref))
+                pr_head, "%s/%s" % (remote, pr.base.ref))
 
             try:
                 self.main_repo.rebase(remote_newbase, branching_sha1, pr_head)
             except:
-                raise Stop(20, self.get_conflict_message(args))
+                raise Stop(20, self.get_conflict_message(pr_number, newbase))
 
         # Fail-fast if sha1 is the same as the new base
-
         if self.main_repo.get_current_sha1() == \
                 self.main_repo.get_sha1(remote_newbase):
             raise Stop(22, "No new commits between the rebased branch and %s"
@@ -2960,63 +3023,56 @@ class Rebase(GitRepoCommand):
         self.main_repo.new_branch(new_branch)
         print >> sys.stderr, "# Created local branch %s" % new_branch
 
-        if args.push or args.pr:
+        return pr, new_branch
+
+    def push_branch(self, new_branch):
+
+        user = self.gh.get_login()
+        # Fail-fast if remote branch exist with the target name
+        if self.main_repo.has_remote_branch(new_branch, remote=user):
+            raise Stop(19, 'Branch %s already exists in %s remote'
+                       % (new_branch, user))
+
+        remote = "git@github.com:%s/%s.git" % (
+            user, self.main_repo.origin.name)
+        push_msg = ""
+        if user in self.main_repo.list_remotes():
             try:
-                user = self.gh.get_login()
-                # Fail-fast if remote branch exist with the target name
-                if self.main_repo.has_remote_branch(new_branch, remote=user):
-                    raise Stop(19, 'Branch %s already exists in %s remote'
-                               % (new_branch, args.remote))
+                self.main_repo.push_branch(new_branch, remote=user)
+                push_msg = "# Pushed %s to %s" % (new_branch, user)
+            except:
+                self.log.info('Could not push to remote %s' % user)
 
-                remote = "git@github.com:%s/%s.git" % (
-                    user, self.main_repo.origin.name)
-                push_msg = ""
-                if user in self.main_repo.list_remotes():
-                    try:
-                        self.main_repo.push_branch(new_branch, remote=user)
-                        push_msg = "# Pushed %s to %s" % (new_branch, user)
-                    except:
-                        self.log.info('Could not push to remote %s' % user)
+        if not push_msg:
+            self.main_repo.push_branch(new_branch, remote=remote)
+            push_msg = "# Pushed %s to %s" % (new_branch, remote)
+        print >> sys.stderr, push_msg
 
-                if not push_msg:
-                    self.main_repo.push_branch(new_branch, remote=remote)
-                    push_msg = "# Pushed %s to %s" % (new_branch, remote)
-                print >> sys.stderr, push_msg
+    def open_pr(self, new_branch, newbase, pr):
 
-                if args.pr:
-                    template_args = {
-                        "id": pr.number, "base": args.newbase,
-                        "title": pr.title, "body": pr.body}
-                    title = "%(title)s (rebased onto %(base)s)" \
-                        % template_args
-                    body = """
-
+        user = self.gh.get_login()
+        template_args = {
+            "id": pr.number, "base": newbase,
+            "title": pr.title, "body": pr.body}
+        title = "%(title)s (rebased onto %(base)s)" % template_args
+        body = """
 This is the same as gh-%(id)s but rebased onto %(base)s.
 
 ----
 
 %(body)s
 
-                    """ % template_args
+                """ % template_args
 
-                    rebased_pr = PullRequest(self.main_repo.origin.open_pr(
-                        title, body,
-                        base=args.newbase, head="%s:%s" % (user, new_branch)))
-                    print rebased_pr.html_url
+        rebased_pr = PullRequest(self.main_repo.origin.open_pr(
+            title, body, base=newbase, head="%s:%s" % (user, new_branch)))
+        print rebased_pr.html_url
 
-                    # Add rebase comments
-                    pr.create_issue_comment('--rebased-to #%s' %
-                                            rebased_pr.number)
-                    rebased_pr.create_issue_comment('--rebased-from #%s' %
-                                                    pr.number)
+        # Add rebase comments
+        pr.create_issue_comment('--rebased-to #%s' % rebased_pr.number)
+        rebased_pr.create_issue_comment('--rebased-from #%s' % pr.number)
 
-            finally:
-                self.main_repo.checkout_branch(old_branch)
-
-            if args.delete:
-                self.main_repo.delete_local_branch(new_branch, force=True)
-
-    def get_conflict_message(self, args):
+    def get_conflict_message(self, pr, newbase):
         msg = 'Rebasing failed\nYou are now in detached HEAD mode\n\n'
         msg += 'To keep on rebasing,\n'
         msg += '1) check the output of "git status" and fix the conflicts\n'
@@ -3024,7 +3080,7 @@ This is the same as gh-%(id)s but rebased onto %(base)s.
         msg += '3) run "git rebase --continue"\n'
         msg += '4) repeat steps 1-3 until all conflicts are resolved\n'
         msg += '5) run "scc rebase --continue %s %s"\n\n' \
-            % (args.PR, args.newbase)
+            % (pr, newbase)
         msg += 'To stop rebasing,\n'
         msg += '1) run "git rebase --abort"\n'
         msg += '2) checkout the desired branch, e.g "git checkout master"'
