@@ -20,11 +20,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-import __file__ as module_file
 import yaclifw.version
 
 
 class Version(yaclifw.version.Version):
     """Find which version of this library is being used"""
 
-    FILE = module_file
+    FILE = __file__
