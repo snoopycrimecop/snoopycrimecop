@@ -20,7 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-from scc import __file__ as module_file
+import __file__ as module_file
 import yaclifw.version
 
 
