@@ -21,9 +21,10 @@
 
 
 from scc import __file__ as module_file
-from yaclifw.version import Version as yaclifwVersion
+import yaclifw.version
 
-class Version(yaclifwVersion):
+
+class Version(yaclifw.version.Version):
     """Find which version of this library is being used"""
 
     FILE = module_file
