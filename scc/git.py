@@ -714,9 +714,13 @@ class GitHubRepository(object):
         if "#all" in whitelist:
             return True
 
-        if "#org" in whitelist and self.org and \
-                self.org.has_in_public_members(user):
-            return True
+        if "#org" in whitelist:
+            # Whitelist all public members of the organization
+            if self.org and self.org.has_in_public_members(user):
+                return True
+            # Whitelist the owner of a non-organization repository
+            elif not self.org and user.login == self.get_owner():
+                return True
 
         for whitelist_user in whitelist:
             if user.login == whitelist_user:
@@ -1878,18 +1882,11 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             action = self.get_action() + " Pull Request(s)"
         self.log.info("%s based on %s", action, self.filters["base"])
 
-        def get_user_desc(value):
-            if value == '#org':
-                return 'any public member of the organization'
-            if value == '#all':
-                return 'any user'
-            return '%s' % value
-
         ftype_desc = {'include': 'Including', 'exclude': 'Excluding'}
         key_value_map = {
             "label": ("%s Pull Request(s) labelled as", lambda x: x),
             "pr": ("%s Pull Request(s)", lambda x: x),
-            "user": ("%s Pull Request(s) opened by", get_user_desc)}
+            "user": ("%s Pull Request(s) opened by", self.get_user_desc)}
 
         for ftype in sorted(ftype_desc.keys(), reverse=True):
             for key in sorted(self.filters[ftype].keys(), reverse=True):
@@ -1910,6 +1907,16 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
         if self.filters.get('status') and self.filters['status'] != "none":
             self.log.info('Excluding Pull Request(s) %s' %
                           status_map[self.filters['status']])
+
+    def get_user_desc(self, value):
+        if value == '#org':
+            if self.main_repo.origin.org:
+                return 'any public member of the organization'
+            else:
+                return 'the repository owner'
+        if value == '#all':
+            return 'any user'
+        return '%s' % value
 
     def _parse_filters(self, args):
         """ Read filters from arguments and fill filters dictionary"""
