@@ -79,6 +79,7 @@ class TestPullRequest(MoxTestBase):
     def create_issue(self):
         self.issue = self.mox.CreateMock(Issue)
         self.issue.comments = 0
+        self.base_repo.has_issues = True
         self.base_repo.get_issue(self.pull.number).AndReturn(self.issue)
 
     def create_label(self, name="mock-label"):
