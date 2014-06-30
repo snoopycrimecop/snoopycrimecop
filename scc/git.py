@@ -565,6 +565,11 @@ class PullRequest(object):
         return self.pull.number
 
     @retry_on_error(retries=SCC_RETRIES)
+    def has_issues(self):
+        """Check if the base repository has issues enabled."""
+        return self.pull.base.repo.has_issues
+
+    @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self):
         """Return the issue corresponding to the Pull Request."""
         if not self.issue:
