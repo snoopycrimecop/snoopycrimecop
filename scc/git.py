@@ -602,11 +602,17 @@ class PullRequest(object):
     @retry_on_error(retries=SCC_RETRIES)
     def get_labels(self):
         """Return the labels of the Pull Request."""
-        return [x.name for x in self.get_issue().labels]
+        if not self.has_issues():
+            return []
+        else:
+            return [x.name for x in self.get_issue().labels]
 
     @retry_on_error(retries=SCC_RETRIES)
     def get_comments(self, whitelist=lambda x: True):
         """Return the labels of the Pull Request."""
+        if not self.has_issues():
+            return []
+
         if not self.issue_comments and self.get_issue().comments:
             self.issue_comments = self.get_issue().get_comments()
 
