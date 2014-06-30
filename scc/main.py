@@ -46,7 +46,7 @@ from git import Token
 from git import TravisMerge
 from git import UpdateSubmodules
 from deploy import Deploy
-from yaclifw.version import Version
+from version import Version
 
 
 def entry_point():
