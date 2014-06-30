@@ -706,6 +706,7 @@ class GitHubRepository(object):
     def get_owner(self):
         return self.owner.login
 
+    @retry_on_error(retries=SCC_RETRIES)
     def is_whitelisted(self, user, whitelist):
 
         if not whitelist:
