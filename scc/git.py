@@ -648,7 +648,7 @@ class PullRequest(object):
 
     @retry_on_error(retries=SCC_RETRIES)
     def is_merged(self):
-        return self.is_merged()
+        return self.pull.is_merged()
 
 
 class GitHubRepository(object):
