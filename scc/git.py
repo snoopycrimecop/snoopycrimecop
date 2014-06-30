@@ -635,6 +635,10 @@ class PullRequest(object):
         except IndexError:
             return None
 
+    @retry_on_error(retries=SCC_RETRIES)
+    def is_merged(self):
+        return self.is_merged()
+
 
 class GitHubRepository(object):
 
