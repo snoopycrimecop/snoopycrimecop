@@ -157,6 +157,11 @@ class TestPullRequest(MoxTestBase):
         self.mox.ReplayAll()
         assert self.pr.get_labels() == ["mock-label" for x in range(nlabels)]
 
+    def test_get_labels_no_issues(self):
+        self.base_repo.has_issues = False
+        self.mox.ReplayAll()
+        assert self.pr.get_labels() == []
+
     # Comment tests
     @pytest.mark.parametrize('ncomments', [0, 1, 2])
     def test_get_comments(self, ncomments):
@@ -168,6 +173,11 @@ class TestPullRequest(MoxTestBase):
         self.mox.ReplayAll()
         assert self.pr.get_comments() == \
             ["mock-comment" for x in range(ncomments)]
+
+    def test_get_comments_no_issues(self):
+        self.base_repo.has_issues = False
+        self.mox.ReplayAll()
+        assert self.pr.get_comments() == []
 
     @pytest.mark.parametrize('org_users', [[True, False, True]])
     def test_get_comments_whitelist(self, org_users):
