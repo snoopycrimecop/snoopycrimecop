@@ -1351,19 +1351,23 @@ class GitRepository(object):
         if merged_pulls:
             merge_msg += "Merged PRs:\n"
             merge_msg += "\n".join([str(x) for x in merged_pulls])
+            merge_msg += "\n"
 
         if merged_branches:
             merge_msg += "Merged branches:\n"
             merge_msg += "\n".join(["  # %s\n" % x for x in merged_branches])
+            merge_msg += "\n"
 
         if conflicting_pulls:
             merge_msg += "Conflicting PRs (not included):\n"
             merge_msg += "\n".join([str(x) for x in conflicting_pulls])
+            merge_msg += "\n"
 
         if conflicting_branches:
             merge_msg += "Conflicting branches (not included):\n"
             merge_msg += "\n".join(["  # %s\n" % x for x in
                                     conflicting_branches])
+            merge_msg += "\n"
         return merge_msg
 
     def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
