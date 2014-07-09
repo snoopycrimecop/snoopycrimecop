@@ -92,6 +92,10 @@ def retry_on_error(retries=SCC_RETRIES):
                     error = "Socket timeout"
                 except SSLError:
                     error = "SSL error"
+                except Exception, e:
+                    if e.message != "rc=128":
+                        raise
+                    error = "128 return code"
                 if num >= retries:
                     raise
                 log.debug("%s, retrying (try %s)", error, num + 1)
@@ -1095,6 +1099,7 @@ class GitRepository(object):
         self.dbg("Fetching remote %s...", remote)
         self.call("git", "fetch", remote)
 
+    @retry_on_error(retries=SCC_RETRIES)
     def push_branch(self, name, remote="origin", force=False):
         self.dbg("Pushing branch %s to %s..." % (name, remote))
         if force:
