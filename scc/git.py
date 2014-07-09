@@ -69,6 +69,18 @@ except:
 GH_RETRY_CODES = [405, 502]
 
 
+def check_github_code(exception):
+    if exception.status not in GH_RETRY_CODES:
+        raise
+    return "Received %s" % exception.data
+
+
+def check_exception_message(exception):
+    if exception.message != "rc=128":
+        raise
+    return "Received rc=128"
+
+
 def retry_on_error(retries=SCC_RETRIES):
     """
     Decorator for handling Github server errors
@@ -85,20 +97,17 @@ def retry_on_error(retries=SCC_RETRIES):
                 try:
                     return func(*args, **kwargs)
                 except github.GithubException, e:
-                    if e.status not in GH_RETRY_CODES:
-                        raise
-                    error = "Received %s" % e.data
+                    error = check_github_code(e)
                 except socket.timeout:
                     error = "Socket timeout"
                 except SSLError:
                     error = "SSL error"
                 except Exception, e:
-                    if e.message != "rc=128":
-                        raise
-                    error = "128 return code"
+                    error = check_exception_message(e)
                 if num >= retries:
                     raise
                 log.debug("%s, retrying (try %s)", error, num + 1)
+
         return wrapper
     return decorator
 
