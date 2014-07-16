@@ -565,6 +565,11 @@ class PullRequest(object):
         return self.pull.number
 
     @retry_on_error(retries=SCC_RETRIES)
+    def has_issues(self):
+        """Check if the base repository has issues enabled."""
+        return self.pull.base.repo.has_issues
+
+    @retry_on_error(retries=SCC_RETRIES)
     def get_issue(self):
         """Return the issue corresponding to the Pull Request."""
         if not self.issue:
@@ -597,11 +602,17 @@ class PullRequest(object):
     @retry_on_error(retries=SCC_RETRIES)
     def get_labels(self):
         """Return the labels of the Pull Request."""
-        return [x.name for x in self.get_issue().labels]
+        if not self.has_issues():
+            return []
+        else:
+            return [x.name for x in self.get_issue().labels]
 
     @retry_on_error(retries=SCC_RETRIES)
     def get_comments(self, whitelist=lambda x: True):
         """Return the labels of the Pull Request."""
+        if not self.has_issues():
+            return []
+
         if not self.issue_comments and self.get_issue().comments:
             self.issue_comments = self.get_issue().get_comments()
 
@@ -634,6 +645,10 @@ class PullRequest(object):
             return self.get_last_commit(ref).get_statuses()[0]
         except IndexError:
             return None
+
+    @retry_on_error(retries=SCC_RETRIES)
+    def is_merged(self):
+        return self.pull.is_merged()
 
 
 class GitHubRepository(object):
