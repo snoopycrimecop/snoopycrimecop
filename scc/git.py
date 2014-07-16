@@ -1468,7 +1468,7 @@ class GitRepository(object):
                 merge_msg += ff_msg
                 # Scan the ff log to produce a digest of the merged PRs
                 if ff_log:
-                    merge_msg += "Merged PRs (fast-forward):\n"
+                    merge_msg += "Previously merged:\n"
                     pattern = r'Merge pull request #(\d+)'
                     for line in ff_log.split('\n'):
                         s = re.search(pattern, line)
