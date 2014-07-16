@@ -2742,18 +2742,15 @@ class Merge(FilteredPullRequestsCommand):
         self._log_filters(args.info)
 
         # Create commit message using command arguments
-        commit_args = ["merge"]
-        commit_args.append(args.base)
-        commit_args.append("-D")
-        commit_args.append(args.default)
+        commit_args = ["merge", args.base, "-D%s" %args.default)
         if args.include:
             for filt in args.include:
-                commit_args.append("-I")
-                commit_args.append(filt)
+                commit_args.append("-I%s" % filt)
         if args.exclude:
             for filt in args.exclude:
-                commit_args.append("-E")
-                commit_args.append(filt)
+                commit_args.append("-E%s" % filt)
+        if args.check_commit_status:
+            commit_args.append("-S%s" % args.check_commit_status)
 
         updated, merge_msg = main_repo.rmerge(
             self.filters, args.info,
