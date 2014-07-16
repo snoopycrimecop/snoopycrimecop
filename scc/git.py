@@ -1562,20 +1562,18 @@ class GitRepository(object):
 
         return prefix
 
-    def rtag(self, version, message=None, sign=False):
+    def rtag(self, version, message=None, sign=False, prefix=None):
         """Recursively tag repositories with a version number."""
 
         msg = ""
-        msg += str(self.origin) + "\n"
-        tag_prefix = self.get_tag_prefix()
-        self.tag(tag_prefix + version, message, sign=sign)
-        msg += "Created tag %s\n" % (tag_prefix + version)
-
-        for submodule_repo in self.submodules:
-            msg += str(submodule_repo.origin) + "\n"
-            tag_prefix = submodule_repo.get_tag_prefix()
-            submodule_repo.tag(tag_prefix + version, message, sign=sign)
-            msg += "Created tag %s\n" % (tag_prefix + version)
+        for repo in [self] + self.submodules:
+            msg += str(repo.origin) + "\n"
+            if prefix:
+                full_tag = prefix + version
+            else:
+                full_tag = repo.get_tag_prefix() + version
+            repo.tag(full_tag, message, sign=sign)
+            msg += "Created tag %s\n" % (full_tag)
 
         return msg
 
@@ -3447,6 +3445,9 @@ class TagRelease(_TagCommands):
         self.parser.add_argument(
             '--sign', '-s', action='store_true',
             help='Annotate and GPG-sign the tag(s)')
+        self.parser.add_argument(
+            '--prefix', type=str,
+            help='Custom prefix to apply in front of the tag.')
 
     def __call__(self, args):
         super(TagRelease, self).__call__(args)
@@ -3455,7 +3456,7 @@ class TagRelease(_TagCommands):
             args.message = 'Tag version %s' % args.version
 
         msg = self.main_repo.rtag(args.version, message=args.message,
-                                  sign=args.sign)
+                                  sign=args.sign, prefix=args.prefix)
 
         for line in msg.split("\n"):
             self.log.info(line)
