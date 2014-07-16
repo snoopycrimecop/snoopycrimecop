@@ -2742,7 +2742,7 @@ class Merge(FilteredPullRequestsCommand):
         self._log_filters(args.info)
 
         # Create commit message using command arguments
-        commit_args = ["merge", args.base, "-D%s" %args.default)
+        commit_args = ["merge", args.base, "-D%s" % args.default]
         if args.include:
             for filt in args.include:
                 commit_args.append("-I%s" % filt)
