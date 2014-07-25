@@ -106,7 +106,7 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
     @pytest.mark.parametrize(
         'key', ['user', 'label', 'pr', 'user/repo',
                 'user-1/repo-2'])
-    @pytest.mark.parametrize('value', ['1', 'value', 'value-1'])
+    @pytest.mark.parametrize('value', ['1', 'value', 'value-1', 'value/1'])
     def test_parse_key_value(self, ftype, key, value):
         self.command._parse_key_value(ftype, '%s:%s' % (key, value))
         self.filters[ftype] = {key: [value]}
