@@ -1468,7 +1468,7 @@ class GitRepository(object):
             conflicts = self.get_possible_conflicts(
                 pullrequest, all_changed_files)
             for pr in sorted(conflicts.keys(), key=lambda c: c.get_number()):
-                conflict_msg += '\n  - %s #%d' % (pr, pr.get_number())
+                conflict_msg += '\n  - #%d %s' % (pr.get_number(), pr)
                 for file in sorted(conflicts[pr]):
                     conflict_msg += '\n    - %s' % file
 
