@@ -1377,17 +1377,6 @@ class GitRepository(object):
             files = self.list_merged_files(pullrequest.get_sha())
             changed_files[pullrequest] = files
 
-        self.dbg('Possible conflicts:')
-        for pull in self.origin.candidate_pulls:
-            conflicts = self.get_possible_conflicts(pull, changed_files)
-            if conflicts:
-                self.dbg('  %s may conflict with:' % pull)
-                for pr in sorted(
-                        conflicts.keys(), key=lambda c: c.get_number()):
-                    self.dbg('    %s' % pr)
-                    for file in sorted(conflicts[pr]):
-                        self.dbg('        %s' % file)
-
         for pullrequest in self.origin.candidate_pulls:
             merge_status = self.merge_pull(
                 pullrequest, comment=comment, commit_id=commit_id,
