@@ -1317,6 +1317,34 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user, repo]
 
+    def list_merged_files(self, sha):
+        """
+        Return a list of files modified by this PR
+        """
+        p = self.call(
+            "git", "diff", "--name-only", "HEAD...%s" % sha,
+            stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        files = set(files.split("\n")[:-1])
+        return files
+
+    def get_possible_conflicts(self, pull, changed_files):
+        """
+        Find possible conflicting pull requests by finding other pull requests
+        which modify the same file.
+
+        changed_files: A dictionary of (PullRequest, [changed-filenames])
+        """
+        pull_changed = changed_files[pull]
+        conflicts = {}
+        for (pr, changed) in changed_files.iteritems():
+            if pr != pull:
+                both_changed = pull_changed.intersection(changed)
+                if both_changed:
+                    conflicts[pr] = both_changed
+        return conflicts
+
     def safe_merge(self, sha, message):
         """Merge a branch and revert to current HEAD in case of conflict."""
         premerge_sha, e = self.call("git", "rev-parse", "HEAD",
@@ -1338,14 +1366,32 @@ class GitRepository(object):
             self.call("git", "remote", "add", key, url)
             self.fetch(key)
 
+        changed_files = {}
+
         conflicting_pulls = []
         merged_pulls = []
         conflicting_branches = []
         merged_branches = []
 
         for pullrequest in self.origin.candidate_pulls:
-            merge_status = self.merge_pull(pullrequest, comment=comment,
-                                           commit_id=commit_id)
+            files = self.list_merged_files(pullrequest.get_sha())
+            changed_files[pullrequest] = files
+
+        self.dbg('Possible conflicts:')
+        for pull in self.origin.candidate_pulls:
+            conflicts = self.get_possible_conflicts(pull, changed_files)
+            if conflicts:
+                self.dbg('  %s may conflict with:' % pull)
+                for pr in sorted(
+                        conflicts.keys(), key=lambda c: c.get_number()):
+                    self.dbg('    %s' % pr)
+                    for file in sorted(conflicts[pr]):
+                        self.dbg('        %s' % file)
+
+        for pullrequest in self.origin.candidate_pulls:
+            merge_status = self.merge_pull(
+                pullrequest, comment=comment, commit_id=commit_id,
+                all_changed_files=changed_files)
             if merge_status:
                 merged_pulls.append(pullrequest)
             else:
@@ -1407,7 +1453,8 @@ class GitRepository(object):
             merge_msg += "\n"
         return merge_msg
 
-    def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
+    def merge_pull(self, pullrequest, comment=False, commit_id="merge",
+                   all_changed_files=None):
         """Merge pull request."""
 
         commit_msg = "%s: PR %s (%s)" % (
@@ -1427,6 +1474,15 @@ class GitRepository(object):
                 "[console output](%s) for more details." \
                 % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
                    BUILD_URL + "consoleText")
+        if all_changed_files:
+            conflict_msg += '\n Possible conflicts:'
+            conflicts = self.get_possible_conflicts(
+                pullrequest, all_changed_files)
+            for pr in sorted(conflicts.keys(), key=lambda c: c.get_number()):
+                conflict_msg += '\n  - %s #%d' % (pr, pr.get_number())
+                for file in sorted(conflicts[pr]):
+                    conflict_msg += '\n    - %s' % file
+
         self.dbg(conflict_msg)
 
         if comment and get_token():
