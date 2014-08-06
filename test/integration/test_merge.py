@@ -165,7 +165,7 @@ class TestMergePullRequest(MergeTest):
         assert comments[0].body == EMPTY_MSG
 
     def testListMergedFiles(self):
-        assert self.sandbox.list_merged_files(self.sha) == {self.branch}
+        assert self.sandbox.list_merged_files(self.sha) == set([self.branch])
 
 
 class TestMergeBranch(MergeTest):
