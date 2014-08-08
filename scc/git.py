@@ -2166,6 +2166,9 @@ command.
         group.add_argument(
             '--no-check', action='store_true',
             help="Do not check mismatching rebased PR comments.")
+        group.add_argument(
+            '--cache-dir',
+            help="Directory to use to cache the rebased links.")
 
         self.parser.add_argument('a', help="First branch to compare")
         self.parser.add_argument('b', help="Second branch to compare")
@@ -2205,6 +2208,10 @@ command.
 
     def notes(self, repo, args):
 
+        # Load cached links
+        self.load_links(cache_dir=args.cache_dir,
+                        cache_name=repo.origin.repo_name + '.rebased')
+
         # List unrebased PRs
         count1 = self.list_unrebased_prs(
             repo, args.a, args.b, remote=args.remote, write=args.write)
@@ -2229,6 +2236,12 @@ command.
                 mismatch_count = len(m.keys())
         else:
             mismatch_count = 0
+
+        # Cache the rebased links
+        rebased_links = dict((k, self.links[k]) for k in self.links
+                             if self.links[k] != -1)
+        self.dump_links(rebased_links, cache_dir=args.cache_dir,
+                        cache_name=repo.origin.repo_name + '.rebased')
 
         return unrebased_count, mismatch_count
 
@@ -2344,7 +2357,7 @@ command.
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         unrebased_prs = []
-        for pr_number in pr_list:
+        for pr_number in [x for x in pr_list if x not in self.links.keys()]:
             pr = self.visit_pr(repo.origin, pr_number)
 
             # No rebase comment found on the PR
@@ -2396,6 +2409,36 @@ command.
                                % (pr_number, target, target_branch))
                 return True
         return False
+
+    def load_links(self, cache_dir=None, cache_name="cache"):
+        """Load links from local cache"""
+
+        if cache_dir is None:
+            self.log.debug("No cache_dir specified. Skipping.")
+            return
+
+        cache_full_path = os.path.join(cache_dir, cache_name + '.cache')
+        if not os.path.isfile(cache_full_path):
+            self.log.debug("%s does not exist. Skipping.", cache_full_path)
+            return
+
+        import pickle
+        with open(cache_full_path, 'rb') as handle:
+            self.log.debug('Read links from %s', cache_full_path)
+            self.links.update(pickle.loads(handle.read()))
+
+    def dump_links(self, links, cache_dir=None, cache_name="cache"):
+        """Cache links locally"""
+
+        if cache_dir is None:
+            self.log.debug("No cache_dir specified. Skipping dump.")
+            return
+
+        import pickle
+        cache_full_path = os.path.join(cache_dir, cache_name + '.cache')
+        with open(cache_full_path, 'wb') as handle:
+            self.log.debug('Dump links to %s', cache_full_path)
+            pickle.dump(links, handle)
 
     def check_links(self, gh_repo):
         """Return a dictionary of PRs with missing rebase comments"""
