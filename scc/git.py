@@ -2245,63 +2245,6 @@ command.
 
         return unrebased_count, mismatch_count
 
-    def parse(self, branch1, branch2):
-        aname = self.fname(branch1)
-        bname = self.fname(branch2)
-        if not os.path.exists(aname) or not os.path.exists(bname):
-            print 'Use --write to create files first'
-
-        alines = open(aname, "r").read().strip().split("\n")
-        blines = open(bname, "r").read().strip().split("\n")
-
-        if len(alines) != len(blines):
-            print 'Size of files does not match! (%s <> %s)' \
-                % (len(alines), len(blines))
-            print 'Edit files so that lines match'
-
-        for i, a in enumerate(alines):
-            b = blines[i]
-            found = self.print_notes(a, b)
-            if not found:
-                raise Exception("No IDs found for line %s!" % i)
-
-    def print_notes(self, a, b, branch1, branch2):
-        fmt_gh = "git notes --ref=see_also/%s append" \
-            " -m 'See gh-%s on %s (%s)' %s"
-        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
-
-        try:
-            aid, apr, arest = self.parse_pr(a)
-        except Exception, e:
-            try:
-                aid, arest = self.parse_commit(a)
-            except:
-                aid = None
-                apr = None
-                arest = e.line
-
-        try:
-            bid, bpr, brest = self.parse_pr(b)
-        except Exception, e:
-            try:
-                bid, brest = self.parse_commit(b)
-            except:
-                bid = None
-                bpr = None
-                brest = e.line
-
-        if aid and bid:
-            print fmt_gh % (branch2, bpr, branch2, bid, aid)
-            print fmt_gh % (branch1, apr, branch1, aid, bid)
-        elif aid:
-            print fmt_na % (branch2, brest, aid)
-        elif bid:
-            print fmt_na % (branch1, arest, bid)
-        else:
-            return False
-
-        return True
-
     def list_prs(self, repo, source_branch, target_branch, remote="origin"):
 
         git_notes_ref = "refs/notes/see_also/" + target_branch
