@@ -2320,7 +2320,6 @@ command.
             if not self.check_rebased_prs(repo, pr_number, target_branch):
                 unrebased_prs.append(pr)
 
-
         # Print list of unrebased PRs
         if unrebased_prs:
             self.log.debug(
