@@ -2374,7 +2374,11 @@ command.
         """Cache links locally"""
 
         if cache_dir is None:
-            self.log.debug("No cache_dir specified. Skipping dump.")
+            self.log.debug("No cache_dir specified. Skipping.")
+            return
+
+        if not os.path.isdir(cache_dir):
+            self.log.debug("%s does not exist. Skipping.", cache_dir)
             return
 
         import pickle
