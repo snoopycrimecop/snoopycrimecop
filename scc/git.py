@@ -2233,7 +2233,8 @@ command.
 
                 for key in m.keys():
                     comments = ", ".join(['--rebased'+x for x in m[key]])
-                    self.rebasedprs.remove(key)
+                    if key in self.rebasedprs:
+                        self.rebasedprs.remove(key)
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
                 mismatch_count = len(m.keys())
