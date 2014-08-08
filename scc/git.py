@@ -2195,6 +2195,7 @@ command.
                 print repo.origin
                 self.prs = {}
                 self.links = {}
+                self.rebasedprs = set()
                 s_unrebased, s_mismatch = self.notes(repo, args)
                 unrebased_count += s_unrebased
                 mismatch_count += s_mismatch
@@ -2211,6 +2212,7 @@ command.
         # Load cached links
         self.load_links(cache_dir=args.cache_dir,
                         cache_name=repo.origin.repo_name + '.rebased')
+        self.rebasedprs.update(self.links.keys())
 
         # List unrebased PRs
         count1 = self.list_unrebased_prs(
@@ -2231,6 +2233,7 @@ command.
 
                 for key in m.keys():
                     comments = ", ".join(['--rebased'+x for x in m[key]])
+                    self.rebasedprs.remove(key)
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
                 mismatch_count = len(m.keys())
@@ -2239,7 +2242,7 @@ command.
 
         # Cache the rebased links
         rebased_links = dict((k, self.links[k]) for k in self.links
-                             if self.links[k] != -1)
+                             if k in self.rebasedprs)
         self.dump_links(rebased_links, cache_dir=args.cache_dir,
                         cache_name=repo.origin.repo_name + '.rebased')
 
@@ -2300,7 +2303,7 @@ command.
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         unrebased_prs = []
-        for pr_number in [x for x in pr_list if x not in self.links.keys()]:
+        for pr_number in [x for x in pr_list if x not in self.rebasedprs]:
             pr = self.visit_pr(repo.origin, pr_number)
 
             # No rebase comment found on the PR
@@ -2316,6 +2319,7 @@ command.
             # Test PRs marked as --rebased
             if not self.check_rebased_prs(repo, pr_number, target_branch):
                 unrebased_prs.append(pr)
+
 
         # Print list of unrebased PRs
         if unrebased_prs:
@@ -2350,6 +2354,9 @@ command.
             if (target_status and target_pr.get_base() == target_branch):
                 self.log.debug("PR %s is rebased as %s on %s"
                                % (pr_number, target, target_branch))
+                # List as rebased is both the source and target PRs are merged
+                if target_pr.pull.merged and self.prs[pr_number].pull.merged:
+                    self.rebasedprs.add(pr_number)
                 return True
         return False
 
