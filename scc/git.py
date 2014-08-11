@@ -2166,6 +2166,9 @@ command.
         group.add_argument(
             '--no-check', action='store_true',
             help="Do not check mismatching rebased PR comments.")
+        group.add_argument(
+            '--cache-dir',
+            help="Directory to use to cache the rebased links.")
 
         self.parser.add_argument('a', help="First branch to compare")
         self.parser.add_argument('b', help="Second branch to compare")
@@ -2192,6 +2195,7 @@ command.
                 print repo.origin
                 self.prs = {}
                 self.links = {}
+                self.rebasedprs = set()
                 s_unrebased, s_mismatch = self.notes(repo, args)
                 unrebased_count += s_unrebased
                 mismatch_count += s_mismatch
@@ -2204,6 +2208,11 @@ command.
             self.main_repo.cleanup()
 
     def notes(self, repo, args):
+
+        # Load cached links
+        self.load_links(cache_dir=args.cache_dir,
+                        cache_name=repo.origin.repo_name + '.rebased')
+        self.rebasedprs.update(self.links.keys())
 
         # List unrebased PRs
         count1 = self.list_unrebased_prs(
@@ -2224,70 +2233,21 @@ command.
 
                 for key in m.keys():
                     comments = ", ".join(['--rebased'+x for x in m[key]])
+                    if key in self.rebasedprs:
+                        self.rebasedprs.remove(key)
                     print "  # PR %s: expected '%s' comment(s)" %  \
                         (key, comments)
                 mismatch_count = len(m.keys())
         else:
             mismatch_count = 0
 
+        # Cache the rebased links
+        rebased_links = dict((k, self.links[k]) for k in self.links
+                             if k in self.rebasedprs)
+        self.dump_links(rebased_links, cache_dir=args.cache_dir,
+                        cache_name=repo.origin.repo_name + '.rebased')
+
         return unrebased_count, mismatch_count
-
-    def parse(self, branch1, branch2):
-        aname = self.fname(branch1)
-        bname = self.fname(branch2)
-        if not os.path.exists(aname) or not os.path.exists(bname):
-            print 'Use --write to create files first'
-
-        alines = open(aname, "r").read().strip().split("\n")
-        blines = open(bname, "r").read().strip().split("\n")
-
-        if len(alines) != len(blines):
-            print 'Size of files does not match! (%s <> %s)' \
-                % (len(alines), len(blines))
-            print 'Edit files so that lines match'
-
-        for i, a in enumerate(alines):
-            b = blines[i]
-            found = self.print_notes(a, b)
-            if not found:
-                raise Exception("No IDs found for line %s!" % i)
-
-    def print_notes(self, a, b, branch1, branch2):
-        fmt_gh = "git notes --ref=see_also/%s append" \
-            " -m 'See gh-%s on %s (%s)' %s"
-        fmt_na = "git notes --ref=see_also/%s append -m '%s' %s"
-
-        try:
-            aid, apr, arest = self.parse_pr(a)
-        except Exception, e:
-            try:
-                aid, arest = self.parse_commit(a)
-            except:
-                aid = None
-                apr = None
-                arest = e.line
-
-        try:
-            bid, bpr, brest = self.parse_pr(b)
-        except Exception, e:
-            try:
-                bid, brest = self.parse_commit(b)
-            except:
-                bid = None
-                bpr = None
-                brest = e.line
-
-        if aid and bid:
-            print fmt_gh % (branch2, bpr, branch2, bid, aid)
-            print fmt_gh % (branch1, apr, branch1, aid, bid)
-        elif aid:
-            print fmt_na % (branch2, brest, aid)
-        elif bid:
-            print fmt_na % (branch1, arest, bid)
-        else:
-            return False
-
-        return True
 
     def list_prs(self, repo, source_branch, target_branch, remote="origin"):
 
@@ -2344,7 +2304,7 @@ command.
 
         # Look into PR body/comment for rebase notes and fill match dictionary
         unrebased_prs = []
-        for pr_number in pr_list:
+        for pr_number in [x for x in pr_list if x not in self.rebasedprs]:
             pr = self.visit_pr(repo.origin, pr_number)
 
             # No rebase comment found on the PR
@@ -2394,8 +2354,45 @@ command.
             if (target_status and target_pr.get_base() == target_branch):
                 self.log.debug("PR %s is rebased as %s on %s"
                                % (pr_number, target, target_branch))
+                # List as rebased is both the source and target PRs are merged
+                if target_pr.pull.merged and self.prs[pr_number].pull.merged:
+                    self.rebasedprs.add(pr_number)
                 return True
         return False
+
+    def load_links(self, cache_dir=None, cache_name="cache"):
+        """Load links from local cache"""
+
+        if cache_dir is None:
+            self.log.debug("No cache_dir specified. Skipping.")
+            return
+
+        cache_full_path = os.path.join(cache_dir, cache_name + '.cache')
+        if not os.path.isfile(cache_full_path):
+            self.log.debug("%s does not exist. Skipping.", cache_full_path)
+            return
+
+        import pickle
+        with open(cache_full_path, 'rb') as handle:
+            self.log.debug('Read links from %s', cache_full_path)
+            self.links.update(pickle.loads(handle.read()))
+
+    def dump_links(self, links, cache_dir=None, cache_name="cache"):
+        """Cache links locally"""
+
+        if cache_dir is None:
+            self.log.debug("No cache_dir specified. Skipping.")
+            return
+
+        if not os.path.isdir(cache_dir):
+            self.log.debug("%s does not exist. Skipping.", cache_dir)
+            return
+
+        import pickle
+        cache_full_path = os.path.join(cache_dir, cache_name + '.cache')
+        with open(cache_full_path, 'wb') as handle:
+            self.log.debug('Dump links to %s', cache_full_path)
+            pickle.dump(links, handle)
 
     def check_links(self, gh_repo):
         """Return a dictionary of PRs with missing rebase comments"""
