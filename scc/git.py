@@ -1336,6 +1336,8 @@ class GitRepository(object):
 
         changed_files: A dictionary of (PullRequest, [changed-filenames])
         """
+        if not changed_files:
+            return {}
         pull_changed = changed_files[pull]
         conflicts = {}
         for (pr, changed) in changed_files.iteritems():
@@ -1463,19 +1465,17 @@ class GitRepository(object):
                 "[console output](%s) for more details." \
                 % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
                    BUILD_URL + "consoleText")
-        if all_changed_files:
-            conflicts = self.get_possible_conflicts(
-                pullrequest, all_changed_files)
-            if conflicts:
-                conflict_msg += '\nPossible conflicts:'
-                for pr in sorted(
-                        conflicts.keys(), key=lambda c: c.get_number()):
-                    conflict_msg += '\n  - #%d %s' % (pr.get_number(), pr)
-                    for file in sorted(conflicts[pr]):
-                        conflict_msg += '\n    - %s' % file
-            else:
-                conflict_msg += (
-                    '\n  - No conflicts found, you may need to rebase')
+        conflicts = self.get_possible_conflicts(pullrequest, all_changed_files)
+        if conflicts:
+            conflict_msg += '\nPossible conflicts:'
+            for pr in sorted(
+                    conflicts.keys(), key=lambda c: c.get_number()):
+                conflict_msg += '\n  - #%d %s' % (pr.get_number(), pr)
+                for file in sorted(conflicts[pr]):
+                    conflict_msg += '\n    - %s' % file
+        else:
+            conflict_msg += (
+                '\n  - No conflicts found, you may need to rebase')
 
         self.dbg(conflict_msg)
 
