@@ -1329,23 +1329,52 @@ class GitRepository(object):
         files = set(files.split("\n")[:-1])
         return files
 
-    def get_possible_conflicts(self, pull, changed_files):
+    def list_upstream_changes(self, sha, upstream="HEAD"):
+        """
+        Return a list of files modified in parent since this PR was branched,
+        suggesting a rebase may be necessary.
+        """
+        p = self.call(
+            "git", "merge-base", upstream, sha, stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        common_base = files.split("\n")[0]
+
+        p = self.call(
+            "git", "diff", "--name-only", "%s..%s" % (common_base, upstream),
+            stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        files = set(files.split("\n")[:-1])
+        return files
+
+    def get_possible_conflicts(self, pull, changed_files, upstream):
         """
         Find possible conflicting pull requests by finding other pull requests
         which modify the same file.
 
         changed_files: A dictionary of (PullRequest, [changed-filenames])
+        upstream: The SHA1 of the upstream branch before any other PRs were
+          merged, required to detect if a rebase might be needed
         """
-        if not changed_files:
-            return {}
-        pull_changed = changed_files[pull]
         conflicts = {}
+        upstream_conflicts = set()
+        if not changed_files:
+            return conflicts, upstream_conflicts
+
+        pull_changed = changed_files[pull]
+
+        if upstream:
+            upstream_changes = self.list_upstream_changes(
+                pull.get_sha(), upstream=upstream)
+            upstream_conflicts = pull_changed.intersection(upstream_changes)
+
         for (pr, changed) in changed_files.iteritems():
             if pr != pull:
                 both_changed = pull_changed.intersection(changed)
                 if both_changed:
                     conflicts[pr] = both_changed
-        return conflicts
+        return conflicts, upstream_conflicts
 
     def safe_merge(self, sha, message):
         """Merge a branch and revert to current HEAD in case of conflict."""
@@ -1368,6 +1397,7 @@ class GitRepository(object):
             self.call("git", "remote", "add", key, url)
             self.fetch(key)
 
+        upstream_sha = self.get_current_sha1()
         changed_files = {}
 
         conflicting_pulls = []
@@ -1382,7 +1412,7 @@ class GitRepository(object):
         for pullrequest in self.origin.candidate_pulls:
             merge_status = self.merge_pull(
                 pullrequest, comment=comment, commit_id=commit_id,
-                all_changed_files=changed_files)
+                all_changed_files=changed_files, upstream=upstream_sha)
             if merge_status:
                 merged_pulls.append(pullrequest)
             else:
@@ -1445,7 +1475,7 @@ class GitRepository(object):
         return merge_msg
 
     def merge_pull(self, pullrequest, comment=False, commit_id="merge",
-                   all_changed_files=None):
+                   all_changed_files=None, upstream=None):
         """Merge pull request."""
 
         commit_msg = "%s: PR %s (%s)" % (
@@ -1465,7 +1495,8 @@ class GitRepository(object):
                 "[console output](%s) for more details." \
                 % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
                    BUILD_URL + "consoleText")
-        conflicts = self.get_possible_conflicts(pullrequest, all_changed_files)
+        conflicts, upstream_conflicts = self.get_possible_conflicts(
+            pullrequest, all_changed_files, upstream)
         if conflicts:
             conflict_msg += '\nPossible conflicts:'
             for pr in sorted(
@@ -1473,9 +1504,12 @@ class GitRepository(object):
                 conflict_msg += '\n  - #%d %s' % (pr.get_number(), pr)
                 for file in sorted(conflicts[pr]):
                     conflict_msg += '\n    - %s' % file
-        else:
-            conflict_msg += (
-                '\n  - No conflicts found, you may need to rebase')
+        if upstream_conflicts:
+            conflict_msg += '\n  - Upstream changes'
+            for file in sorted(upstream_conflicts):
+                conflict_msg += '\n    - %s' % file
+        if not conflicts and not upstream_conflicts:
+            conflict_msg += ('\n  - Failed to autodetect conflicts')
 
         self.dbg(conflict_msg)
 
