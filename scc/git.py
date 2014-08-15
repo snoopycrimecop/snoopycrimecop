@@ -1472,6 +1472,22 @@ class GitRepository(object):
             merge_msg += "\n"
         return merge_msg
 
+    def get_conflicts_message(self, conflicts, upstream_conflicts):
+        conflict_msg = ''
+        if conflicts:
+            conflict_msg += '\nPossible conflicts:'
+            for pr in sorted(
+                    conflicts.keys(), key=lambda c: c.get_number()):
+                conflict_msg += "\n  - PR #%d %s '%s'\n%s" % (
+                    pr.get_number(), pr.get_login(), pr.get_title(),
+                    '\n'.join('    - %s' % f for f in conflicts[pr]))
+        if upstream_conflicts:
+            conflict_msg += '\n  - Upstream changes\n' + \
+                '\n'.join('    - %s' % f for f in upstream_conflicts)
+        if not conflicts and not upstream_conflicts:
+            conflict_msg += '\n  - Failed to autodetect conflicts'
+        return conflict_msg
+
     def merge_pull(self, pullrequest, comment=False, commit_id="merge",
                    all_changed_files=None, upstream=None):
         """Merge pull request."""
@@ -1493,22 +1509,11 @@ class GitRepository(object):
                 "[console output](%s) for more details." \
                 % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
                    BUILD_URL + "consoleText")
+
         conflicts, upstream_conflicts = self.get_possible_conflicts(
             pullrequest, all_changed_files, upstream)
-        if conflicts:
-            conflict_msg += '\nPossible conflicts:'
-            for pr in sorted(
-                    conflicts.keys(), key=lambda c: c.get_number()):
-                conflict_msg += "\n  - PR #%d %s '%s'" % (
-                    pr.get_number(), pr.get_login(), pr.get_title())
-                for file in sorted(conflicts[pr]):
-                    conflict_msg += '\n    - %s' % file
-        if upstream_conflicts:
-            conflict_msg += '\n  - Upstream changes'
-            for file in sorted(upstream_conflicts):
-                conflict_msg += '\n    - %s' % file
-        if not conflicts and not upstream_conflicts:
-            conflict_msg += ('\n  - Failed to autodetect conflicts')
+        conflict_msg += self.get_conflicts_message(
+            conflicts, upstream_conflicts)
 
         self.dbg('%s\n%s', pullrequest, conflict_msg)
 
