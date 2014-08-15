@@ -1501,7 +1501,8 @@ class GitRepository(object):
             conflict_msg += '\nPossible conflicts:'
             for pr in sorted(
                     conflicts.keys(), key=lambda c: c.get_number()):
-                conflict_msg += '\n  - #%d %s' % (pr.get_number(), pr)
+                conflict_msg += "\n  - PR #%d %s '%s'" % (
+                    pr.get_number(), pr.get_login(), pr.get_title())
                 for file in sorted(conflicts[pr]):
                     conflict_msg += '\n    - %s' % file
         if upstream_conflicts:
@@ -1511,7 +1512,7 @@ class GitRepository(object):
         if not conflicts and not upstream_conflicts:
             conflict_msg += ('\n  - Failed to autodetect conflicts')
 
-        self.dbg(conflict_msg)
+        self.dbg('%s\n%s', pullrequest, conflict_msg)
 
         if comment and get_token():
             self.dbg("Adding comment to issue #%g." %
