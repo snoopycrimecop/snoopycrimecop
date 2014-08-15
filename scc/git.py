@@ -1317,12 +1317,12 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user, repo]
 
-    def list_merged_files(self, sha):
+    def list_merged_files(self, sha, upstream="HEAD"):
         """
         Return a list of files modified by this PR
         """
         p = self.call(
-            "git", "diff", "--name-only", "HEAD...%s" % sha,
+            "git", "diff", "--name-only", "%s...%s" % (upstream, sha),
             stdout=subprocess.PIPE)
         files = p.communicate()[0]
         p.stdout.close()
@@ -1404,10 +1404,12 @@ class GitRepository(object):
         merged_branches = []
 
         for pullrequest in self.origin.candidate_pulls:
+            # Compare current PR against the list of PRs merged so far
+            # (An alternative would be to compare against pre-merge by
+            # passing upstream_sha as the second of list_merged_files)
             files = self.list_merged_files(pullrequest.get_sha())
             changed_files[pullrequest] = files
 
-        for pullrequest in self.origin.candidate_pulls:
             merge_status = self.merge_pull(
                 pullrequest, comment=comment, commit_id=commit_id,
                 all_changed_files=changed_files, upstream=upstream_sha)
