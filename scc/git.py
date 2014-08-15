@@ -1474,8 +1474,12 @@ class GitRepository(object):
 
     def get_conflicts_message(self, conflicts, upstream_conflicts):
         conflict_msg = ''
-        if conflicts:
+        if conflicts or upstream_conflicts:
             conflict_msg += '\nPossible conflicts:'
+        else:
+            conflict_msg += '\nFailed to autodetect conflicts'
+
+        if conflicts:
             for pr in sorted(
                     conflicts.keys(), key=lambda c: c.get_number()):
                 conflict_msg += "\n  - PR #%d %s '%s'\n%s" % (
@@ -1484,8 +1488,6 @@ class GitRepository(object):
         if upstream_conflicts:
             conflict_msg += '\n  - Upstream changes\n' + \
                 '\n'.join('    - %s' % f for f in upstream_conflicts)
-        if not conflicts and not upstream_conflicts:
-            conflict_msg += '\n  - Failed to autodetect conflicts'
         return conflict_msg
 
     def merge_pull(self, pullrequest, comment=False, commit_id="merge",
