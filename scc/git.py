@@ -1378,9 +1378,7 @@ class GitRepository(object):
 
     def safe_merge(self, sha, message):
         """Merge a branch and revert to current HEAD in case of conflict."""
-        premerge_sha, e = self.call("git", "rev-parse", "HEAD",
-                                    stdout=subprocess.PIPE).communicate()
-        premerge_sha = premerge_sha.rstrip("\n")
+        premerge_sha = self.get_current_sha1()
 
         try:
             self.call("git", "merge", "--no-ff", "-m", message, sha)
