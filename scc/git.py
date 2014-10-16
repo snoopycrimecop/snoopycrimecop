@@ -2127,10 +2127,18 @@ Usage:
                 self.check_pr_milestone(pr, milestone)
 
     def check_pr_milestone(self, pr, milestone=None):
+        milestone_title = None
+        has_milestone = False
         if pr.milestone:
+            milestone_title = pr.milestone.title
             self.log.debug("PR %s in milestone %s",
                            pr.number, pr.milestone.title)
-        elif milestone:
+            has_milestone = True
+        else:
+            print "No milestone for PR %s: %s" % (pr.number, pr.title)
+
+        set_milestone = False
+        if milestone and (milestone_title != milestone.title):
             try:
                 pr.get_issue().edit(milestone=milestone)
                 print "Set milestone for PR %s to %s" \
@@ -2139,8 +2147,9 @@ Usage:
                 if self.gh.exc_is_not_found(ge):
                     raise Stop(10, "Can't edit milestone")
                 raise
-        else:
-            print "No milestone for PR %s: %s" % (pr.number, pr.title)
+            set_milestone = True
+
+        return has_milestone, set_milestone
 
 
 class CheckPRs(GitRepoCommand):
