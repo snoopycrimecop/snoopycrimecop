@@ -788,8 +788,8 @@ class GitHubRepository(object):
         if self.candidate_branches:
             msg += "Candidate Branches:\n"
             for remote in self.candidate_branches:
-                for branch in self.candidate_branches[remote]:
                     msg += "  # %s:%s\n" % (remote, branch)
+                for repo, branch in self.candidate_branches[remote]:
 
         return msg
 
@@ -925,10 +925,12 @@ class GitHubRepository(object):
         if not filters["include"]:
             return
 
-        forks = [f for f in filters["include"] if f.endswith(self.repo_name)]
+        # Check for repositories in include
+        forks = [f for f in filters["include"] if '/' in f]
         for fork in forks:
             remote = re.sub('/%s$' % self.repo_name, '', fork)
-            self.candidate_branches[remote] = filters["include"][fork]
+            self.candidate_branches[remote] = (
+                self.gh.get_repo(fork), filters["include"][fork])
 
 
 class GitRepository(object):
@@ -1349,10 +1351,12 @@ class GitRepository(object):
             else:
                 conflicting_pulls.append(pullrequest)
 
-        for remote in self.origin.candidate_branches.keys():
-            for branch_name in self.origin.candidate_branches[remote]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
+        for remote, repo_branches in \
+                self.origin.candidate_branches.iteritems():
+            repo = repo_branches[0]
+            for branch_name in repo_branches[1]:
                 merge_status = self.safe_merge('merge_%s/%s' % (
                     remote, branch_name), commit_msg)
 
@@ -1640,8 +1644,9 @@ class GitRepository(object):
         unique_logins = set()
         for pull in self.origin.candidate_pulls:
             unique_logins.add((pull.get_head_login(), pull.get_head_repo()))
-        for remote in self.origin.candidate_branches.keys():
-            unique_logins.add((self.origin.user_name, remote))
+        for remote, repo_branches in \
+                self.origin.candidate_branches.iteritems():
+            unique_logins.add((remote, repo_branches[0]))
         return unique_logins
 
     def get_merge_remotes(self):
