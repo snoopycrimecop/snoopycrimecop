@@ -788,8 +788,8 @@ class GitHubRepository(object):
         if self.candidate_branches:
             msg += "Candidate Branches:\n"
             for remote in self.candidate_branches:
-                    msg += "  # %s:%s\n" % (remote, branch)
                 for repo, branch in self.candidate_branches[remote]:
+                    msg += "  # %s:%s\n" % (remote, branch)
 
         return msg
 
@@ -1351,12 +1351,12 @@ class GitRepository(object):
             else:
                 conflicting_pulls.append(pullrequest)
 
-                commit_msg = "%s: branch %s:%s" % (
-                    commit_id, remote, branch_name)
         for remote, repo_branches in \
                 self.origin.candidate_branches.iteritems():
-            repo = repo_branches[0]
+            # repo = repo_branches[0]
             for branch_name in repo_branches[1]:
+                commit_msg = "%s: branch %s:%s" % (
+                    commit_id, remote, branch_name)
                 merge_status = self.safe_merge('merge_%s/%s' % (
                     remote, branch_name), commit_msg)
 
