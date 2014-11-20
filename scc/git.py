@@ -597,6 +597,10 @@ class PullRequest(object):
         # https://github.com/openmicroscopy/ome-documentation/pull/204
         return self.pull.head.repo.owner.login
 
+    def get_head_repo(self):
+        """Return the repository of the branch containing the changes."""
+        return self.pull.head.repo
+
     def get_sha(self):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
@@ -1635,20 +1639,20 @@ class GitRepository(object):
         """Return a set of unique logins."""
         unique_logins = set()
         for pull in self.origin.candidate_pulls:
-            unique_logins.add(pull.get_head_login())
+            unique_logins.add((pull.get_head_login(), pull.get_head_repo()))
         for remote in self.origin.candidate_branches.keys():
-            unique_logins.add(remote)
+            unique_logins.add((self.origin.user_name, remote))
         return unique_logins
 
     def get_merge_remotes(self):
         """Return remotes associated to unique login."""
         remotes = {}
-        for user in self.unique_logins():
+        for user, repo in self.unique_logins():
             key = "merge_%s" % user
             if self.origin.private:
-                url = "git@github.com:%s/%s.git" % (user, self.origin.name)
+                url = repo.ssh_url
             else:
-                url = "git://github.com/%s/%s.git" % (user, self.origin.name)
+                url = repo.git_url
             remotes[key] = url
         return remotes
 
