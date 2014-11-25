@@ -75,6 +75,11 @@ class TestMergePullRequest(MergeTest):
         self.merge()
         assert self.isMerged()
 
+    def testMergeInfo(self):
+
+        self.merge("--info")
+        assert not self.isMerged()
+
     def testShallowMerge(self):
 
         pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
@@ -166,8 +171,13 @@ class TestMergeBranch(MergeTest):
 
         super(TestMergeBranch, self).setup_method(method)
         self.push_branch(self.branch)
+        self.merge_args = ["-I", "%s/%s:%s" % (
+            self.user, self.sandbox.origin.name, self.branch)]
 
     def testMergeBranch(self):
-        self.merge("-I", "%s/%s:%s" % (self.user, self.sandbox.origin.name,
-                   self.branch))
+        self.merge(*self.merge_args)
         assert self.isMerged()
+
+    def testMergeBranchInfo(self):
+        self.merge(*(self.merge_args + ['--info']))
+        assert not self.isMerged()
