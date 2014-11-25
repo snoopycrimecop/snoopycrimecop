@@ -787,8 +787,8 @@ class GitHubRepository(object):
                 msg += str(pullrequest) + "\n"
         if self.candidate_branches:
             msg += "Candidate Branches:\n"
-            for remote in self.candidate_branches:
-                for repo, branch in self.candidate_branches[remote]:
+            for remote, repo_branches in self.candidate_branches.iteritems():
+                for branch in repo_branches[1]:
                     msg += "  # %s:%s\n" % (remote, branch)
 
         return msg
