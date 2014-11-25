@@ -1654,7 +1654,7 @@ class GitRepository(object):
         remotes = {}
         for user, repo in self.unique_logins():
             key = "merge_%s" % user
-            if self.origin.private:
+            if repo.private:
                 url = repo.ssh_url
             else:
                 url = repo.git_url
