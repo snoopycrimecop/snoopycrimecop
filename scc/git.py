@@ -597,6 +597,10 @@ class PullRequest(object):
         # https://github.com/openmicroscopy/ome-documentation/pull/204
         return self.pull.head.repo.owner.login
 
+    def get_head_repo(self):
+        """Return the repository of the branch containing the changes."""
+        return self.pull.head.repo
+
     def get_sha(self):
         """Return the SHA1 of the head of the Pull Request."""
         return self.pull.head.sha
@@ -783,8 +787,8 @@ class GitHubRepository(object):
                 msg += str(pullrequest) + "\n"
         if self.candidate_branches:
             msg += "Candidate Branches:\n"
-            for remote in self.candidate_branches:
-                for branch in self.candidate_branches[remote]:
+            for remote, repo_branches in self.candidate_branches.iteritems():
+                for branch in repo_branches[1]:
                     msg += "  # %s:%s\n" % (remote, branch)
 
         return msg
@@ -921,10 +925,12 @@ class GitHubRepository(object):
         if not filters["include"]:
             return
 
-        forks = [f for f in filters["include"] if f.endswith(self.repo_name)]
+        # Check for repositories in include
+        forks = [f for f in filters["include"] if '/' in f]
         for fork in forks:
             remote = re.sub('/%s$' % self.repo_name, '', fork)
-            self.candidate_branches[remote] = filters["include"][fork]
+            self.candidate_branches[remote] = (
+                self.gh.get_repo(fork), filters["include"][fork])
 
 
 class GitRepository(object):
@@ -1345,8 +1351,10 @@ class GitRepository(object):
             else:
                 conflicting_pulls.append(pullrequest)
 
-        for remote in self.origin.candidate_branches.keys():
-            for branch_name in self.origin.candidate_branches[remote]:
+        for remote, repo_branches in \
+                self.origin.candidate_branches.iteritems():
+            # repo = repo_branches[0]
+            for branch_name in repo_branches[1]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
                 merge_status = self.safe_merge('merge_%s/%s' % (
@@ -1635,20 +1643,21 @@ class GitRepository(object):
         """Return a set of unique logins."""
         unique_logins = set()
         for pull in self.origin.candidate_pulls:
-            unique_logins.add(pull.get_head_login())
-        for remote in self.origin.candidate_branches.keys():
-            unique_logins.add(remote)
+            unique_logins.add((pull.get_head_login(), pull.get_head_repo()))
+        for remote, repo_branches in \
+                self.origin.candidate_branches.iteritems():
+            unique_logins.add((remote, repo_branches[0]))
         return unique_logins
 
     def get_merge_remotes(self):
         """Return remotes associated to unique login."""
         remotes = {}
-        for user in self.unique_logins():
+        for user, repo in self.unique_logins():
             key = "merge_%s" % user
-            if self.origin.private:
-                url = "git@github.com:%s/%s.git" % (user, self.origin.name)
+            if repo.private:
+                url = repo.ssh_url
             else:
-                url = "git://github.com/%s/%s.git" % (user, self.origin.name)
+                url = repo.git_url
             remotes[key] = url
         return remotes
 
