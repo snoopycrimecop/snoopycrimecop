@@ -1348,11 +1348,12 @@ class GitRepository(object):
         files = set(files.split("\n")[:-1])
         return files
 
-    def get_possible_conflicts(self, pull, changed_files, upstream):
+    def get_possible_conflicts(self, pull, conflict_files, changed_files, upstream):
         """
         Find possible conflicting pull requests by finding other pull requests
         which modify the same file.
 
+        conflict_files: A list of conflicting files
         changed_files: A dictionary of (PullRequest, [changed-filenames])
         upstream: The SHA1 of the upstream branch before any other PRs were
           merged, required to detect if a rebase might be needed
@@ -1362,7 +1363,16 @@ class GitRepository(object):
         if not changed_files:
             return conflicts, upstream_conflicts
 
-        pull_changed = changed_files[pull]
+        pull_changed = []
+        for cf in conflict_files:
+            if cf in changed_files[pull]:
+                pull_changed.append(cf)
+            else:
+                # Uncommitted changes in working directory
+                try:
+                    conflicts[None].append(cf)
+                except KeyError:
+                    conflicts[None] = [cf]
 
         if upstream:
             upstream_changes = self.list_upstream_changes(
@@ -1492,11 +1502,15 @@ class GitRepository(object):
             conflict_msg += '\nFailed to autodetect conflicts'
 
         if conflicts:
-            for pr in sorted(
-                    conflicts.keys(), key=lambda c: c.get_number()):
-                conflict_msg += "\n  - PR #%d %s '%s'\n%s" % (
-                    pr.get_number(), pr.get_login(), pr.get_title(),
-                    '\n'.join('    - %s' % f for f in conflicts[pr]))
+            for pr in sorted(conflicts.keys(),
+                             key=lambda c: c.get_number() if c else None):
+                if pr:
+                    conflict_msg += "\n  - PR #%d %s '%s'\n%s" % (
+                        pr.get_number(), pr.get_login(), pr.get_title(),
+                        '\n'.join('    - %s' % f for f in conflicts[pr]))
+                else:
+                    conflict_msg += "\n  - Uncommitted working changes\n%s" % (
+                        '\n'.join('    - %s' % f for f in conflicts[pr]))
         if upstream_conflicts:
             conflict_msg += '\n  - Upstream changes\n' + \
                 '\n'.join('    - %s' % f for f in upstream_conflicts)
@@ -1525,7 +1539,7 @@ class GitRepository(object):
                    BUILD_URL + "consoleText")
 
         conflicts, upstream_conflicts = self.get_possible_conflicts(
-            pullrequest, all_changed_files, upstream)
+            pullrequest, conflicts, all_changed_files, upstream)
         conflict_msg += self.get_conflicts_message(
             conflicts, upstream_conflicts)
 
