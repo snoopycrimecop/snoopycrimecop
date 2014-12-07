@@ -1377,15 +1377,25 @@ class GitRepository(object):
         return conflicts, upstream_conflicts
 
     def safe_merge(self, sha, message):
-        """Merge a branch and revert to current HEAD in case of conflict."""
-        premerge_sha = self.get_current_sha1()
+        """Merge a branch and revert to current HEAD in case of conflict.
+        Returns [] if the merge succeeded, or a list of conflicting paths
+        if it failed
+        """
+        premerge_sha, e = self.call("git", "rev-parse", "HEAD",
+                                    stdout=subprocess.PIPE).communicate()
+        premerge_sha = premerge_sha.rstrip("\n")
 
         try:
             self.call("git", "merge", "--no-ff", "-m", message, sha)
-            return True
+            return []
         except:
-            self.call("git", "reset", "--hard", "%s" % premerge_sha)
-            return False
+            try:
+                conflicts, e = self.call(
+                    "git", "diff", "--name-only", "--diff-filter=u",
+                    stdout=subprocess.PIPE).communicate()
+                return conflicts
+            finally:
+                self.call("git", "reset", "--hard", "%s" % premerge_sha)
 
     def merge(self, comment=False, commit_id="merge",
               set_commit_status=False):
@@ -1424,10 +1434,10 @@ class GitRepository(object):
             for branch_name in repo_branches[1]:
                 commit_msg = "%s: branch %s:%s" % (
                     commit_id, remote, branch_name)
-                merge_status = self.safe_merge('merge_%s/%s' % (
+                conflicts = self.safe_merge('merge_%s/%s' % (
                     remote, branch_name), commit_msg)
 
-                if merge_status:
+                if not conflicts:
                     merged_branches.append('%s:%s' % (remote, branch_name))
                 else:
                     conflicting_branches.append(
@@ -1498,14 +1508,14 @@ class GitRepository(object):
 
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
-        merge_status = self.safe_merge(pullrequest.get_sha(), commit_msg)
+        conflicts = self.safe_merge(pullrequest.get_sha(), commit_msg)
 
-        if merge_status:
+        if not conflicts:
             if not pullrequest.body and comment and get_token():
                 self.dbg("Adding comment to Pull Request #%g."
                          % pullrequest.get_number())
                 pullrequest.create_issue_comment(EMPTY_MSG)
-            return merge_status
+            return True
 
         conflict_msg = "Conflicting PR."
         if IS_JENKINS_JOB:
@@ -1525,7 +1535,7 @@ class GitRepository(object):
             self.dbg("Adding comment to issue #%g." %
                      pullrequest.get_number())
             pullrequest.create_issue_comment(conflict_msg)
-        return merge_status
+        return False
 
     def set_commit_status(self, status, message, url):
         msg = ""
