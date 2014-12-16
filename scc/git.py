@@ -1363,10 +1363,10 @@ class GitRepository(object):
         if not changed_files:
             return conflicts, upstream_conflicts
 
-        pull_changed = []
+        pull_changed = set()
         for cf in conflict_files:
             if cf in changed_files[pull]:
-                pull_changed.append(cf)
+                pull_changed.add(cf)
             else:
                 # Uncommitted changes in working directory
                 try:
@@ -1403,6 +1403,7 @@ class GitRepository(object):
                 conflicts, e = self.call(
                     "git", "diff", "--name-only", "--diff-filter=u",
                     stdout=subprocess.PIPE).communicate()
+                conflicts = [c for c in conflicts.split('\n') if c]
                 return conflicts
             finally:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
