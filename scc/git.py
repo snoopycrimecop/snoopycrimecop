@@ -1443,12 +1443,9 @@ class GitRepository(object):
                 self.origin.candidate_branches.iteritems():
             # repo = repo_branches[0]
             for branch_name in repo_branches[1]:
-                commit_msg = "%s: branch %s:%s" % (
-                    commit_id, remote, branch_name)
-                conflicts = self.safe_merge('merge_%s/%s' % (
-                    remote, branch_name), commit_msg)
-
-                if not conflicts:
+                merge_status = self.merge_branch(
+                    remote, branch_name, commit_id=commit_id)
+                if merge_status:
                     merged_branches.append('%s:%s' % (remote, branch_name))
                 else:
                     conflicting_branches.append(
@@ -1523,9 +1520,9 @@ class GitRepository(object):
 
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
-        conflicts = self.safe_merge(pullrequest.get_sha(), commit_msg)
+        conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
 
-        if not conflicts:
+        if not conflict_files:
             if not pullrequest.body and comment and get_token():
                 self.dbg("Adding comment to Pull Request #%g."
                          % pullrequest.get_number())
@@ -1540,16 +1537,40 @@ class GitRepository(object):
                    BUILD_URL + "consoleText")
 
         conflicts, upstream_conflicts = self.get_possible_conflicts(
-            pullrequest, conflicts, all_changed_files, upstream)
+            pullrequest, conflict_files, all_changed_files, upstream)
         conflict_msg += self.get_conflicts_message(
             conflicts, upstream_conflicts)
 
-        self.dbg('%s\n%s', pullrequest, conflict_msg)
+        self.info('%s\n%s', pullrequest, conflict_msg)
 
         if comment and get_token():
             self.dbg("Adding comment to issue #%g." %
                      pullrequest.get_number())
             pullrequest.create_issue_comment(conflict_msg)
+        return False
+
+    def merge_branch(self, remote, branch_name, commit_id="merge"):
+        """Merge branch."""
+        ref = 'merge_%s/%s' % (remote, branch_name)
+        if not self.has_remote_branch(branch_name, 'merge_%s' % remote):
+            raise Exception('Remote branch not found: %s' % ref)
+        try:
+            self.merge_base('HEAD', ref)
+        except Exception:
+            self.info(
+                'No common ancester found for %s:%s', remote, branch_name)
+            return False
+
+        commit_msg = "%s: branch %s:%s" % (commit_id, remote, branch_name)
+        conflict_files = self.safe_merge(ref, commit_msg)
+
+        if not conflict_files:
+            return True
+
+        conflict_msg = "Conflicting branch."
+        conflict_msg += self.get_conflicts_message(None, conflict_files)
+
+        self.info('%s:%s\n%s', remote, branch_name, conflict_msg)
         return False
 
     def set_commit_status(self, status, message, url):
