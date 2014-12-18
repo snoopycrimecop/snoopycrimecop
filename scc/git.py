@@ -1348,7 +1348,8 @@ class GitRepository(object):
         files = set(files.split("\n")[:-1])
         return files
 
-    def get_possible_conflicts(self, pull, conflict_files, changed_files, upstream):
+    def get_possible_conflicts(
+            self, pull, conflict_files, changed_files, upstream):
         """
         Find possible conflicting pull requests by finding other pull requests
         which modify the same file.
