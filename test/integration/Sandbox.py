@@ -93,22 +93,28 @@ class SandboxTest(object):
         name = os.path.join(self.path, self.uuid())
         return open(name, "w")
 
-    def fake_branch(self, head="master"):
+    def fake_branch(self, head="master", commits=None):
         """
-        Return a local branch with a single commit adding a unique file
+        Return a local branch with a list of commits, defaults to a single
+        commit adding a unique file
         """
 
-        with self.unique_file() as f:
-            f.write("hi")
-
-        path = f.name
-        name = f.name.split(os.path.sep)[-1]
+        name = self.uuid()
+        if commits is None:
+            commits = [(os.path.join(self.path, name), "hi")]
+            with self.unique_file() as f:
+                f.write("hi")
 
         self.sandbox.new_branch(name, head=head)
-        self.sandbox.add(path)
 
-        self.sandbox.commit("Writing %s" % name)
-        self.sandbox.get_status()
+        for n in xrange(len(commits)):
+            fname, txt = commits[n]
+            with open(fname, 'w') as f:
+                f.write(txt)
+            self.sandbox.add(fname)
+            self.sandbox.commit("%d: Writing %s" % (n, fname))
+            self.sandbox.get_status()
+
         return name
 
     def add_remote(self):
