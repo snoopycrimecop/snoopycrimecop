@@ -20,6 +20,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import pytest
+import re
 
 from yaclifw.framework import main, Stop
 from scc.git import Merge, EMPTY_MSG
@@ -190,3 +191,69 @@ class TestMergeBranch(MergeTest):
     def testMergeBranchInfo(self):
         self.merge(*(self.merge_args + ['--info']))
         assert not self.isMerged()
+
+
+class TestMergeConflicting(SandboxTest):
+
+    def setup_method(self, method):
+        super(TestMergeConflicting, self).setup_method(method)
+        self.init_submodules()
+        self.base = "dev_4_4"
+
+        commits1 = [
+            ('merge.txt', '1\n2\n3\n4\n5\n'),
+            ('conflict.txt', 'A\n'),
+        ]
+        commits2 = [
+            ('merge.txt', '1\n2\n3\n4\n5\n'),
+            ('conflict.txt', 'B\n'),
+        ]
+
+        self.branch1 = self.fake_branch(head=self.base, commits=commits1)
+        self.branch2 = self.fake_branch(head=self.base, commits=commits2)
+        self.pr1 = self.open_pr(self.branch1, self.base)
+        self.pr2 = self.open_pr(self.branch2, self.base)
+        self.sha1 = self.sandbox.get_sha1(self.branch1)
+        self.sha2 = self.sandbox.get_sha1(self.branch2)
+
+        self.sandbox.checkout_branch(self.base)
+        assert not self.isMerged(self.sha1)
+        assert not self.isMerged(self.sha2)
+
+    def isMerged(self, sha, ref='HEAD'):
+        revlist, o = self.sandbox.communicate("git", "rev-list", ref)
+        return sha in revlist.splitlines()
+
+    def stripLastComment(self, pr):
+        """
+        Remove whitespace and leading dashes from the last comment
+        """
+        comment = None
+        for comment in pr.get_issue_comments():
+            pass
+        if not comment:
+            return []
+        lines = [re.sub(r'[\s-]*(.*)\s*', r'\1', line)
+                 for line in comment.body.splitlines()]
+        return lines
+
+    def merge(self, *args):
+        self.sandbox.checkout_branch(self.origin_remote + "/" + self.base)
+        args = ["merge", "--no-ask", self.base] + list(args)
+        main("scc", args=args, items=[(Merge.NAME, Merge)])
+
+    def testMerge(self):
+        self.merge("--comment")
+        c1 = self.stripLastComment(self.pr1)
+        c2 = self.stripLastComment(self.pr2)
+
+        assert self.isMerged(self.sha1)
+        assert not self.isMerged(self.sha2)
+        assert c1 == []
+        assert c2[-2].startswith('PR #')
+        assert c2[-1] == 'conflict.txt'
+
+    def teardown_method(self, method):
+        self.sandbox.push_branch(":%s" % self.branch1, remote=self.user)
+        self.sandbox.push_branch(":%s" % self.branch2, remote=self.user)
+        super(TestMergeConflicting, self).teardown_method(method)
