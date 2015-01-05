@@ -102,7 +102,7 @@ class SandboxTest(object):
             with open(fname, 'w') as f:
                 f.write(txt)
             self.sandbox.add(fname)
-            self.sandbox.commit("%d: Writing %s" % (n, fname))
+            self.sandbox.commit("%d: Writing %s" % (n, name))
             self.sandbox.get_status()
 
         return name
