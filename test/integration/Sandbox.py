@@ -84,15 +84,6 @@ class SandboxTest(object):
         """
         return str(uuid.uuid4())
 
-    def unique_file(self):
-        """
-        Call open() with a unique file name
-        and "w" for writing
-        """
-
-        name = os.path.join(self.path, self.uuid())
-        return open(name, "w")
-
     def fake_branch(self, head="master", commits=None):
         """
         Return a local branch with a list of commits, defaults to a single
@@ -101,14 +92,13 @@ class SandboxTest(object):
 
         name = self.uuid()
         if commits is None:
-            commits = [(os.path.join(self.path, name), "hi")]
-            with self.unique_file() as f:
-                f.write("hi")
+            commits = [(name, "hi")]
 
         self.sandbox.new_branch(name, head=head)
 
         for n in xrange(len(commits)):
             fname, txt = commits[n]
+            fname = os.path.join(self.path, fname)
             with open(fname, 'w') as f:
                 f.write(txt)
             self.sandbox.add(fname)
