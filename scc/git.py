@@ -917,7 +917,8 @@ class GitHubRepository(object):
 
         return True, None
 
-    def find_candidate_branches(self, filters):
+    def find_candidate_branches(self, filters,
+                                fork_filter=lambda x: '/' in x):
         """Find candidate branches for merging."""
         self.dbg("## Branches found:")
 
@@ -926,7 +927,8 @@ class GitHubRepository(object):
             return
 
         # Check for repositories in include
-        forks = [f for f in filters["include"] if '/' in f]
+        forks = [f for f in filters["include"] if fork_filter(f)]
+
         for fork in forks:
             remote = re.sub('/%s$' % self.repo_name, '', fork)
             self.candidate_branches[remote] = (
@@ -1483,16 +1485,27 @@ class GitRepository(object):
 
         return msg
 
+    def get_fork_filter(self, is_submodule=False):
+        """Return filter for including tracking branches"""
+        if is_submodule:
+            return lambda x: (
+                '/' in x and x.endswith(self.origin.repo_name))
+        else:
+            repo_names = tuple([s.origin.repo_name for s in self.submodules])
+            return lambda x: (
+                '/' in x and not x.endswith(repo_names))
+
     def rmerge(self, filters, info=False, comment=False, commit_id="merge",
                top_message=None, update_gitmodules=False,
-               set_commit_status=False, allow_empty=True):
+               set_commit_status=False, allow_empty=True, is_submodule=False):
         """Recursively merge PRs for each submodule."""
 
         updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
         merge_msg += self.origin.find_candidate_pulls(filters)
-        self.origin.find_candidate_branches(filters)
+        self.origin.find_candidate_branches(
+            filters, fork_filter=self.get_fork_filter(is_submodule))
         if info:
             merge_msg += self.origin.merge_info()
         else:
@@ -1523,15 +1536,15 @@ class GitRepository(object):
             # Create submodule filters
             import copy
             sub_filters = copy.deepcopy(filters)
+            # Do not copy top-level PRs
             for ftype in ["include", "exclude"]:
-                sub_filters.pop("pr", None)  # Do not copy top-level PRs
-
+                sub_filters[ftype].pop("pr", None)
             try:
                 submodule_updated, submodule_msg = submodule_repo.rmerge(
                     sub_filters, info, comment, commit_id=commit_id,
                     update_gitmodules=update_gitmodules,
                     set_commit_status=set_commit_status,
-                    allow_empty=allow_empty)
+                    allow_empty=allow_empty, is_submodule=True)
                 merge_msg += "\n" + submodule_msg
             finally:
                 self.cd(self.path)
