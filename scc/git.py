@@ -926,7 +926,7 @@ class GitHubRepository(object):
             return
 
         # Check for repositories in include
-        forks = [f for f in filters["include"] if '/' in f]
+        forks = [f for f in filters["include"] if re.match('.+/.+:.+', f)]
         for fork in forks:
             remote = fork.split('/')[0]
             self.candidate_branches[remote] = (
