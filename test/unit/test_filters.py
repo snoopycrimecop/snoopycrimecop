@@ -63,8 +63,8 @@ class TestFilter(MockTest):
     def testStatus(self, labels, users, prs):
         self.filters = {"label": labels, "user": users, "pr": prs}
         status, reason = self.run_filter()
-        assert status is ("test_label" in labels) or ("test_user" in users) \
-            or ("1" in prs)
+        assert status is (("test_label" in labels) or ("test_user" in users)
+                          or ("1" in prs))
 
 
 class TestFilteredPullRequestsCommand(MoxTestBase):
