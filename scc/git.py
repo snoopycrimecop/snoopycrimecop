@@ -868,7 +868,7 @@ class GitHubRepository(object):
         pr_attributes["label"] = [x.lower() for x in
                                   pullrequest.get_labels()]
         pr_attributes["user"] = [pullrequest_user.login]
-        pr_attributes["pr"] = [str(pullrequest.get_number())]
+        pr_attributes["pr"] = ['#' + str(pullrequest.get_number())]
 
         if not self.is_whitelisted(pullrequest_user,
                                    filters["include"].get("user")):
@@ -930,7 +930,8 @@ class GitHubRepository(object):
         for fork in forks:
             remote = fork.split('/')[0]
             self.candidate_branches[remote] = (
-                self.gh.get_repo(fork), filters["include"][fork])
+                self.gh.get_repo(fork), [b for b in filters["include"][fork]
+                                         if not re.match('#\d+$', b)])
 
 
 class GitRepository(object):
@@ -2130,6 +2131,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
         key = m.group('key')
         value = m.group('value')
+        if key == 'pr':
+            value = '#' + value
         self.filters[ftype].setdefault(key, []).append(value)
         return True
 
@@ -2145,7 +2148,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             prefix = 'pr'
         else:
             prefix = m.group('prefix')
-        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        self.filters[ftype].setdefault(prefix, []).append('#' + m.group('nr'))
         return True
 
     def _parse_url(self, ftype, value):
@@ -2158,7 +2161,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             return False
 
         prefix = m.group('prefix')
-        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        self.filters[ftype].setdefault(prefix, []).append('#' + m.group('nr'))
         return True
 
 
