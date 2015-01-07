@@ -38,7 +38,7 @@ class TestFilter(MockTest):
         self.input = {
             "label": ["test_label"],
             "user": ["test_user"],
-            "pr": ["1"],
+            "pr": ["#1"],
             }
         self.filters = {}
 
@@ -59,12 +59,12 @@ class TestFilter(MockTest):
         'labels', [[], ["test_label"], ["test_label", "test_label_2"]])
     @pytest.mark.parametrize(
         'users', [[], ["test_user"], ["test_user", "test_user_2"]])
-    @pytest.mark.parametrize('prs', [[], ["1"], ["1", "2"]])
+    @pytest.mark.parametrize('prs', [[], ["#1"], ["#1", "#2"]])
     def testStatus(self, labels, users, prs):
         self.filters = {"label": labels, "user": users, "pr": prs}
         status, reason = self.run_filter()
         assert status is (("test_label" in labels) or ("test_user" in users)
-                          or ("1" in prs))
+                          or ("#1" in prs))
 
 
 class TestFilteredPullRequestsCommand(MoxTestBase):
@@ -89,7 +89,7 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         ('user-1/repo-1', 'user-1/repo-1')])
     def test_parse_hash_pr(self, ftype, prefix, key):
         rsp = self.command._parse_hash(ftype, '%s#1' % prefix)
-        self.filters[ftype] = {key: ['1']}
+        self.filters[ftype] = {key: ['#1']}
         assert rsp
         assert self.command.filters == self.filters
 
@@ -109,6 +109,8 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
     @pytest.mark.parametrize('value', ['1', 'value', 'value-1', 'value/1'])
     def test_parse_key_value(self, ftype, key, value):
         self.command._parse_key_value(ftype, '%s:%s' % (key, value))
+        if key == 'pr':
+            value = '#' + value
         self.filters[ftype] = {key: [value]}
         assert self.command.filters == self.filters
 
@@ -118,7 +120,7 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
     def test_parse_url(self, ftype, key, value):
         self.command._parse_url(
             ftype, 'https://github.com/%s/pull/%s' % (key, value))
-        self.filters[ftype] = {key: [value]}
+        self.filters[ftype] = {key: ['#' + value]}
         assert self.command.filters == self.filters
 
 
@@ -171,7 +173,7 @@ class FilteredPullRequestsCommandTest(MoxTestBase):
                 key = "org/repo"
             else:
                 key = "pr"
-            self.filters[ftype].setdefault(key, []).append('1')
+            self.filters[ftype].setdefault(key, []).append('#1')
         if label_filter:
             self.args += ['--%s' % ftype, '%slabel' % label_filter]
             self.filters[ftype].setdefault("label", []).append('label')
@@ -252,18 +254,18 @@ class TestTravisMerge(MoxTestBase):
     def testIncludeSinglePR(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21'])
-        self.filters["include"]["pr"] = ['21']
+        self.filters["include"]["pr"] = ['#21']
         assert self.command.filters == self.filters
 
     def testIncludeSubmodulePR(self):
         # --depends-on ome/scripts#21 changes filters
         self.parse_dependencies(['ome/scripts#21'])
-        self.filters["include"]["ome/scripts"] = ['21']
+        self.filters["include"]["ome/scripts"] = ['#21']
         assert self.command.filters == self.filters
 
     def testIncludeMultiplePRs(self):
         # --depends-on #21 changes filters
         self.parse_dependencies(['#21', '#22', 'ome/scripts#21'])
-        self.filters["include"]["pr"] = ['21', '22']
-        self.filters["include"]['ome/scripts'] = ['21']
+        self.filters["include"]["pr"] = ['#21', '#22']
+        self.filters["include"]['ome/scripts'] = ['#21']
         assert self.command.filters == self.filters
