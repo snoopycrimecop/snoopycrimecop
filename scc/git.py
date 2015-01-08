@@ -868,7 +868,7 @@ class GitHubRepository(object):
         pr_attributes["label"] = [x.lower() for x in
                                   pullrequest.get_labels()]
         pr_attributes["user"] = [pullrequest_user.login]
-        pr_attributes["pr"] = [str(pullrequest.get_number())]
+        pr_attributes["pr"] = ['#' + str(pullrequest.get_number())]
 
         if not self.is_whitelisted(pullrequest_user,
                                    filters["include"].get("user")):
@@ -930,9 +930,10 @@ class GitHubRepository(object):
         forks = [f for f in filters["include"] if fork_filter(f)]
 
         for fork in forks:
-            remote = re.sub('/%s$' % self.repo_name, '', fork)
+            remote = fork.split('/')[0]
             self.candidate_branches[remote] = (
-                self.gh.get_repo(fork), filters["include"][fork])
+                self.gh.get_repo(fork), [b for b in filters["include"][fork]
+                                         if not re.match('#\d+$', b)])
 
 
 class GitRepository(object):
@@ -1319,18 +1320,97 @@ class GitRepository(object):
             repo = basename.rsplit()[0]
         return [user, repo]
 
+    def list_merged_files(self, sha, upstream="HEAD"):
+        """
+        Return a list of files modified by this PR
+        """
+        p = self.call(
+            "git", "diff", "--name-only", "%s...%s" % (upstream, sha),
+            stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        files = set(files.split("\n")[:-1])
+        return files
+
+    def list_upstream_changes(self, sha, upstream="HEAD"):
+        """
+        Return a list of files modified in parent since this PR was branched,
+        suggesting a rebase may be necessary.
+        """
+        p = self.call(
+            "git", "merge-base", upstream, sha, stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        common_base = files.split("\n")[0]
+
+        p = self.call(
+            "git", "diff", "--name-only", "%s..%s" % (common_base, upstream),
+            stdout=subprocess.PIPE)
+        files = p.communicate()[0]
+        p.stdout.close()
+        files = set(files.split("\n")[:-1])
+        return files
+
+    def get_possible_conflicts(
+            self, pull, conflict_files, changed_files, upstream):
+        """
+        Find possible conflicting pull requests by finding other pull requests
+        which modify the same file.
+
+        conflict_files: A list of conflicting files
+        changed_files: A dictionary of (PullRequest, [changed-filenames])
+        upstream: The SHA1 of the upstream branch before any other PRs were
+          merged, required to detect if a rebase might be needed
+        """
+        conflicts = {}
+        upstream_conflicts = set()
+        if not changed_files:
+            return conflicts, upstream_conflicts
+
+        pull_changed = set()
+        for cf in conflict_files:
+            if cf in changed_files[pull]:
+                pull_changed.add(cf)
+            else:
+                # Uncommitted changes in working directory
+                try:
+                    conflicts[None].append(cf)
+                except KeyError:
+                    conflicts[None] = [cf]
+
+        if upstream:
+            upstream_changes = self.list_upstream_changes(
+                pull.get_sha(), upstream=upstream)
+            upstream_conflicts = pull_changed.intersection(upstream_changes)
+
+        for (pr, changed) in changed_files.iteritems():
+            if pr != pull:
+                both_changed = pull_changed.intersection(changed)
+                if both_changed:
+                    conflicts[pr] = both_changed
+        return conflicts, upstream_conflicts
+
     def safe_merge(self, sha, message):
-        """Merge a branch and revert to current HEAD in case of conflict."""
+        """Merge a branch and revert to current HEAD in case of conflict.
+        Returns [] if the merge succeeded, or a list of conflicting paths
+        if it failed
+        """
         premerge_sha, e = self.call("git", "rev-parse", "HEAD",
                                     stdout=subprocess.PIPE).communicate()
         premerge_sha = premerge_sha.rstrip("\n")
 
         try:
             self.call("git", "merge", "--no-ff", "-m", message, sha)
-            return True
+            return []
         except:
-            self.call("git", "reset", "--hard", "%s" % premerge_sha)
-            return False
+            try:
+                conflicts, e = self.call(
+                    "git", "diff", "--name-only", "--diff-filter=u",
+                    stdout=subprocess.PIPE).communicate()
+                conflicts = [c for c in conflicts.split('\n') if c]
+                return conflicts
+            finally:
+                self.call("git", "reset", "--hard", "%s" % premerge_sha)
 
     def merge(self, comment=False, commit_id="merge",
               set_commit_status=False):
@@ -1340,14 +1420,24 @@ class GitRepository(object):
             self.call("git", "remote", "add", key, url)
             self.fetch(key)
 
+        upstream_sha = self.get_current_sha1()
+        changed_files = {}
+
         conflicting_pulls = []
         merged_pulls = []
         conflicting_branches = []
         merged_branches = []
 
         for pullrequest in self.origin.candidate_pulls:
-            merge_status = self.merge_pull(pullrequest, comment=comment,
-                                           commit_id=commit_id)
+            # Compare current PR against the list of PRs merged so far
+            # (An alternative would be to compare against pre-merge by
+            # passing upstream_sha as the second of list_merged_files)
+            files = self.list_merged_files(pullrequest.get_sha())
+            changed_files[pullrequest] = files
+
+            merge_status = self.merge_pull(
+                pullrequest, comment=comment, commit_id=commit_id,
+                all_changed_files=changed_files, upstream=upstream_sha)
             if merge_status:
                 merged_pulls.append(pullrequest)
             else:
@@ -1357,11 +1447,8 @@ class GitRepository(object):
                 self.origin.candidate_branches.iteritems():
             # repo = repo_branches[0]
             for branch_name in repo_branches[1]:
-                commit_msg = "%s: branch %s:%s" % (
-                    commit_id, remote, branch_name)
-                merge_status = self.safe_merge('merge_%s/%s' % (
-                    remote, branch_name), commit_msg)
-
+                merge_status = self.merge_branch(
+                    remote, branch_name, commit_id=commit_id)
                 if merge_status:
                     merged_branches.append('%s:%s' % (remote, branch_name))
                 else:
@@ -1409,19 +1496,42 @@ class GitRepository(object):
             merge_msg += "\n"
         return merge_msg
 
-    def merge_pull(self, pullrequest, comment=False, commit_id="merge"):
+    def get_conflicts_message(self, conflicts, upstream_conflicts):
+        conflict_msg = ''
+        if conflicts or upstream_conflicts:
+            conflict_msg += '\nPossible conflicts:'
+        else:
+            conflict_msg += '\nFailed to autodetect conflicts'
+
+        if conflicts:
+            for pr in sorted(conflicts.keys(),
+                             key=lambda c: c.get_number() if c else None):
+                if pr:
+                    conflict_msg += "\n  - PR #%d %s '%s'\n%s" % (
+                        pr.get_number(), pr.get_login(), pr.get_title(),
+                        '\n'.join('    - %s' % f for f in conflicts[pr]))
+                else:
+                    conflict_msg += "\n  - Uncommitted working changes\n%s" % (
+                        '\n'.join('    - %s' % f for f in conflicts[pr]))
+        if upstream_conflicts:
+            conflict_msg += '\n  - Upstream changes\n' + \
+                '\n'.join('    - %s' % f for f in upstream_conflicts)
+        return conflict_msg
+
+    def merge_pull(self, pullrequest, comment=False, commit_id="merge",
+                   all_changed_files=None, upstream=None):
         """Merge pull request."""
 
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
-        merge_status = self.safe_merge(pullrequest.get_sha(), commit_msg)
+        conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
 
-        if merge_status:
+        if not conflict_files:
             if not pullrequest.body and comment and get_token():
                 self.dbg("Adding comment to Pull Request #%g."
                          % pullrequest.get_number())
                 pullrequest.create_issue_comment(EMPTY_MSG)
-            return merge_status
+            return True
 
         conflict_msg = "Conflicting PR."
         if IS_JENKINS_JOB:
@@ -1429,13 +1539,43 @@ class GitRepository(object):
                 "[console output](%s) for more details." \
                 % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
                    BUILD_URL + "consoleText")
-        self.dbg(conflict_msg)
+
+        conflicts, upstream_conflicts = self.get_possible_conflicts(
+            pullrequest, conflict_files, all_changed_files, upstream)
+        conflict_msg += self.get_conflicts_message(
+            conflicts, upstream_conflicts)
+
+        self.info('%s\n%s', pullrequest, conflict_msg)
 
         if comment and get_token():
             self.dbg("Adding comment to issue #%g." %
                      pullrequest.get_number())
             pullrequest.create_issue_comment(conflict_msg)
-        return merge_status
+        return False
+
+    def merge_branch(self, remote, branch_name, commit_id="merge"):
+        """Merge branch."""
+        ref = 'merge_%s/%s' % (remote, branch_name)
+        if not self.has_remote_branch(branch_name, 'merge_%s' % remote):
+            raise Exception('Remote branch not found: %s' % ref)
+        try:
+            self.merge_base('HEAD', ref)
+        except Exception:
+            self.info(
+                'No common ancester found for %s:%s', remote, branch_name)
+            return False
+
+        commit_msg = "%s: branch %s:%s" % (commit_id, remote, branch_name)
+        conflict_files = self.safe_merge(ref, commit_msg)
+
+        if not conflict_files:
+            return True
+
+        conflict_msg = "Conflicting branch."
+        conflict_msg += self.get_conflicts_message(None, conflict_files)
+
+        self.info('%s:%s\n%s', remote, branch_name, conflict_msg)
+        return False
 
     def set_commit_status(self, status, message, url):
         msg = ""
@@ -2004,6 +2144,8 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
         key = m.group('key')
         value = m.group('value')
+        if key == 'pr':
+            value = '#' + value
         self.filters[ftype].setdefault(key, []).append(value)
         return True
 
@@ -2019,7 +2161,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             prefix = 'pr'
         else:
             prefix = m.group('prefix')
-        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        self.filters[ftype].setdefault(prefix, []).append('#' + m.group('nr'))
         return True
 
     def _parse_url(self, ftype, value):
@@ -2032,7 +2174,7 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
             return False
 
         prefix = m.group('prefix')
-        self.filters[ftype].setdefault(prefix, []).append(m.group('nr'))
+        self.filters[ftype].setdefault(prefix, []).append('#' + m.group('nr'))
         return True
 
 
