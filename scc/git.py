@@ -1405,7 +1405,7 @@ class GitRepository(object):
         except:
             try:
                 conflicts, e = self.call(
-                    "git", "diff", "--name-only", "--diff-filter=u",
+                    "git", "diff", "--name-only", "--diff-filter=U",
                     stdout=subprocess.PIPE).communicate()
                 conflicts = [c for c in conflicts.split('\n') if c]
                 return conflicts
