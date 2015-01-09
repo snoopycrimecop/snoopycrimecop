@@ -1326,7 +1326,7 @@ class GitRepository(object):
         """
         p = self.call(
             "git", "diff", "--name-only", "%s...%s" % (upstream, sha),
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE, no_wait=True)
         files = p.communicate()[0]
         p.stdout.close()
         files = set(files.split("\n")[:-1])
@@ -1345,7 +1345,7 @@ class GitRepository(object):
 
         p = self.call(
             "git", "diff", "--name-only", "%s..%s" % (common_base, upstream),
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE, no_wait=True)
         files = p.communicate()[0]
         p.stdout.close()
         files = set(files.split("\n")[:-1])
