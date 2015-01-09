@@ -1392,8 +1392,9 @@ class GitRepository(object):
 
     def safe_merge(self, sha, message):
         """Merge a branch and revert to current HEAD in case of conflict.
-        Returns [] if the merge succeeded, or a list of conflicting paths
-        if it failed
+        Returns: [] if the merge succeeded
+                 list of conflicting paths if it failed
+                 [None] if it failed and conflict detection also failed
         """
         premerge_sha, e = self.call("git", "rev-parse", "HEAD",
                                     stdout=subprocess.PIPE).communicate()
@@ -1405,9 +1406,12 @@ class GitRepository(object):
         except:
             try:
                 conflicts, e = self.call(
-                    "git", "diff", "--name-only", "--diff-filter=u",
+                    "git", "diff", "--name-only", "--diff-filter=U",
                     stdout=subprocess.PIPE).communicate()
                 conflicts = [c for c in conflicts.split('\n') if c]
+                if not conflicts:
+                    self.info('Conflict detection failed')
+                    conflicts = [None]
                 return conflicts
             finally:
                 self.call("git", "reset", "--hard", "%s" % premerge_sha)
@@ -1511,7 +1515,7 @@ class GitRepository(object):
                         pr.get_number(), pr.get_login(), pr.get_title(),
                         '\n'.join('    - %s' % f for f in conflicts[pr]))
                 else:
-                    conflict_msg += "\n  - Uncommitted working changes\n%s" % (
+                    conflict_msg += "\n  - Conflict detection failed\n%s" % (
                         '\n'.join('    - %s' % f for f in conflicts[pr]))
         if upstream_conflicts:
             conflict_msg += '\n  - Upstream changes\n' + \
