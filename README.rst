@@ -65,7 +65,7 @@ Unit tests
 
 Unit tests are stored under the `test/unit` folder and can be run by calling::
 
-  python setup.py test -s test/unit
+  python setup.py test -t test/unit
 
 Unit tests are also run by the Travis_ build on every Pull Request opened
 against the main repository.
