@@ -997,7 +997,7 @@ class GitRepository(object):
         if return_stderr:
             return o, e
         if e:
-            self.log.error('stderr (%s): %s' , " ".join(command), e)
+            self.log.error('stderr (%s): %s', " ".join(command), e)
         return o
 
     def call_info(self, *command, **kwargs):
