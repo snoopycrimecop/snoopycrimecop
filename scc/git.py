@@ -980,6 +980,9 @@ class GitRepository(object):
             os.chdir(directory)
 
     def communicate(self, *command, **kwargs):
+        return_stderr = kwargs.pop('return_stderr', False)
+        kwargs['no_wait'] = True
+
         p = self.wrap_call(subprocess.PIPE, *command, **kwargs)
         o, e = p.communicate()
         p.stdout.close()
@@ -990,7 +993,12 @@ class GitRepository(object):
     stdout: %s
     stderr: %s""" % (" ".join(command), p.returncode, o, e)
             raise Exception(msg)
-        return o, e
+
+        if return_stderr:
+            return o, e
+        if e:
+            self.log.error('stderr (%s): %s' , " ".join(command), e)
+        return o
 
     def call_info(self, *command, **kwargs):
         """
