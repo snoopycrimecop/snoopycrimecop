@@ -42,7 +42,7 @@ class TestCheckPRs(SandboxTest):
     def create_issue_comment(self, HEAD, target_pr):
         parser, sub_parser = parsers()
         command = CheckPRs(sub_parser)
-        o, e = self.sandbox.communicate(
+        o = self.sandbox.communicate(
             "git", "log", "--oneline", "-n", "1", HEAD)
         sha1, num, rest = command.parse_pr(o.split("\n")[0])
 

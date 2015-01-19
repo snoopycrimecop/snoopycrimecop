@@ -952,7 +952,7 @@ class GitRepository(object):
 
         self.gh = gh
         self.path = path
-        root_path, e = self.communicate("git", "rev-parse", "--show-toplevel")
+        root_path = self.communicate("git", "rev-parse", "--show-toplevel")
         self.path = os.path.abspath(root_path.strip())
 
         self.get_status()
@@ -1062,7 +1062,7 @@ class GitRepository(object):
 
     def get_current_head(self):
         """Return the symbolic name for the current branch"""
-        o, e = self.communicate("git", "symbolic-ref", "HEAD")
+        o = self.communicate("git", "symbolic-ref", "HEAD")
         o = o.strip()
         refsheads = "refs/heads/"
         if o.startswith(refsheads):
@@ -1073,7 +1073,7 @@ class GitRepository(object):
         """Return the sha1 for the specified branch"""
 
         self.dbg("Get sha1 of %s")
-        o, e = self.communicate("git", "rev-parse", branch)
+        o = self.communicate("git", "rev-parse", branch)
         return o.strip()
 
     def get_current_sha1(self):
@@ -1194,7 +1194,7 @@ class GitRepository(object):
     def get_rev_list(self, commit):
         """Return first parent revision list for a given commit"""
         revlist_cmd = lambda x: ["git", "rev-list", "--first-parent", "%s" % x]
-        o, e = self.communicate(*revlist_cmd(commit), no_wait=True)
+        o = self.communicate(*revlist_cmd(commit))
         return o.splitlines()
 
     def has_local_changes(self):
@@ -2290,7 +2290,7 @@ Usage:
             else:
                 tag2 = args.remote + '/' + args.release2
 
-        o, e = repo.communicate(
+        o = repo.communicate(
             "git", "log", "--oneline", "--first-parent",
             "%s...%s" % (tag1, tag2))
 

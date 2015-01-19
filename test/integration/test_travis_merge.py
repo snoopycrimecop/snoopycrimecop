@@ -42,7 +42,7 @@ class TestTravisMerge(SandboxTest):
             self.sandbox.checkout_branch(self.base)
 
     def isMerged(self, ref='HEAD'):
-        revlist, o = self.sandbox.communicate("git", "rev-list", ref)
+        revlist = self.sandbox.communicate("git", "rev-list", ref)
         return [pr.head.sha in revlist.splitlines() for pr in self.pr]
 
     def teardown_method(self, method):

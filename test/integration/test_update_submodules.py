@@ -53,10 +53,10 @@ class TestUpdateSubmodules(SandboxTest):
 
         self.update_submodules()
         p0 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
-                                      "HEAD")[0]
+                                      "HEAD")
         self.update_submodules()
         p1 = self.sandbox.communicate("git", "log", "--oneline", "-n", "1",
-                                      "HEAD")[0]
+                                      "HEAD")
         assert p0 == p1
 
     def testPushNoPR(self):
