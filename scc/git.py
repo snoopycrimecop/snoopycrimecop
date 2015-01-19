@@ -1171,11 +1171,11 @@ class GitRepository(object):
             "HEAD..%s/%s" % (remote, base)
         ]
         merge_log = self.communicate(*args)
-        merge_log = merge_log.rstrip("/n")
+        merge_log = merge_log.rstrip("\n")
 
         args = ["git", "merge", "--ff-only", "%s/%s" % (remote, base)]
         msg = self.communicate(*args)
-        msg = msg.rstrip("/n").split("\n")[0] + "\n"
+        msg = msg.rstrip("\n").split("\n")[0] + "\n"
         self.dbg(msg)
         return msg, merge_log
 
