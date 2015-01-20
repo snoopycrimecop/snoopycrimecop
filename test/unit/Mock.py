@@ -34,6 +34,7 @@ class MoxTestBase(object):
         self.mox = Mox()
 
     def teardown_method(self, method):
+        self.mox.UnsetStubs()
         self.mox.VerifyAll()
 
 
