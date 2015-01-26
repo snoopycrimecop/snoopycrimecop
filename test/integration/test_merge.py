@@ -40,7 +40,7 @@ class MergeTest(SandboxTest):
         self.sandbox.checkout_branch(self.base)
 
     def isMerged(self, ref='HEAD'):
-        revlist, o = self.sandbox.communicate("git", "rev-list", ref)
+        revlist = self.sandbox.communicate("git", "rev-list", ref)
         return self.sha in revlist.splitlines()
 
     def teardown_method(self, method):
@@ -83,10 +83,10 @@ class TestMergePullRequest(MergeTest):
 
     def testShallowMerge(self):
 
-        pre_merge = self.sandbox.communicate("git", "submodule", "status")[0]
+        pre_merge = self.sandbox.communicate("git", "submodule", "status")
         self.merge("--shallow")
         assert self.isMerged()
-        post_merge = self.sandbox.communicate("git", "submodule", "status")[0]
+        post_merge = self.sandbox.communicate("git", "submodule", "status")
         assert pre_merge == post_merge
 
     def testMergePush(self):
@@ -221,7 +221,7 @@ class TestMergeConflicting(SandboxTest):
         assert not self.isMerged(self.sha2)
 
     def isMerged(self, sha, ref='HEAD'):
-        revlist, o = self.sandbox.communicate("git", "rev-list", ref)
+        revlist = self.sandbox.communicate("git", "rev-list", ref)
         return sha in revlist.splitlines()
 
     def stripLastComment(self, pr):
