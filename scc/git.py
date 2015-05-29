@@ -1261,7 +1261,12 @@ class GitRepository(object):
     def merge_base(self, a, b):
         """Return the first ancestor between two branches"""
 
-        mrg = self.communicate("git", "merge-base", a, b)
+        try:
+            mrg = self.communicate("git", "merge-base", a, b)
+        except Exception as e:
+            self.log.error(e)
+            raise Exception(
+                'Failed to find common ancestor of %s and %s' % (a, b))
         return mrg.strip()
 
     def list_remotes(self):
