@@ -1261,7 +1261,12 @@ class GitRepository(object):
     def merge_base(self, a, b):
         """Return the first ancestor between two branches"""
 
-        mrg = self.communicate("git", "merge-base", a, b)
+        try:
+            mrg = self.communicate("git", "merge-base", a, b)
+        except Exception as e:
+            self.log.error(e)
+            raise Exception(
+                'Failed to find common ancestor of %s and %s' % (a, b))
         return mrg.strip()
 
     def list_remotes(self):
@@ -1327,8 +1332,8 @@ class GitRepository(object):
         Return a list of files modified in parent since this PR was branched,
         suggesting a rebase may be necessary.
         """
-        files = self.communicate("git", "merge-base", upstream, sha)
-        common_base = files.split("\n")[0]
+        mrg = self.merge_base(upstream, sha)
+        common_base = mrg.split("\n")[0]
 
         files = self.communicate(
             "git", "diff", "--name-only", "%s..%s" % (common_base, upstream))
@@ -2713,7 +2718,7 @@ class AlreadyMerged(GitHubCommand):
         parts = input.split(" ")
         branch = parts[3]
         tip = main_repo.communicate("git", "rev-parse", branch)
-        mrg = main_repo.communicate("git", "merge-base", branch, target)
+        mrg = main_repo.merge_base(branch, target)
         if tip == mrg:
             print input
 
