@@ -4,9 +4,6 @@ python:
   - "2.6"
   - "2.7"
 
-virtualenv:
-  system_site_packages: true
-
 # This (sudo: false) is needed to "run on container-based infrastructure" on
 # which cache: is available
 # http://docs.travis-ci.com/user/workers/container-based-infrastructure/
@@ -18,10 +15,6 @@ before_install:
   - pip install -r requirements.txt
   - pip install flake8
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install argparse; fi
-  - git config --global github.token 3bc7fc530b01081559eb911f59ccfec7f4fb2592
-  - git config --global user.email snoopycrimecop@gmail.com
-  - git config --global user.name 'Snoopy Crime Cop'
-  - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
 before_script:
   - flake8 -v .
