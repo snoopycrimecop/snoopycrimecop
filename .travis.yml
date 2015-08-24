@@ -1,22 +1,24 @@
-notifications:
-  email:
-    - ome-ci@lists.openmicroscopy.org.uk
 language: python
+
 python:
   - "2.6"
   - "2.7"
-  - "2.7_with_system_site_packages"
+
+# This (sudo: false) is needed to "run on container-based infrastructure" on
+# which cache: is available
+# http://docs.travis-ci.com/user/workers/container-based-infrastructure/
+sudo: false
+
+cache: pip
+
 before_install:
   - pip install -r requirements.txt
   - pip install flake8
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install argparse; fi
-  - git config --global github.token 3bc7fc530b01081559eb911f59ccfec7f4fb2592
-  - git config --global user.email snoopycrimecop@gmail.com
-  - git config --global user.name 'Snoopy Crime Cop'
-  - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
-  - flake8 -v .
+
 before_script:
-  - python scc/main.py travis-merge
+  - flake8 -v .
+
 script:
   - python setup.py test -t test/unit -v
   - python setup.py sdist install
