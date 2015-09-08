@@ -2902,7 +2902,7 @@ class Merge(FilteredPullRequestsCommand):
         self.init_main_repo(args)
 
         try:
-            updated = self.merge(args, self.main_repo)
+            self.merge(args, self.main_repo)
         finally:
             if not args.info:
                 self.log.debug("Cleaning remote branches created for merging")
