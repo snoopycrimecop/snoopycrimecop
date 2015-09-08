@@ -2908,7 +2908,7 @@ class Merge(FilteredPullRequestsCommand):
                 self.log.debug("Cleaning remote branches created for merging")
                 self.main_repo.rcleanup()
 
-        if updated and args.push is not None:
+        if args.push is not None:
             self.push(args, self.main_repo)
 
     def merge(self, args, main_repo):
