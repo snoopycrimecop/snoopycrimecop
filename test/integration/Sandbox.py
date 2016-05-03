@@ -131,15 +131,18 @@ class SandboxTest(object):
         self.add_remote()
         self.sandbox.push_branch(branch, remote=self.user)
 
-    def open_pr(self, branch, base):
+    def open_pr(self, branch, base, description=None):
         """
         Push a local branch and open a PR against the selected base
         """
         self.push_branch(branch)
+        if description is None:
+            description = ("This is a call to Sandbox.open_pr by %s" %
+                           self.method)
+
         new_pr = self.sandbox.origin.open_pr(
             title="test %s" % branch,
-            description="This is a call to Sandbox.open_pr by %s"
-            % self.method,
+            description=description,
             base=base,
             head="%s:%s" % (self.user, branch))
 
