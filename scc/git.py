@@ -856,8 +856,8 @@ class GitHubRepository(object):
 
     def filter_pull(self, pullrequest, filters):
 
-        is_whitelisted_comment = lambda x: self.is_whitelisted(
-            x.user, filters["include"].get("user"))
+        def is_whitelisted_comment(x):
+            return self.is_whitelisted(x.user, filters["include"].get("user"))
 
         if pullrequest.parse(filters["exclude"].get("label"),
                              whitelist=is_whitelisted_comment):
@@ -1185,8 +1185,8 @@ class GitRepository(object):
 
     def get_rev_list(self, commit):
         """Return first parent revision list for a given commit"""
-        revlist_cmd = lambda x: ["git", "rev-list", "--first-parent", "%s" % x]
-        o = self.communicate(*revlist_cmd(commit))
+        args = ["git", "rev-list", "--first-parent", "%s" % commit]
+        o = self.communicate(*args)
         return o.splitlines()
 
     def has_local_changes(self):

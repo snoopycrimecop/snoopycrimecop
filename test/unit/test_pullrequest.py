@@ -195,8 +195,10 @@ class TestPullRequest(MoxTestBase):
                 comments.append("mock-comment-%s" % is_org_user)
 
         self.mox.ReplayAll()
-        whitelist = lambda x: org.has_in_public_members(x.user)
-        assert self.pr.get_comments(whitelist=whitelist) == comments
+
+        def org_whitelist(x):
+            return org.has_in_public_members(x.user)
+        assert self.pr.get_comments(whitelist=org_whitelist) == comments
 
     def test_create_issue_comment(self):
         comment = self.mox.CreateMock(IssueComment)
