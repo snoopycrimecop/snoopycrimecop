@@ -157,7 +157,8 @@ class TestMergePullRequest(MergeTest):
 
     def testEmptyDescription(self):
 
-        self.pr.edit(body='')
+        self.pr.edit(state="closed")
+        self.pr = self.open_pr(self.branch, self.base, description="")
         self.merge('--comment')
         assert self.isMerged()
         issue = self.sandbox.origin.get_issue(self.pr.number)
