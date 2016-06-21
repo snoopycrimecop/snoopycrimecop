@@ -2,6 +2,7 @@ Snoopy Crime Copy (SCC)
 =======================
 
 |Build Status|
+|Pypi|
 
 Introduction
 ------------
@@ -117,3 +118,6 @@ Copyright
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
    :target: http://travis-ci.org/openmicroscopy/snoopycrimecop
+
+.. |Pypi| image:: https://badge.fury.io/py/scc.svg
+    :target: https://badge.fury.io/py/scc
