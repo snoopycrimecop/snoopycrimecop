@@ -105,7 +105,7 @@ snoopycrimecop is released under the GPL.
 Copyright
 ---------
 
-2012-2013, The Open Microscopy Environment
+2012-2016, The Open Microscopy Environment
 
 .. _SCC-self-merge: http://hudson.openmicroscopy.org.uk/view/Mgmt/job/SCC-self-merge/
 .. _PyGithub: https://github.com/jacquev6/PyGithub
