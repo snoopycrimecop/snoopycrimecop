@@ -2,6 +2,7 @@ Snoopy Crime Copy (SCC)
 =======================
 
 |Build Status|
+|Pypi|
 
 Introduction
 ------------
@@ -104,7 +105,7 @@ snoopycrimecop is released under the GPL.
 Copyright
 ---------
 
-2012-2013, The Open Microscopy Environment
+2012-2016, The Open Microscopy Environment
 
 .. _SCC-self-merge: http://hudson.openmicroscopy.org.uk/view/Mgmt/job/SCC-self-merge/
 .. _PyGithub: https://github.com/jacquev6/PyGithub
@@ -117,3 +118,6 @@ Copyright
 
 .. |Build Status| image:: https://travis-ci.org/openmicroscopy/snoopycrimecop.png
    :target: http://travis-ci.org/openmicroscopy/snoopycrimecop
+
+.. |Pypi| image:: https://badge.fury.io/py/scc.svg
+    :target: https://badge.fury.io/py/scc
