@@ -2113,12 +2113,22 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
             for filt in getattr(args, ftype):
                 found = self._parse_key_value(ftype, filt)
+                if found:
+                    continue
 
-                if not found:
-                    found = self._parse_hash(ftype, filt)
+                found = self._parse_hash(ftype, filt)
+                if found:
+                    continue
 
-                if not found:
-                    self.filters[ftype].setdefault("label", []).append(filt)
+                found = self._parse_branch_string(ftype, filt)
+                if found:
+                    continue
+
+                found = self._parse_branch_url(ftype, filt)
+                if found:
+                    continue
+
+                self.filters[ftype].setdefault("label", []).append(filt)
 
         self.filters["status"] = args.check_commit_status
 
@@ -2154,7 +2164,9 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
         return True
 
     def _parse_url(self, ftype, value):
-        """Parse a URL pattern of type https://github.com/user/repo/pull/n"""
+        """
+        Parse a Pull Request URL of type https://github.com/user/repo/pull/n
+        """
         github_url = r'https://github.com/%s/pull/%s' % \
             (r'(?P<prefix>([\w-]+/[\w-]+))', r'(?P<nr>\d+)')
         url_pattern = re.compile(r'^' + github_url + '$')
@@ -2164,6 +2176,31 @@ ALL sets user:#all as the default include filter. Default: ORG.""")
 
         prefix = m.group('prefix')
         self.filters[ftype].setdefault(prefix, []).append('#' + m.group('nr'))
+        return True
+
+    def _parse_branch_string(self, ftype, value):
+        """Parse a branch string of type user/repo:branch"""
+        branch_pattern = r'(?P<prefix>([\w-]+/[\w-]+)):(?P<branch>[\.\w-]+)'
+        branch_pattern = re.compile('^' + branch_pattern + '$')
+        m = branch_pattern.match(value)
+        if not m:
+            return False
+        prefix = m.group('prefix')
+        self.filters[ftype].setdefault(prefix, []).append(m.group('branch'))
+        return True
+
+    def _parse_branch_url(self, ftype, value):
+        """Parse a branch URL of type
+           https://github.com/user/repo/tree/<branch>"""
+        github_url = r'https://github.com/%s/tree/%s' % \
+            (r'(?P<prefix>([\w-]+/[\w-]+))', r'(?P<branch>[\.\w-]+)')
+        url_pattern = re.compile(r'^' + github_url + '$')
+        m = url_pattern.match(value)
+        if not m:
+            return False
+
+        prefix = m.group('prefix')
+        self.filters[ftype].setdefault(prefix, []).append(m.group('branch'))
         return True
 
 

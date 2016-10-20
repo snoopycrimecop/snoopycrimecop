@@ -123,6 +123,25 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         self.filters[ftype] = {key: ['#' + value]}
         assert self.command.filters == self.filters
 
+    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
+    @pytest.mark.parametrize('value', [
+        'branch', 'branch-1', 'branch_1', 'branch_1.2.0-SNAPSHOT'])
+    def test_parse_branch_url(self, ftype, key, value):
+        self.command._parse_branch_url(
+            ftype, 'https://github.com/%s/tree/%s' % (key, value))
+        self.filters[ftype] = {key: [value]}
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
+    @pytest.mark.parametrize('value', [
+        'branch', 'branch-1', 'branch_1', 'branch_1.2.0-SNAPSHOT'])
+    def test_parse_branch_string(self, ftype, key, value):
+        self.command._parse_branch_string(ftype, '%s:%s' % (key, value))
+        self.filters[ftype] = {key: [value]}
+        assert self.command.filters == self.filters
+
 
 class FilteredPullRequestsCommandTest(MoxTestBase):
 
