@@ -69,6 +69,10 @@ class TestFilter(MockTest):
 
 class TestFilteredPullRequestsCommand(MoxTestBase):
 
+    TYPES = ['include', 'exclude']
+    REPOS = ['user/repo', 'user-1/repo-2']
+    BRANCHES = ['branch', 'branch-1', 'branch_1', 'branch_1.2.0-SNAPSHOT']
+
     def setup_method(self, method):
         super(TestFilteredPullRequestsCommand, self).setup_method(method)
         self.scc_parser, self.sub_parser = parsers()
@@ -77,23 +81,20 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         self.command.filters = {'include': {}, 'exclude': {}}
 
     @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('value', ['', '#12#12', 'pr:12'])
+    @pytest.mark.parametrize('value', ['', '#12#12', 'pr:12', '#st'])
     def test_parse_hash_invalid(self, ftype, value):
         rsp = self.command._parse_hash(ftype, value)
         assert not rsp
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize(('prefix', 'key'), [
-        ('', 'pr'), ('user/repo', 'user/repo'),
-        ('user-1/repo-1', 'user-1/repo-1')])
-    def test_parse_hash_pr(self, ftype, prefix, key):
-        rsp = self.command._parse_hash(ftype, '%s#1' % prefix)
-        self.filters[ftype] = {key: ['#1']}
+    @pytest.mark.parametrize('ftype', TYPES)
+    def test_parse_pr_hash(self, ftype):
+        rsp = self.command._parse_hash(ftype, '#1')
+        self.filters[ftype] = {'pr': ['#1']}
         assert rsp
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('ftype', TYPES)
     @pytest.mark.parametrize(
         'invalid_key_value',
         ['keyvalue', '#1', ':value', 'key:', 'user#repo:value'])
@@ -102,10 +103,9 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         assert not rsp
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
+    @pytest.mark.parametrize('ftype', TYPES)
     @pytest.mark.parametrize(
-        'key', ['user', 'label', 'pr', 'user/repo',
-                'user-1/repo-2'])
+        'key', ['user', 'label', 'pr', 'user/repo', 'user-1/repo-2'])
     @pytest.mark.parametrize('value', ['1', 'value', 'value-1', 'value/1'])
     def test_parse_key_value(self, ftype, key, value):
         self.command._parse_key_value(ftype, '%s:%s' % (key, value))
@@ -114,29 +114,35 @@ class TestFilteredPullRequestsCommand(MoxTestBase):
         self.filters[ftype] = {key: [value]}
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
+    @pytest.mark.parametrize('ftype', TYPES)
+    @pytest.mark.parametrize('key', REPOS)
+    def test_parse_pr_string(self, ftype, key):
+        rsp = self.command._parse_hash(ftype, '%s#1' % key)
+        self.filters[ftype] = {key: ['#1']}
+        assert rsp
+        assert self.command.filters == self.filters
+
+    @pytest.mark.parametrize('ftype', TYPES)
+    @pytest.mark.parametrize('key', REPOS)
     @pytest.mark.parametrize('value', ['1'])
-    def test_parse_url(self, ftype, key, value):
+    def test_parse_pr_github(self, ftype, key, value):
         self.command._parse_url(
             ftype, 'https://github.com/%s/pull/%s' % (key, value))
         self.filters[ftype] = {key: ['#' + value]}
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
-    @pytest.mark.parametrize('value', [
-        'branch', 'branch-1', 'branch_1', 'branch_1.2.0-SNAPSHOT'])
-    def test_parse_branch_url(self, ftype, key, value):
+    @pytest.mark.parametrize('ftype', TYPES)
+    @pytest.mark.parametrize('key', REPOS)
+    @pytest.mark.parametrize('value', BRANCHES)
+    def test_parse_branch_github(self, ftype, key, value):
         self.command._parse_branch_url(
             ftype, 'https://github.com/%s/tree/%s' % (key, value))
         self.filters[ftype] = {key: [value]}
         assert self.command.filters == self.filters
 
-    @pytest.mark.parametrize('ftype', ['include', 'exclude'])
-    @pytest.mark.parametrize('key', ['user/repo', 'user-1/repo-2'])
-    @pytest.mark.parametrize('value', [
-        'branch', 'branch-1', 'branch_1', 'branch_1.2.0-SNAPSHOT'])
+    @pytest.mark.parametrize('ftype', TYPES)
+    @pytest.mark.parametrize('key', REPOS)
+    @pytest.mark.parametrize('value', BRANCHES)
     def test_parse_branch_string(self, ftype, key, value):
         self.command._parse_branch_string(ftype, '%s:%s' % (key, value))
         self.filters[ftype] = {key: [value]}
