@@ -83,6 +83,7 @@ class PyTest(TestCommand):
         errno = pytest.main(self.test_args)
         sys.exit(errno)
 
+
 try:
     from yaclifw.version import get_git_version
     from scc import __file__ as module_file
