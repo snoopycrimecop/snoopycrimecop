@@ -143,10 +143,10 @@ class TestMergePullRequest(MergeTest):
 
     def testIncludeComment(self):
 
-        self.pr.create_issue_comment('--breaking')
+        self.pr.create_issue_comment('--foo')
         self.merge()
         assert not self.isMerged()
-        self.merge('-Dnone', '-Iuser:#org', '-Ibreaking', '-Eexclude')
+        self.merge('-Dnone','-Ifoo')
         assert self.isMerged()
 
     def testExcludeDescription(self):
