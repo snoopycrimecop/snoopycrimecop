@@ -140,14 +140,25 @@ class TestMergePullRequest(MergeTest):
         self.pr.create_issue_comment('--exclude')
         self.merge()
         assert not self.isMerged()
+        self.merge('-Dnone', '-Iuser:#org')
+        assert self.isMerged()
 
     def testIncludeComment(self):
+        """"Test PR inclusion using whitelisted comment"""
 
-        self.pr.create_issue_comment('--foo')
+        self.pr.create_issue_comment('--foo\n--exclude')
         self.merge()
+        # Default set of filters recognize --exclude comment
         assert not self.isMerged()
-        self.merge('-Dnone','-Ifoo')
+        self.merge('-Dnone', '-Ifoo')
+        # --foo comment should be whitelisted
         assert self.isMerged()
+        self.merge('-Dnone', '-Ifoo', '-Eexclude')
+        # --exclude filter takes priority
+        assert not self.isMerged()
+        self.merge('-Ifoo')
+        # Default set of filters recognize --exclude comment
+        assert not self.isMerged()
 
     def testExcludeDescription(self):
 
