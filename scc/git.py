@@ -857,7 +857,10 @@ class GitHubRepository(object):
     def filter_pull(self, pullrequest, filters):
 
         def is_whitelisted_comment(x):
-            return self.is_whitelisted(x.user, filters["include"].get("user"))
+            # Always include the organization filter for whitelisting comments
+            user_filters = filters["include"].setdefault("user", [])
+            user_filters.append('#org')
+            return self.is_whitelisted(x.user, user_filters)
 
         if pullrequest.parse(filters["exclude"].get("label"),
                              whitelist=is_whitelisted_comment):
