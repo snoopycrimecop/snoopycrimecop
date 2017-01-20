@@ -1669,7 +1669,6 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             # Create submodule filters
-            import copy
             sub_filters = copy.deepcopy(filters)
             # Do not copy top-level PRs
             for ftype in ["include", "exclude"]:
