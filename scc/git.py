@@ -846,8 +846,9 @@ class GitHubRepository(object):
 
         if excluded_pulls:
             msg += "Excluded PRs:\n"
-            for pull in excluded_pulls.keys():
-                msg += str(pull) + " (%s)" % excluded_pulls[pull] + "\n"
+            msg += "\n".join(["%s (%s)" % (str(key), str(value))
+                              for key, value in excluded_pulls.iteritems()])
+            msg += "\n"
 
         self.candidate_pulls.sort(lambda a, b:
                                   cmp(a.get_number(), b.get_number()))
