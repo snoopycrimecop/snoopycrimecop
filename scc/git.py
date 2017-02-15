@@ -22,6 +22,7 @@
 
 import argparse
 import re
+import copy
 import os
 import sys
 import uuid
@@ -857,7 +858,11 @@ class GitHubRepository(object):
     def filter_pull(self, pullrequest, filters):
 
         def is_whitelisted_comment(x):
-            return self.is_whitelisted(x.user, filters["include"].get("user"))
+            # Always include the organization filter for whitelisting comments
+            user_filters = copy.deepcopy(filters["include"].setdefault(
+                "user", []))
+            user_filters.append('#org')
+            return self.is_whitelisted(x.user, user_filters)
 
         if pullrequest.parse(filters["exclude"].get("label"),
                              whitelist=is_whitelisted_comment):
@@ -1606,7 +1611,6 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             # Create submodule filters
-            import copy
             sub_filters = copy.deepcopy(filters)
             for ftype in ["include", "exclude"]:
                 sub_filters.pop("pr", None)  # Do not copy top-level PRs
@@ -1665,7 +1669,6 @@ class GitRepository(object):
 
         for submodule_repo in self.submodules:
             # Create submodule filters
-            import copy
             sub_filters = copy.deepcopy(filters)
             # Do not copy top-level PRs
             for ftype in ["include", "exclude"]:
