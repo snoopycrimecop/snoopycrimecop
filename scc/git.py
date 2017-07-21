@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2012-2014 University of Dundee & Open Microscopy Environment
+# Copyright (C) 2012-2017 University of Dundee & Open Microscopy Environment
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -1470,28 +1470,34 @@ class GitRepository(object):
     def log_merge(self, merged_pulls, merged_branches, conflicting_pulls,
                   conflicting_branches):
 
-        merge_msg = ""
+        merge_msgs = []
+
         if merged_pulls:
-            merge_msg += "Merged PRs:\n"
+            merge_msg = "Merged PRs:\n"
             merge_msg += "\n".join([str(x) for x in merged_pulls])
             merge_msg += "\n"
+            merge_msgs.append(merge_msg)
 
         if merged_branches:
-            merge_msg += "Merged branches:\n"
+            merge_msg = "Merged branches:\n"
             merge_msg += "\n".join(["  # %s\n" % x for x in merged_branches])
             merge_msg += "\n"
+            merge_msgs.append(merge_msg)
 
         if conflicting_pulls:
-            merge_msg += "Conflicting PRs (not included):\n"
+            merge_msg = "Conflicting PRs (not included):\n"
             merge_msg += "\n".join([str(x) for x in conflicting_pulls])
             merge_msg += "\n"
+            merge_msgs.append(merge_msg)
 
         if conflicting_branches:
-            merge_msg += "Conflicting branches (not included):\n"
+            merge_msg = "Conflicting branches (not included):\n"
             merge_msg += "\n".join(["  # %s\n" % x for x in
                                     conflicting_branches])
             merge_msg += "\n"
-        return merge_msg
+            merge_msgs.append(merge_msg)
+
+        return "\n".join(merge_msgs)
 
     def get_conflicts_message(self, conflicts, upstream_conflicts):
         conflict_msg = ''
