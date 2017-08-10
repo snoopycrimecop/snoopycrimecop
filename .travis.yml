@@ -10,6 +10,7 @@ sudo: false
 cache: pip
 
 before_install:
+  - pip install -U setuptools
   - pip install -r requirements.txt
   - pip install flake8
 
