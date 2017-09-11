@@ -59,6 +59,8 @@ if IS_JENKINS_JOB:
 
 EMPTY_MSG = 'Empty PR description. Please add a short summary' \
     ' of the PR scope and some testing instructions.'
+
+CONFLICT_COMMENT = '--conflicts'
 #
 # Public global functions
 #
@@ -561,6 +563,18 @@ class PullRequest(object):
                     if line.startswith(pattern):
                         found_comments.append(line.replace(pattern, ""))
         return found_comments
+
+    def is_last_comment_conflicting(self, whitelist=lambda x: True):
+        comment = None
+        for comment in self.get_comments(whitelist=whitelist):
+            pass
+
+        if comment:
+            lines = comment.splitlines()
+            for line in lines:
+                if line.startswith(CONFLICT_COMMENT):
+                    return True
+        return False
 
     def get_title(self):
         """Return the title of the Pull Request."""
@@ -1528,12 +1542,17 @@ class GitRepository(object):
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
         conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
+        previous_conflict_status = pullrequest.is_last_comment_conflicting()
 
         if not conflict_files:
             if not pullrequest.body and comment and get_token():
                 self.dbg("Adding comment to Pull Request #%g."
                          % pullrequest.get_number())
                 pullrequest.create_issue_comment(EMPTY_MSG)
+            if previous_conflict_status:
+                self.dbg("Adding comment to Pull Request #%g."
+                         % pullrequest.get_number())
+                pullrequest.create_issue_comment("Conflict resolved")
             return True
 
         conflict_msg = "Conflicting PR."
@@ -1548,12 +1567,18 @@ class GitRepository(object):
         conflict_msg += self.get_conflicts_message(
             conflicts, upstream_conflicts)
 
+        conflict_msg += '\n\n%s\n' % CONFLICT_COMMENT
+
         self.info('%s\n%s', pullrequest, conflict_msg)
 
         if comment and get_token():
-            self.dbg("Adding comment to issue #%g." %
-                     pullrequest.get_number())
-            pullrequest.create_issue_comment(conflict_msg)
+            if previous_conflict_status:
+                self.dbg("Not adding comment to issue #%g, already %s.",
+                         pullrequest.get_number(), CONFLICT_COMMENT)
+            else:
+                self.dbg("Adding comment to issue #%g.",
+                         pullrequest.get_number())
+                pullrequest.create_issue_comment(conflict_msg)
         return False
 
     def merge_branch(self, remote, branch_name, commit_id="merge"):
