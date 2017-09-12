@@ -1544,6 +1544,13 @@ class GitRepository(object):
         conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
         previous_conflict_status = pullrequest.is_last_comment_conflicting()
 
+        if IS_JENKINS_JOB:
+            build_msg = (
+                "build [%s#%s](%s). "
+                "See the [console output](%s) for more details."
+                % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
+                   BUILD_URL + "consoleText"))
+
         if not conflict_files:
             if not pullrequest.body and comment and get_token():
                 self.dbg("Adding comment to Pull Request #%g."
@@ -1552,15 +1559,15 @@ class GitRepository(object):
             if previous_conflict_status:
                 self.dbg("Adding comment to Pull Request #%g."
                          % pullrequest.get_number())
-                pullrequest.create_issue_comment("Conflict resolved")
+                merged_msg = "Conflict resolved"
+                if IS_JENKINS_JOB:
+                    merged_msg += " in %s" % build_msg
+                pullrequest.create_issue_comment(merged_msg)
             return True
 
         conflict_msg = "Conflicting PR."
         if IS_JENKINS_JOB:
-            conflict_msg += " Removed from build [%s#%s](%s). See the " \
-                "[console output](%s) for more details." \
-                % (JOB_NAME, BUILD_NUMBER, BUILD_URL,
-                   BUILD_URL + "consoleText")
+            conflict_msg += " Removed from %s" % build_msg
 
         conflicts, upstream_conflicts = self.get_possible_conflicts(
             pullrequest, conflict_files, all_changed_files, upstream)
