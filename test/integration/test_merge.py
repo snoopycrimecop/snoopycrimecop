@@ -271,7 +271,7 @@ class TestMergeConflicting(SandboxTest):
         assert c2[-2].startswith('PR #')
         assert c2[-1] == 'conflict.txt'
 
-    def testMergeConflictComments(self):
+    def testMergeConflictAlreadyCommented(self):
         # This should inhibit additional conflict comments
         self.pr2.create_issue_comment('--conflicts')
         assert self.countComments(self.pr1) == 0
@@ -292,6 +292,20 @@ class TestMergeConflicting(SandboxTest):
         c2 = self.stripLastComment(self.pr2)
         assert c2[-4].startswith('PR #')
         assert c2[-3] == 'conflict.txt'
+        assert c2[-1] == 'conflicts'
+
+    def testMergeConflictResolved(self):
+        # Mark as previously conflicting
+        self.pr1.create_issue_comment('--conflicts')
+        assert self.countComments(self.pr1) == 1
+        assert self.countComments(self.pr2) == 0
+
+        self.merge("--comment")
+        assert self.countComments(self.pr1) == 2
+        assert self.countComments(self.pr2) == 1
+        c1 = self.stripLastComment(self.pr1)
+        c2 = self.stripLastComment(self.pr2)
+        assert c1[0].startswith('Conflict resolved')
         assert c2[-1] == 'conflicts'
 
     def teardown_method(self, method):
