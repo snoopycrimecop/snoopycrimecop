@@ -268,8 +268,9 @@ class TestMergeConflicting(SandboxTest):
         assert self.isMerged(self.sha1)
         assert not self.isMerged(self.sha2)
         assert c1 == []
-        assert c2[-2].startswith('PR #')
-        assert c2[-1] == 'conflict.txt'
+        assert c2[-4].startswith('PR #')
+        assert c2[-3] == 'conflict.txt'
+        assert c2[-1] == 'conflicts'
 
     def testMergeConflictAlreadyCommented(self):
         # This should inhibit additional conflict comments
