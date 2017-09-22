@@ -564,13 +564,18 @@ class PullRequest(object):
                         found_comments.append(line.replace(pattern, ""))
         return found_comments
 
-    def is_last_comment_conflicting(self, whitelist=lambda x: True):
+    def is_marked_as_conflicting(self, whitelist=lambda x: True):
+        """
+        A PR is considered marked as conflicting if the last comment
+        contains CONFLICT_COMMENT and there is no subsequent activity on
+        the PR. This means the default state of the PR is not conflicting.
+        """
         comment = None
-        for comment in self.get_comments(whitelist=whitelist):
+        for comment in self.get_comments(whitelist=whitelist, raw=True):
             pass
 
-        if comment:
-            lines = comment.splitlines()
+        if comment and comment.updated_at >= self.pull.updated_at:
+            lines = comment.body.splitlines()
             for line in lines:
                 if line.startswith(CONFLICT_COMMENT):
                     return True
@@ -640,7 +645,7 @@ class PullRequest(object):
             return [x.name for x in self.get_issue().labels]
 
     @retry_on_error(retries=SCC_RETRIES)
-    def get_comments(self, whitelist=lambda x: True):
+    def get_comments(self, whitelist=lambda x: True, raw=False):
         """Return the labels of the Pull Request."""
         if not self.has_issues():
             return []
@@ -648,6 +653,9 @@ class PullRequest(object):
         if not self.issue_comments and self.get_issue().comments:
             self.issue_comments = self.get_issue().get_comments()
 
+        if raw:
+            return [comment for comment in self.issue_comments
+                    if whitelist(comment)]
         return [comment.body for comment in self.issue_comments
                 if whitelist(comment)]
 
@@ -1542,7 +1550,7 @@ class GitRepository(object):
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
         conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
-        previous_conflict_status = pullrequest.is_last_comment_conflicting()
+        previous_conflict_status = pullrequest.is_marked_as_conflicting()
 
         if IS_JENKINS_JOB:
             build_msg = (
