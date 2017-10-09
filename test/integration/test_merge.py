@@ -302,11 +302,11 @@ class TestMergeConflicting(SandboxTest):
         assert self.countComments(self.pr2) == 0
 
         self.merge("--comment")
-        assert self.countComments(self.pr1) == 2
+        assert self.countComments(self.pr1) == 1
         assert self.countComments(self.pr2) == 1
         c1 = self.stripLastComment(self.pr1)
         c2 = self.stripLastComment(self.pr2)
-        assert c1[0].startswith('Conflict resolved')
+        assert c1[0].startswith('~~--conflicts~~')
         assert c2[-1] == 'conflicts'
 
     def teardown_method(self, method):

@@ -496,6 +496,13 @@ class Milestone(object):
 
 
 class PullRequest(object):
+    # Indicates the PR is marked as conflicting and there has been no
+    # subsequent activity
+    PR_IS_CONFLICTING = 1
+    # Indicates the PR was previously marked as conflicting but there has
+    # since been new activity
+    PR_WAS_CONFLICTING = 2
+
     def __init__(self, pull):
         """Register the Pull Request and its corresponding Issue"""
         self.log = logging.getLogger("scc.pr")
@@ -564,22 +571,52 @@ class PullRequest(object):
                         found_comments.append(line.replace(pattern, ""))
         return found_comments
 
-    def is_marked_as_conflicting(self, whitelist=lambda x: True):
-        """
-        A PR is considered marked as conflicting if the last comment
-        contains CONFLICT_COMMENT and there is no subsequent activity on
-        the PR. This means the default state of the PR is not conflicting.
-        """
+    def get_last_conflicting_comment(self, sccuser):
         comment = None
-        for comment in self.get_comments(whitelist=whitelist, raw=True):
+        for comment in self.get_comments(
+                whitelist=lambda c: c.user.login == sccuser, raw=True):
             pass
 
-        if comment and comment.updated_at >= self.pull.updated_at:
+        if comment:
             lines = comment.body.splitlines()
             for line in lines:
                 if line.startswith(CONFLICT_COMMENT):
-                    return True
-        return False
+                    return comment
+
+    def get_conflict_status(self, sccuser):
+        """
+        A PR is considered marked PR_IS_CONFLICTING if:
+        - the last comment contains CONFLICT_COMMENT
+        - the last comment was created by the scc user
+        - there is no subsequent activity on the PR
+
+        A PR is considered marked PR_WAS_CONFLICTING if:
+        - the last comment created by the scc user contains CONFLICT_COMMENT
+        - there has been subsequent activity on the PR
+
+        This means the default state of the PR is not conflicting.
+        """
+        status = 0
+        comment = self.get_last_conflicting_comment(sccuser)
+        if comment:
+            status = self.PR_IS_CONFLICTING
+            if comment.updated_at < self.pull.updated_at:
+                status = self.PR_WAS_CONFLICTING
+        return status
+
+    def resolve_conflict_status(self, sccuser, merged_msg):
+        """
+        Edit the last conflicting comment to indicate it was resolved
+        """
+        comment = self.get_last_conflicting_comment(sccuser)
+        if comment:
+            editted = []
+            lines = comment.body.splitlines()
+            for line in lines:
+                if line.startswith(CONFLICT_COMMENT):
+                    line = '~~%s~~ %s' % (line, merged_msg)
+                editted.append(line)
+            comment.edit('\n'.join(editted))
 
     def get_title(self):
         """Return the title of the Pull Request."""
@@ -1550,7 +1587,8 @@ class GitRepository(object):
         commit_msg = "%s: PR %s (%s)" % (
             commit_id, pullrequest.get_number(), pullrequest.get_title())
         conflict_files = self.safe_merge(pullrequest.get_sha(), commit_msg)
-        previous_conflict_status = pullrequest.is_marked_as_conflicting()
+        previous_conflict_status = pullrequest.get_conflict_status(
+            self.gh.get_login())
 
         if IS_JENKINS_JOB:
             build_msg = (
@@ -1565,12 +1603,14 @@ class GitRepository(object):
                          % pullrequest.get_number())
                 pullrequest.create_issue_comment(EMPTY_MSG)
             if previous_conflict_status:
-                self.dbg("Adding comment to Pull Request #%g."
+                # Resolve both PR_IS_CONFLICTING and PR_WAS_CONFLICTING
+                self.dbg("Resolving previous conflict on Pull Request #%g."
                          % pullrequest.get_number())
                 merged_msg = "Conflict resolved"
                 if IS_JENKINS_JOB:
                     merged_msg += " in %s" % build_msg
-                pullrequest.create_issue_comment(merged_msg)
+                pullrequest.resolve_conflict_status(
+                    self.gh.get_login(), merged_msg)
             return True
 
         conflict_msg = "Conflicting PR."
@@ -1587,7 +1627,7 @@ class GitRepository(object):
         self.info('%s\n%s', pullrequest, conflict_msg)
 
         if comment and get_token():
-            if previous_conflict_status:
+            if previous_conflict_status == PullRequest.PR_IS_CONFLICTING:
                 self.dbg("Not adding comment to issue #%g, already %s.",
                          pullrequest.get_number(), CONFLICT_COMMENT)
             else:
