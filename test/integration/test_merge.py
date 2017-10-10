@@ -232,6 +232,12 @@ class TestMergeConflicting(SandboxTest):
         assert not self.isMerged(self.sha1)
         assert not self.isMerged(self.sha2)
 
+    def countComments(self, pr):
+        """
+        Count the number of comments on a PR
+        """
+        return sum(1 for c in pr.get_issue_comments())
+
     def isMerged(self, sha, ref='HEAD'):
         revlist = self.sandbox.communicate("git", "rev-list", ref)
         return sha in revlist.splitlines()
@@ -262,8 +268,46 @@ class TestMergeConflicting(SandboxTest):
         assert self.isMerged(self.sha1)
         assert not self.isMerged(self.sha2)
         assert c1 == []
-        assert c2[-2].startswith('PR #')
-        assert c2[-1] == 'conflict.txt'
+        assert c2[-4].startswith('PR #')
+        assert c2[-3] == 'conflict.txt'
+        assert c2[-1] == 'conflicts'
+
+    def testMergeConflictAlreadyCommented(self):
+        # This should inhibit additional conflict comments
+        self.pr2.create_issue_comment('--conflicts')
+        assert self.countComments(self.pr1) == 0
+        assert self.countComments(self.pr2) == 1
+
+        self.merge("--comment")
+        assert self.countComments(self.pr1) == 0
+        assert self.countComments(self.pr2) == 1
+        c2 = self.stripLastComment(self.pr2)
+        assert c2 == ['conflicts']
+
+        # If another comment is made in the meantime then there should be a
+        # new conflicts message
+        self.pr2.create_issue_comment('Extra comment')
+        self.merge("--comment")
+        assert self.countComments(self.pr1) == 0
+        assert self.countComments(self.pr2) == 3
+        c2 = self.stripLastComment(self.pr2)
+        assert c2[-4].startswith('PR #')
+        assert c2[-3] == 'conflict.txt'
+        assert c2[-1] == 'conflicts'
+
+    def testMergeConflictResolved(self):
+        # Mark as previously conflicting
+        self.pr1.create_issue_comment('--conflicts')
+        assert self.countComments(self.pr1) == 1
+        assert self.countComments(self.pr2) == 0
+
+        self.merge("--comment")
+        assert self.countComments(self.pr1) == 1
+        assert self.countComments(self.pr2) == 1
+        c1 = self.stripLastComment(self.pr1)
+        c2 = self.stripLastComment(self.pr2)
+        assert c1[0].startswith('~~--conflicts~~')
+        assert c2[-1] == 'conflicts'
 
     def teardown_method(self, method):
         self.sandbox.push_branch(":%s" % self.branch1, remote=self.user)
