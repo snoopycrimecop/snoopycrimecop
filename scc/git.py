@@ -185,8 +185,8 @@ def get_token(local=False):
     """
     Get the GitHub API token.
     """
-    if os.getenv('SCC_GITHUB_TOKEN'):
-        return os.getenv('SCC_GITHUB_TOKEN')
+    if os.getenv('GITHUB_TOKEN'):
+        return os.getenv('GITHUB_TOKEN')
     return git_config("github.token", local=local)
 
 
