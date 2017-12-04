@@ -51,7 +51,7 @@ class SandboxTest(object):
                 assert p.wait() == 0
             self.sandbox = self.gh.git_repo(self.path)
             self.origin_remote = "origin"
-        except:
+        except Exception:
             try:
                 shutil.rmtree(self.path)
             finally:
@@ -74,7 +74,7 @@ class SandboxTest(object):
                 p = Popen(["git", "submodule", "update", "--init"],
                           stdout=dev_null, stderr=dev_null)
                 assert p.wait() == 0
-        except:
+        except Exception:
             os.chdir(self.path)
             raise
 

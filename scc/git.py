@@ -67,7 +67,7 @@ CONFLICT_COMMENT = '--conflicts'
 
 try:
     SCC_RETRIES = int(os.environ.get("SCC_RETRIES"))
-except:
+except Exception:
     SCC_RETRIES = 3
 GH_RETRY_CODES = [405, 502]
 
@@ -747,7 +747,7 @@ class GitHubRepository(object):
                 self.org = gh.get_organization(self.repo.organization.login)
             else:
                 self.org = None
-        except:
+        except Exception:
             self.log.error("Failed to find %s/%s", user_name, repo_name)
             raise
 
@@ -776,7 +776,7 @@ class GitHubRepository(object):
         pull_request_number, = args
         try:
             return self.repo.get_pull(pull_request_number)
-        except:
+        except Exception:
             self.log.error(
                 "Failure to get pull request %s/%s#%d" %
                 (self.user_name, self.repo_name, pull_request_number)
@@ -1093,7 +1093,7 @@ class GitRepository(object):
 
         try:
             no_wait = kwargs.pop("no_wait")
-        except:
+        except Exception:
             no_wait = False
 
         self.cd(self.path)
@@ -1458,7 +1458,7 @@ class GitRepository(object):
         try:
             self.call("git", "merge", "--no-ff", "-m", message, sha)
             return []
-        except:
+        except Exception:
             try:
                 conflicts = self.communicate(
                     "git", "diff", "--name-only", "--diff-filter=U")
@@ -1827,7 +1827,7 @@ class GitRepository(object):
         try:
             version = self.communicate("git", "describe")
             prefix = re.split('\d', version)[0]
-        except:
+        except Exception:
             # If no tag is present on the branch, git describe fails
             prefix = ""
 
@@ -1856,7 +1856,7 @@ class GitRepository(object):
             if self.has_remote_tag(tag_string):
                 self.log.info("Pushing %s to %s", tag_string, self.remote)
                 self.push_branch(tag_string, remote=self.remote)
-        except:
+        except Exception:
             self.log.warn("Failed to push", exc_info=1)
 
         try:
@@ -1864,7 +1864,7 @@ class GitRepository(object):
             if self.has_local_tag(tag_string):
                 self.log.info("Removing local tag %s", tag_string)
                 self.call("git", "tag", "-d", tag_string)
-        except:
+        except Exception:
             self.log.warn("Failed to remove local tag", exc_info=1)
 
     def rtagdelete(self, version):
@@ -1902,7 +1902,7 @@ class GitRepository(object):
         for submodule_repo in self.submodules:
             try:
                 submodule_repo.rcleanup()
-            except:
+            except Exception:
                 self.dbg("Failed to clean repository %s" % self.path)
             self.cd(self.path)
 
@@ -2402,7 +2402,7 @@ Usage:
             if line.split():
                 try:
                     sha1, num, rest = self.parse_pr(line)
-                except:
+                except Exception:
                     self.log.info("Unknown merge: %s", line)
                     continue
                 pr = PullRequest(repo.origin.get_pull(num))
@@ -2566,7 +2566,7 @@ command.
                 continue
             try:
                 line, rest = line.split(middle_marker)
-            except:
+            except Exception:
                 raise Exception("can't split on ##: " + line)
             if "See gh-" in rest or "n/a" in rest:
                 continue
@@ -2574,7 +2574,7 @@ command.
             try:
                 sha1, num, rest = self.parse_pr(line)
                 pr_list.append(num)
-            except:
+            except Exception:
                 self.log.info("Unknown merge: %s", line)
         return pr_list
 
@@ -3168,7 +3168,7 @@ class MilestoneCommand(GitRepoCommand):
         if args.date:
             try:
                 kwargs['due_on'] = datetime.strptime(args.date, '%d-%m-%Y')
-            except:
+            except Exception:
                 raise Stop(5, 'Date %s should be formatted as DD-MM-YYYY'
                            % args.date)
         return kwargs
@@ -3276,7 +3276,7 @@ class Rebase(GitRepoCommand):
         # commit we are on now in order to go back to it.
         try:
             old_branch = self.main_repo.get_current_head()
-        except:
+        except Exception:
             old_branch = self.main_repo.get_current_sha1()
 
         pr, new_branch = self.local_rebase(args.PR, args.newbase, args.remote,
@@ -3325,7 +3325,7 @@ class Rebase(GitRepoCommand):
 
             try:
                 self.main_repo.rebase(remote_newbase, branching_sha1, pr_head)
-            except:
+            except Exception:
                 raise Stop(20, self.get_conflict_message(pr_number, newbase))
 
         # Fail-fast if sha1 is the same as the new base
@@ -3353,7 +3353,7 @@ class Rebase(GitRepoCommand):
             try:
                 self.main_repo.push_branch(new_branch, remote=user)
                 push_msg = "# Pushed %s to %s" % (new_branch, user)
-            except:
+            except Exception:
                 self.log.info('Could not push to remote %s' % user)
 
         if not push_msg:
