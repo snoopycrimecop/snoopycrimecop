@@ -83,7 +83,7 @@ def entry_point():
     except KeyboardInterrupt:
         print "Cancelled"
         sys.exit(1)
-    except:
+    except Exception:
         traceback.print_exc()
         sys.exit(1)
 
