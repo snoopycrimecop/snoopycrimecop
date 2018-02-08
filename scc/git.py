@@ -32,6 +32,8 @@ import threading
 import datetime
 import difflib
 import socket
+import yaml
+import six
 from ssl import SSLError
 from yaclifw.framework import Command, Stop
 
@@ -1005,7 +1007,7 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path, remote="origin"):
+    def __init__(self, gh, path, remote="origin", config=None):
         """
         Register the git repository path, return the current status and
         register the GitHub origin remote.
@@ -1027,6 +1029,14 @@ class GitRepository(object):
         # Register the remote
         [user_name, repo_name] = self.get_remote_info(remote)
         self.remote = remote
+        self.config = config
+        if self.config is not None and \
+           isinstance(self.config, six.string_types):
+            self.dbg("Reading repository configuration from %s" % (config))
+            self.config = yaml.load(file(self.config, 'rb').read())
+        if self.config is not None:
+            self.dbg("Repository configuration:\n%s" %
+                     (yaml.dump(self.config)))
         self.submodules = []
         if gh:
             self.origin = gh.gh_repo(repo_name, user_name)
@@ -1034,8 +1044,13 @@ class GitRepository(object):
     def register_submodules(self):
         if len(self.submodules) == 0:
             for directory in self.get_submodule_paths():
+                config = None
+                if self.config is not None and \
+                   "submodules" in self.config and \
+                   directory in self.config["submodules"]:
+                    config = self.config["submodules"][directory]
                 try:
-                    submodule_repo = self.gh.git_repo(directory)
+                    submodule_repo = self.gh.git_repo(directory, config=config)
                     self.submodules.append(submodule_repo)
                     submodule_repo.register_submodules()
                 finally:
@@ -1736,8 +1751,14 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            if self.has_remote_branch(filters["base"], self.remote):
-                ff_msg, ff_log = self.fast_forward(filters["base"],
+            basebranch = filters["base"]
+            if "base-branch" in self.config:
+                self.log.info("Overriding base-branch from %s to %s" %
+                              (filters["base"],
+                               self.config["base-branch"]))
+                basebranch = self.config["base-branch"]
+            if self.has_remote_branch(basebranch, self.remote):
+                ff_msg, ff_log = self.fast_forward(basebranch,
                                                    remote=self.remote)
                 merge_msg += ff_msg
                 # Scan the ff log to produce a digest of the merged PRs
@@ -2044,7 +2065,8 @@ class GitRepoCommand(GitHubCommand):
         self.add_remote_arg()
 
     def init_main_repo(self, args):
-        self.main_repo = self.gh.git_repo(self.cwd, remote=args.remote)
+        self.main_repo = self.gh.git_repo(
+            self.cwd, remote=args.remote, config=args.config)
         if not args.shallow:
             self.main_repo.register_submodules()
         if args.reset:
@@ -3019,6 +3041,9 @@ class Merge(FilteredPullRequestsCommand):
             '--set-commit-status', action='store_true',
             help='Set success/failure status on latest commits in all PRs '
             'in the merge.')
+        self.parser.add_argument(
+            '--config',
+            help='Configuration file (YAML)')
         self.add_new_commit_args()
 
     def get_action(self):
