@@ -2071,9 +2071,12 @@ class GitRepoCommand(GitHubCommand):
         self.add_remote_arg()
 
     def init_main_repo(self, args):
+        repository_config = None
+        if hasattr(self, "repository_config"):
+            repository_config = self.repository_config
         self.main_repo = self.gh.git_repo(
             self.cwd, remote=args.remote,
-            repository_config=args.repository_config)
+            repository_config=repository_config)
         if not args.shallow:
             self.main_repo.register_submodules()
         if args.reset:
