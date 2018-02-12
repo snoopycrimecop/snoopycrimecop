@@ -1757,7 +1757,8 @@ class GitRepository(object):
             self.write_directories()
             presha1 = self.get_current_sha1()
             basebranch = filters["base"]
-            if "base-branch" in self.repository_config:
+            if self.repository_config is not None and \
+               "base-branch" in self.repository_config:
                 self.log.info("Overriding base-branch from %s to %s" %
                               (filters["base"],
                                self.repository_config["base-branch"]))
