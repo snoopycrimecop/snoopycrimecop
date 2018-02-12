@@ -2072,8 +2072,8 @@ class GitRepoCommand(GitHubCommand):
 
     def init_main_repo(self, args):
         repository_config = None
-        if hasattr(self, "repository_config"):
-            repository_config = self.repository_config
+        if hasattr(args, "repository_config"):
+            repository_config = args.repository_config
         self.main_repo = self.gh.git_repo(
             self.cwd, remote=args.remote,
             repository_config=repository_config)
