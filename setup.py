@@ -116,7 +116,11 @@ setup(name='scc',
       # More complex variables
       packages=['scc'],
       include_package_data=True,
-      install_requires=['yaclifw>=0.1.2', 'PyGithub', 'argparse'],
+      install_requires=['yaclifw>=0.1.2',
+                        'PyGithub',
+                        'argparse',
+                        'PyYAML==3.11',
+                        'six'],
       entry_points={'console_scripts': ['scc = scc.main:entry_point']},
       zip_safe=ZIP_SAFE,
 
