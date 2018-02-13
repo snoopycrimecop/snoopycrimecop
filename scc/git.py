@@ -1007,7 +1007,7 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path, remote="origin", push_branch="origin",
+    def __init__(self, gh, path, remote="origin", push_branch=None,
                  repository_config=None):
         """
         Register the git repository path, return the current status and
@@ -1842,9 +1842,10 @@ class GitRepository(object):
                            value=new_url)
 
                 # Substitute submodule branch
-                config_branch = "submodule.%s.branch" % path
-                git_config(config_branch, config_file=".gitmodules",
-                           value=self.push_branch_name)
+                if self.push_branch is not None:
+                    config_branch = "submodule.%s.branch" % path
+                    git_config(config_branch, config_file=".gitmodules",
+                               value=self.push_branch_name)
 
         updated = self.has_local_changes()
         if updated:
@@ -2081,7 +2082,7 @@ class GitRepoCommand(GitHubCommand):
         repository_config = None
         if hasattr(args, "repository_config"):
             repository_config = args.repository_config
-        push_branch = args.remote
+        push_branch = None
         if hasattr(args, "push"):
             push_branch = args.push
         self.main_repo = self.gh.git_repo(
