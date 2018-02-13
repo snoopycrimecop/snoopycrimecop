@@ -1007,7 +1007,8 @@ class GitHubRepository(object):
 
 class GitRepository(object):
 
-    def __init__(self, gh, path, remote="origin", repository_config=None):
+    def __init__(self, gh, path, remote="origin", push_branch="origin",
+                 repository_config=None):
         """
         Register the git repository path, return the current status and
         register the GitHub origin remote.
@@ -1029,6 +1030,7 @@ class GitRepository(object):
         # Register the remote
         [user_name, repo_name] = self.get_remote_info(remote)
         self.remote = remote
+        self.push_branch_name = push_branch
         self.repository_config = repository_config
         if self.repository_config is not None and \
            isinstance(self.repository_config, six.string_types):
@@ -1828,16 +1830,21 @@ class GitRepository(object):
             submodule_paths = self.get_submodule_paths()
             for path in submodule_paths:
                 # Read submodule URL registered in .gitmodules
-                config_name = "submodule.%s.url" % path
-                submodule_url = git_config(config_name,
+                config_url = "submodule.%s.url" % path
+                submodule_url = git_config(config_url,
                                            config_file=".gitmodules")
 
                 # Substitute submodule URL using connection login
                 user = self.gh.get_login()
                 pattern = '(.*github.com[:/]).*(/.*.git)'
                 new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
-                git_config(config_name, config_file=".gitmodules",
+                git_config(config_url, config_file=".gitmodules",
                            value=new_url)
+
+                # Substitute submodule branch
+                config_branch = "submodule.%s.branch" % path
+                git_config(config_branch, config_file=".gitmodules",
+                           value=self.push_branch_name)
 
         updated = self.has_local_changes()
         if updated:
@@ -2074,8 +2081,11 @@ class GitRepoCommand(GitHubCommand):
         repository_config = None
         if hasattr(args, "repository_config"):
             repository_config = args.repository_config
+        push_branch = args.remote
+        if hasattr(args, "push"):
+            push_branch = args.push
         self.main_repo = self.gh.git_repo(
-            self.cwd, remote=args.remote,
+            self.cwd, remote=args.remote, push_branch=push_branch,
             repository_config=repository_config)
         if not args.shallow:
             self.main_repo.register_submodules()
