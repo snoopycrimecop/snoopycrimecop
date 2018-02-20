@@ -1747,7 +1747,8 @@ class GitRepository(object):
         """Recursively merge PRs for each submodule."""
 
         if self.repository_config is not None and \
-           "base-branch" in self.repository_config:
+           "base-branch" in self.repository_config and \
+           filters["base"] != self.repository_config["base-branch"]:
             self.log.info("Overriding base-branch from %s to %s" %
                           (filters["base"],
                            self.repository_config["base-branch"]))
