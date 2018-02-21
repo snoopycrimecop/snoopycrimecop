@@ -894,7 +894,7 @@ class GitHubRepository(object):
                 filters[ftype].setdefault("pr", []).extend(
                     filters[ftype][repo_name])
 
-        # Loop over pull requests opened aGainst base
+        # Loop over pull requests opened against base
         pulls = self.get_pulls_by_base(filters["base"])
         excluded_pulls = {}
 
@@ -1746,6 +1746,14 @@ class GitRepository(object):
                set_commit_status=False, allow_empty=True, is_submodule=False):
         """Recursively merge PRs for each submodule."""
 
+        if self.repository_config is not None and \
+           "base-branch" in self.repository_config and \
+           filters["base"] != self.repository_config["base-branch"]:
+            self.log.info("Overriding base-branch from %s to %s" %
+                          (filters["base"],
+                           self.repository_config["base-branch"]))
+            filters["base"] = self.repository_config["base-branch"]
+
         updated = False
         merge_msg = ""
         merge_msg += str(self.origin) + "\n"
@@ -1758,15 +1766,8 @@ class GitRepository(object):
             self.cd(self.path)
             self.write_directories()
             presha1 = self.get_current_sha1()
-            basebranch = filters["base"]
-            if self.repository_config is not None and \
-               "base-branch" in self.repository_config:
-                self.log.info("Overriding base-branch from %s to %s" %
-                              (filters["base"],
-                               self.repository_config["base-branch"]))
-                basebranch = self.repository_config["base-branch"]
-            if self.has_remote_branch(basebranch, self.remote):
-                ff_msg, ff_log = self.fast_forward(basebranch,
+            if self.has_remote_branch(filters["base"], self.remote):
+                ff_msg, ff_log = self.fast_forward(filters["base"],
                                                    remote=self.remote)
                 merge_msg += ff_msg
                 # Scan the ff log to produce a digest of the merged PRs
