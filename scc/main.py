@@ -35,6 +35,7 @@ from git import CheckMilestone
 from git import CheckPRs
 from git import CheckStatus
 from git import DeleteTags
+from git import ExternalIssues
 from git import Label
 from git import Merge
 from git import MilestoneCommand
@@ -64,6 +65,7 @@ def entry_point():
             (Deploy.NAME, Deploy),
             (DeleteTags.NAME, DeleteTags),
             (Label.NAME, Label),
+            (ExternalIssues.NAME, ExternalIssues),
             (Merge.NAME, Merge),
             (MilestoneCommand.NAME, MilestoneCommand),
             (Rate.NAME, Rate),

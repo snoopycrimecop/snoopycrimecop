@@ -2935,6 +2935,43 @@ Removes all branches from your fork of snoopys-sandbox
                 raise Exception("Not possible!")
 
 
+class ExternalIssues(GitHubCommand):
+    """
+    Find issues opened by non-org users
+    """
+
+    NAME = "external-issues"
+
+    def __init__(self, sub_parsers):
+        super(ExternalIssues, self).__init__(sub_parsers)
+
+        self.parser.add_argument(
+            'orgs', nargs="+",
+            help="organizations that should be checked")
+
+    def __call__(self, args):
+        super(ExternalIssues, self).__call__(args)
+        self.login(args)
+        for org in args.orgs:
+            query = "is:open"
+            query += " is:issue"
+            query += " user:%s" % org
+            query += " archived:false"
+            org = self.gh.get_organization(org)
+            for m in org.get_members():
+                query += " -author:%s" % m.login
+            issues = []
+            for issue in self.gh.search_issues(query):
+                issues.append(' - [???] [\\[%s\\] %s ](%s) (%s)' % (
+                    issue.repository.name,
+                    issue.title,
+                    issue.html_url,
+                    issue.user.login,
+                ))
+            print "##", org.login, "(%s)" % len(issues), "##"
+            print "\n".join(sorted(issues))
+
+
 class Label(GitHubCommand):
     """
     Query/add/remove labels from GitHub issues.
