@@ -2972,6 +2972,37 @@ class ExternalIssues(GitHubCommand):
             print "\n".join(sorted(issues))
 
 
+class UnsubscribedRepos(GitHubCommand):
+    """
+    Find repositories which the current user is not subscribed to
+    """
+
+    NAME = "unsubscribed-repos"
+
+    def __init__(self, sub_parsers):
+        super(UnsubscribedRepos, self).__init__(sub_parsers)
+
+        self.parser.add_argument(
+            'orgs', nargs="+",
+            help="organizations that should be checked")
+
+    def __call__(self, args):
+        super(UnsubscribedRepos, self).__call__(args)
+        self.login(args)
+        login = self.gh.get_login()
+        for org in args.orgs:
+            print org
+            org = self.gh.get_organization(org)
+            for repo in org.get_repos():
+                found = False
+                for user in repo.get_subscribers():
+                    if user.login == login:
+                        found = True
+                        break
+                if not found:
+                    print "\t", repo.name
+
+
 class Label(GitHubCommand):
     """
     Query/add/remove labels from GitHub issues.

@@ -45,6 +45,7 @@ from git import SetCommitStatus
 from git import TagRelease
 from git import Token
 from git import TravisMerge
+from git import UnsubscribedRepos
 from git import UpdateSubmodules
 from deploy import Deploy
 from version import Version
@@ -75,6 +76,7 @@ def entry_point():
             (TagRelease.NAME, TagRelease),
             (TravisMerge.NAME, TravisMerge),
             (Version.NAME, Version),
+            (UnsubscribedRepos.NAME, UnsubscribedRepos),
             (UpdateSubmodules.NAME, UpdateSubmodules),
             ])
     except Stop, stop:
