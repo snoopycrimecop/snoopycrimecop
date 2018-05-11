@@ -1837,7 +1837,7 @@ class GitRepository(object):
 
                 # Substitute submodule URL using connection login
                 user = self.gh.get_login()
-                pattern = '(.*github.com[:/]).*(/.*.git)'
+                pattern = '(.*github.com[:/]).*(/.*(.git)?)'
                 new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
                 git_config(config_url, config_file=".gitmodules",
                            value=new_url)
