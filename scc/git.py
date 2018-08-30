@@ -71,7 +71,7 @@ try:
     SCC_RETRIES = int(os.environ.get("SCC_RETRIES"))
 except Exception:
     SCC_RETRIES = 3
-GH_RETRY_CODES = [405, 502]
+GH_RETRY_CODES = [405, 500, 502]
 
 
 def check_github_code(exception):
