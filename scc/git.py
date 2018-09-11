@@ -34,6 +34,7 @@ import difflib
 import socket
 import yaml
 import six
+import warnings
 from ssl import SSLError
 from yaclifw.framework import Command, Stop
 
@@ -320,6 +321,9 @@ class GHManager(object):
             'reset', 'limit', 'remaining', 'name', and 'time'
             which is a readable version of 'reset'.
         """
+        warnings.warn(
+            "This method is deprecated. Use get_rate_limit instead.",
+            DeprecationWarning)
         limits = dict(self.github.get_rate_limit()._rawData)
         core = limits["resources"]["core"]
         search = limits["resources"]["search"]
