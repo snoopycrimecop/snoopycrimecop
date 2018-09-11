@@ -2038,8 +2038,8 @@ class GitHubCommand(Command):
             # PyGithub 1.43 and above
             core = r.core
         logging.getLogger('scc.gh').debug(
-            "%s remaining from %s (Reset at %s" % (
-            core.remaining, core.limit, core.reset.strftime("%H:%m")))
+            "%s remaining from %s (Reset at %s" %
+            (core.remaining, core.limit, core.reset.strftime("%H:%m")))
 
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
@@ -3123,8 +3123,8 @@ class Rate(GitHubCommand):
 
         for key in rates:
             if rates[key]:
-                print ("%s: %s remaining from %s. Reset at %s" % (
-                       key, rates[key].remaining, rates[key].limit,
+                print ("%s: %s remaining from %s. Reset at %s" %
+                       (key, rates[key].remaining, rates[key].limit,
                         rates[key].reset.strftime("%H:%m")))
 
 
