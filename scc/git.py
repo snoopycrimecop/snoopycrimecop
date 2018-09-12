@@ -2036,11 +2036,12 @@ class GitHubCommand(Command):
     def show_rate(self):
         r = self.gh.get_rate_limit()
         try:
-            # PyGithub 1.42 and below
-            core = r.rate
-        except AttributeError:
             # PyGithub 1.43 and above
             core = r.core
+        except AttributeError:
+            # PyGithub 1.42 and below
+            core = r.rate
+
         logging.getLogger('scc.gh').debug(
             "%s remaining from %s (Reset at %s" %
             (core.remaining, core.limit, core.reset.strftime("%H:%m")))
@@ -3117,13 +3118,13 @@ class Rate(GitHubCommand):
 
         rates = {"core": None, "search": None, "graphql": None}
         try:
-            # PyGithub 1.42 and lower
-            rates["core"] = r.rate
-        except AttributeError:
             # PyGithub 1.43 and above
             rates["core"] = r.core
             rates["search"] = r.search
             rates["graphql"] = r.graphql
+        except AttributeError:
+            # PyGithub 1.42 and lower
+            rates["core"] = r.rate
 
         for key in rates:
             if rates[key]:
