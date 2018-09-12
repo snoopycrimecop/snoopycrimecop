@@ -1837,7 +1837,7 @@ class GitRepository(object):
 
                 # Substitute submodule URL using connection login
                 user = self.gh.get_login()
-                pattern = '(.*github.com[:/]).*(/.*.git)'
+                pattern = '(.*github.com[:/]).*(/.*(.git)?)'
                 new_url = re.sub(pattern, r'\1%s\2' % user, submodule_url)
                 git_config(config_url, config_file=".gitmodules",
                            value=new_url)
@@ -1957,15 +1957,16 @@ class GitRepository(object):
     def rpush(self, branch_name, remote, force=False):
         """Recursively push a branch to remotes across submodules"""
 
-        full_remote = remote % (self.origin.repo_name)
-        self.push_branch(branch_name, remote=full_remote, force=force)
-        self.dbg("Pushed %s to %s" % (branch_name, full_remote))
-
         for submodule_repo in self.submodules:
             try:
                 submodule_repo.rpush(branch_name, remote, force=force)
             finally:
                 self.cd(self.path)
+
+        full_remote = remote % (self.origin.repo_name)
+        self.gh.get_user().create_fork(self.origin.repo)
+        self.push_branch(branch_name, remote=full_remote, force=force)
+        self.dbg("Pushed %s to %s" % (branch_name, full_remote))
 
     def __del__(self):
         # We need to make sure our logging wrappers are closed when this
