@@ -34,6 +34,7 @@ import difflib
 import socket
 import yaml
 import six
+import warnings
 from ssl import SSLError
 from yaclifw.framework import Command, Stop
 
@@ -289,6 +290,10 @@ class GHManager(object):
         return self.github.get_repo(*args)
 
     @retry_on_error(retries=SCC_RETRIES)
+    def get_rate_limit(self):
+        return self.github.get_rate_limit()
+
+    @retry_on_error(retries=SCC_RETRIES)
     def get_rate_limits(self):
         """
         Input Data format:
@@ -316,6 +321,9 @@ class GHManager(object):
             'reset', 'limit', 'remaining', 'name', and 'time'
             which is a readable version of 'reset'.
         """
+        warnings.warn(
+            "This method is deprecated. Use get_rate_limit instead.",
+            DeprecationWarning)
         limits = dict(self.github.get_rate_limit()._rawData)
         core = limits["resources"]["core"]
         search = limits["resources"]["search"]
@@ -2027,10 +2035,17 @@ class GitHubCommand(Command):
         self.show_rate()
 
     def show_rate(self):
-        core, search = self.gh.get_rate_limits()
-        logging.getLogger('scc.gh').debug((
-            "%(remaining)s remaining from "
-            "%(limit)s (Reset at %(time)s)") % core)
+        r = self.gh.get_rate_limit()
+        try:
+            # PyGithub 1.43 and above
+            core = r.core
+        except AttributeError:
+            # PyGithub 1.42 and below
+            core = r.rate
+
+        logging.getLogger('scc.gh').debug(
+            "%s remaining from %s (Reset at %s" %
+            (core.remaining, core.limit, core.reset.strftime("%H:%m")))
 
     def parse_pr(self, line):
         m = self.pr_pattern.match(line)
@@ -3100,11 +3115,23 @@ class Rate(GitHubCommand):
     def __call__(self, args):
         super(Rate, self).__call__(args)
         self.login(args)
-        core, search = self.gh.get_rate_limits()
-        for name, data in (("Core", core), ("Search", search)):
-            msg = ("%(name)6s: %(remaining)4s remaining "
-                   "from %(limit)4s. Reset at %(time)s")
-            print msg % data
+        r = self.gh.get_rate_limit()
+
+        rates = {"core": None, "search": None, "graphql": None}
+        try:
+            # PyGithub 1.43 and above
+            rates["core"] = r.core
+            rates["search"] = r.search
+            rates["graphql"] = r.graphql
+        except AttributeError:
+            # PyGithub 1.42 and lower
+            rates["core"] = r.rate
+
+        for key in rates:
+            if rates[key]:
+                print ("%s: %s remaining from %s. Reset at %s" %
+                       (key, rates[key].remaining, rates[key].limit,
+                        rates[key].reset.strftime("%H:%m")))
 
 
 class Merge(FilteredPullRequestsCommand):
